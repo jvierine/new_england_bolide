@@ -18,7 +18,7 @@ DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
 def clip_time(data, t0, t1):
     keep = (data["t"] >= t0) & (data["t"] <= t1)
     out = {"station": data["station"], "range_km": data["range_km"], "t": data["t"][keep]}
-    for key in ("snr", "doppler", "az", "el", "score"):
+    for key in ("peak_power", "snr", "snr_time", "doppler", "az", "el", "score"):
         out[key] = data[key][keep, :]
     return out
 
@@ -37,9 +37,9 @@ def draw_panel_grid(datasets, out_png, title, snr_threshold_db):
         axes = axes[None, :]
 
     all_snr_db = [
-        10.0 * np.log10(np.maximum(d["snr"], 1e-12)).ravel()
+        10.0 * np.log10(np.maximum(d.get("snr_time", d["snr"]), 1e-12)).ravel()
         for d in datasets
-        if d["snr"].size
+        if d.get("snr_time", d["snr"]).size
     ]
     if all_snr_db:
         all_snr_db = np.concatenate(all_snr_db)
@@ -50,7 +50,8 @@ def draw_panel_grid(datasets, out_png, title, snr_threshold_db):
 
     all_dop = []
     for d in datasets:
-        good = d["snr"] >= threshold_linear
+        snr_plot = d.get("snr_time", d["snr"])
+        good = snr_plot >= threshold_linear
         vals = np.abs(np.where(good, d["doppler"], np.nan))
         if np.any(np.isfinite(vals)):
             all_dop.append(vals[np.isfinite(vals)])
@@ -62,8 +63,9 @@ def draw_panel_grid(datasets, out_png, title, snr_threshold_db):
         tplot = unix_to_mpl(d["t"])
         r = d["range_km"]
         station = d["station"]
-        snr_db = 10.0 * np.log10(np.maximum(d["snr"], 1e-12))
-        good = d["snr"] >= threshold_linear
+        snr_plot = d.get("snr_time", d["snr"])
+        snr_db = 10.0 * np.log10(np.maximum(snr_plot, 1e-12))
+        good = snr_plot >= threshold_linear
 
         ax = axes[row, 0]
         if d["snr"].size:

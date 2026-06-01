@@ -22,6 +22,7 @@ def read_chunk(fname):
                 "station": station,
                 "t": h["t_sample"][()] / sample_rate,
                 "range_km": h["range_km"][()],
+                "peak_power": h["peak_power"][()],
                 "snr": h["snr"][()],
                 "doppler": h["peak_doppler_hz"][()],
                 "az": h["aod_az_deg"][()],
@@ -45,9 +46,16 @@ def load_station(indir, station):
     t = np.concatenate([r["t"] for r in rows])
     order = np.argsort(t)
     out = {"station": station, "range_km": range_km, "t": t[order]}
-    for key in ("snr", "doppler", "az", "el", "score"):
+    for key in ("peak_power", "snr", "doppler", "az", "el", "score"):
         out[key] = np.concatenate([r[key] for r in rows], axis=0)[order, :]
+    out["snr_time"] = per_timestep_snr(out["peak_power"])
     return out
+
+
+def per_timestep_snr(power):
+    noise = np.nanmedian(power, axis=1)
+    noise = np.maximum(noise, 1e-12)
+    return power / noise[:, None]
 
 
 def unix_to_mpl(t):
@@ -62,9 +70,10 @@ def plot_station(data, outdir, snr_threshold_db):
 
     tplot = unix_to_mpl(data["t"])
     r = data["range_km"]
-    snr_db = 10.0 * np.log10(np.maximum(data["snr"], 1e-12))
+    snr_plot = data.get("snr_time", data["snr"])
+    snr_db = 10.0 * np.log10(np.maximum(snr_plot, 1e-12))
     threshold_linear = 10.0 ** (snr_threshold_db / 10.0)
-    good = data["snr"] >= threshold_linear
+    good = snr_plot >= threshold_linear
 
     plt.rcParams.update(
         {
