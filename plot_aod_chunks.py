@@ -12,21 +12,24 @@ import numpy as np
 
 
 def read_chunk(fname):
-    with h5py.File(fname, "r") as h:
-        if int(h.attrs.get("complete", 0)) != 1:
-            return None
-        station = h["station"][()].decode()
-        sample_rate = float(h["sample_rate"][()])
-        return {
-            "station": station,
-            "t": h["t_sample"][()] / sample_rate,
-            "range_km": h["range_km"][()],
-            "snr": h["snr"][()],
-            "doppler": h["peak_doppler_hz"][()],
-            "az": h["aod_az_deg"][()],
-            "el": h["aod_el_deg"][()],
-            "score": h["aod_score"][()],
-        }
+    try:
+        with h5py.File(fname, "r") as h:
+            if int(h.attrs.get("complete", 0)) != 1:
+                return None
+            station = h["station"][()].decode()
+            sample_rate = float(h["sample_rate"][()])
+            return {
+                "station": station,
+                "t": h["t_sample"][()] / sample_rate,
+                "range_km": h["range_km"][()],
+                "snr": h["snr"][()],
+                "doppler": h["peak_doppler_hz"][()],
+                "az": h["aod_az_deg"][()],
+                "el": h["aod_el_deg"][()],
+                "score": h["aod_score"][()],
+            }
+    except (BlockingIOError, OSError):
+        return None
 
 
 def load_station(indir, station):
