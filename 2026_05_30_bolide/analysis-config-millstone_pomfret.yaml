@@ -1,0 +1,167 @@
+General:
+  # when True, the processing starts after the last successful processing time.
+  start_where_left_of: True
+  shortterm_parfile_enable: False
+  shortterm_parfile_seconds: 600
+  shortterm_parfile_path: '/media/analysis/shortterm_parfiles/'
+
+Monitoring:
+  # enable the monitoring, monitoring data is only written if enabled.
+  enable_monitoring: True
+  # Path to store the monitoring figures at.
+  monitoring_figures_path: '/media/analysis/millstone6/figures/'
+  # Number of days for monitoring persistence storage
+  persistence_days: 7
+  # Number of hours to show in overview plots.
+  overview_hours: 6
+  # Number of hours to show in wind overview plots.
+  wind_overview_hours: 6
+  # only active if monitoring is enabled, plot one rti per chunk.
+  create_short_rtis: False
+  raw_rti_rx_indices: [0, 1]
+#  raw_rti_tx_indices: [0, 1, 2, 3, 4, 5]
+  raw_rti_tx_indices: [0, 1, 2, 3, 4]
+
+System:
+  # Name of the experiment
+  experiment_name: 'ongoing'
+  # The number of radar pulses per second (positive integer)
+  prf: 100
+  # Range resolution in meters
+  range_resolution: 3000
+  # Frequency of radar system in Hz (positive integer)
+  frequency: 31_650_000
+  # True if the polarisations are sampled separately at the receiver.
+  # If polarizations are sampled separately, consecutive channels must
+  # correspond to the same antenna position first one polarization
+  # following by the other (e.g. RX0-P0, RX0-P1, RX1-P0, RX1-P1, ...)
+  separate_polarisations: True
+  # The polarization to use in analysis
+  # in case of separatly sampled polarizations. (0, 1, circ_left, circ_right, optimum)
+  polarisation: optimum
+  # Receiving antenna positions in ENU coordinates, meters
+  # corresponding to the index of the channel in the raw data.
+  antenna_pos_rx: [
+    [0.0, 0.0, 0.0],
+  ]
+  # Transmitting antenna positions in ENU coordinates, meters
+  # corresponding to the index of the channel in the raw data.
+  antenna_pos_tx: [
+    [-16.14, -11.49,   0.83],
+    [-17.3 ,  11.89,   0.18],
+    [  4.47,  20.65,   0.19],
+    [ 18.85,   2.1 ,   1.29],
+    [  4.93, -17.88,   1.1 ],
+#    [ -0.35,  -0.02,   0.55],
+  ]
+
+  # range offset of the transmitter in meters
+  rangeoffset_rx: 0.0
+  # range offset of the receiver in meters
+  rangeoffset_tx: 0.0
+  # Gps coordinates of  (latitude, longitude, altitude in meters)
+  gps_rx: [43.71715598, -72.43466627, 152.834]
+  # Gps coordinates of  (latitude, longitude, altitude in meters)
+  gps_tx: [42.6114954, -71.4846655, 79.0]
+  name_rx: 'pomfret'
+  name_tx: 'haystack'
+  name_system: sandra
+  # define channels that get ignored completely in the analysis.
+  ignore_rx_channels: []
+  ignore_tx_channels: []
+
+
+Decoding:
+  # Rawdata top level path
+  drf_path: /media/rawdata/ringbuffer/
+  decoded_path: /media/analysis/millstone6/decoded/
+  detected_path: /media/analysis/millstone6/detected/
+  store_decoded: False
+  # timeout for reading the rawdata in seconds.
+  # (analysis stops when no more data is available).
+  # No timeout if left empty
+  drf_read_timeout: 
+  # Type of the coding used one of the supported below:
+  #   'coded-cw'  (pseudo random coded, seeds are used)
+  #   'barker'  (Barker codes)
+  code_type: 'coded-cw'
+  # The chunk size of the data to work on (seconds).
+  chunkseconds: 60
+  # The cores to run the analysis on
+  cores: '1-5'
+  # list of range index ranges that should be blanked
+  # example:
+  # rm_raw_range_idx: [[0,10], [20, 25]]
+  # to ignore all the range indizes from 0 to 9 and from 20 to 24
+  # pleas note that the upper bound is not included in the range
+  rm_raw_range_idx: []
+  # transmitters to remove from the rawdata before doing the decoding
+  # The most disturbing transmitter should be put first.
+  rm_cw_tx:
+      # example:
+      # kborn:
+      #     seeds: [5,20,608,1686,2755,4972]
+      #     rmin: 0
+      #     rmax: 35
+      #     n_coh_int: 16
+      #     snr_threshold: 6.0
+  coded-cw:
+    # Seeds used for pseudo random codes.
+#    seeds: [48, 915, 5976, 8952, 13898, 96159]
+    seeds: [48, 915, 5976, 8952, 13898]
+    # windowsize in sliding fft echo enhancement (normally 16 works fine)
+    n_coh_int: 16
+    # The maximum number of non zero values expected in one pulse
+    n_pulse_echoes: 20
+    # length of the code used (total number of samples per pulse)
+    n_code: 1000
+    # minimum range index of the decoded array
+    rmin_idx: 0
+    # maximum range index of the decoded array
+    rmax_idx: 350
+    # The number of sequences to split the code into.
+    # e.g. a 1000 bit code will be split into 2 500 bit codes
+    # when nseq = 2
+    nseq: 1
+    remove_spikes: True
+    remove_spikes_threshold: 5
+    remove_rfi: False
+    remove_rfi_threshold: 5
+    # Threshold to differentiate between noise and signal.
+    # Only values higher than this threshold will be considered as echoes.
+    # This threshold is divided by the number of Txs (ntxs) internally.
+    snr_threshold: 6.0
+    ridx_ignore: []
+  barker:
+    # Number of bits of the barker code
+    nbit: 7
+    # The number of samples for one pulse
+    samples_per_pulse: 160
+    det_integrations: 16
+    det_snr_threshold: 3.0
+    # When True, ignore the times where interference from the cw occurs.
+    cw_cleaning: True
+    plane_cleaning: True
+    # The percentage of the echo len compared to chunklen to clean
+    # between 1 (clean also very short echos)
+    # and 100 (clean everything)
+    plane_cleaning_perc: 50
+    ridx_ignore: []
+
+
+Analysis:
+  # The mode used for estimating the meteor position (MISO or SIMO)
+  aoa_mode: 'MISO'
+  parameter_path: /media/analysis/millstone6/parameter/
+
+
+Wind:
+  wind_path: /media/analysis/millstone6/wind/
+  # time sigma of the wind estimation window in s
+  time_sigma: 1800
+  # height sigma of the wind estimation window in m
+  height_sigma: 1000
+  # time resolution of the wind in s
+  time_resolution: 300
+  # height resolution of the wind in m
+  height_resolution: 1000
