@@ -48,7 +48,8 @@ def load_station(indir, station):
 
 
 def unix_to_mpl(t):
-    return mdates.epoch2num(np.asarray(t, dtype=float))
+    ns = np.asarray(np.asarray(t, dtype=float) * 1e9, dtype="datetime64[ns]")
+    return mdates.date2num(ns.astype("datetime64[us]").astype(object))
 
 
 def plot_station(data, outdir, snr_threshold_db):
