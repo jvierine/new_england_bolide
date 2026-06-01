@@ -318,6 +318,109 @@ def run_parallel(args):
         raise SystemExit(f"failed stations: {failed}")
 
 
+def chunk_starts(start_second, total_seconds, chunk_seconds):
+    n = int(np.ceil(total_seconds / chunk_seconds))
+    for i in range(n):
+        t0 = start_second + i * chunk_seconds
+        sec = min(chunk_seconds, start_second + total_seconds - t0)
+        if sec > 0:
+            yield i, t0, sec
+
+
+def run_batch(args):
+    out_dir = Path(args.out_dir)
+    if out_dir.exists() and any(out_dir.iterdir()) and not args.overwrite:
+        raise FileExistsError(f"{out_dir} exists and is non-empty; choose a new --out-dir or pass --overwrite")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    tasks = []
+    for station in args.stations:
+        r0, r1 = RANGE_WINDOWS_KM[station]
+        for chunk_i, t0, sec in chunk_starts(args.start_second, args.total_seconds, args.chunk_seconds):
+            out = out_dir / f"aod_peak_{station}_{int(round(t0 * 1000)):09d}ms_{int(round(sec * 1000)):06d}ms.h5"
+            cmd = [
+                sys.executable, __file__, "station",
+                "--data-dir", args.data_dir,
+                "--station", station,
+                "--iso-hour", args.iso_hour,
+                "--channels", *[str(ch) for ch in args.channels],
+                "--start-second", f"{t0:.6f}",
+                "--seconds", f"{sec:.6f}",
+                "--n-coh", str(args.n_coh),
+                "--codes-per-step", str(args.codes_per_step),
+                "--range-interp", str(args.range_interp),
+                "--range-min-km", str(r0),
+                "--range-max-km", str(r1),
+                "--fmin", str(args.fmin),
+                "--fmax", str(args.fmax),
+                "--snr-threshold-db", str(args.snr_threshold_db),
+                "--az-step", str(args.az_step),
+                "--el-step", str(args.el_step),
+                "--el-min", str(args.el_min),
+                "--el-max", str(args.el_max),
+                "--phase-sign", str(args.phase_sign),
+                "--progress-every", str(args.progress_every),
+                "--flush-every", str(args.flush_every),
+                "--out", str(out),
+            ]
+            if args.overwrite:
+                cmd += ["--overwrite"]
+            tasks.append((station, chunk_i, t0, sec, out, cmd))
+
+    print(f"Queued {len(tasks)} station/chunk jobs with max_parallel={args.max_parallel}", flush=True)
+    running = {}
+    task_i = 0
+    complete = 0
+    failed = []
+    t_batch = time.time()
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+
+    while task_i < len(tasks) or running:
+        while task_i < len(tasks) and len(running) < args.max_parallel:
+            station, chunk_i, t0, sec, out, cmd = tasks[task_i]
+            log = out.with_suffix(".log")
+            lf = open(log, "w")
+            proc = subprocess.Popen(cmd, stdout=lf, stderr=subprocess.STDOUT, text=True, env=env)
+            running[proc.pid] = {
+                "proc": proc,
+                "log": lf,
+                "station": station,
+                "chunk_i": chunk_i,
+                "t0": t0,
+                "sec": sec,
+                "out": out,
+            }
+            print(f"START pid={proc.pid} {station} chunk={chunk_i} t0={t0:.3f}s sec={sec:.3f}s out={out}", flush=True)
+            task_i += 1
+
+        time.sleep(args.poll_seconds)
+        for pid, info in list(running.items()):
+            rc = info["proc"].poll()
+            if rc is None:
+                continue
+            info["log"].close()
+            del running[pid]
+            complete += 1
+            elapsed = time.time() - t_batch
+            rate = complete / max(elapsed, 1e-9)
+            eta = (len(tasks) - complete) / max(rate, 1e-9)
+            status = "OK" if rc == 0 else f"FAILED rc={rc}"
+            print(
+                f"DONE {status} {complete}/{len(tasks)} pid={pid} "
+                f"{info['station']} chunk={info['chunk_i']} elapsed={elapsed:.1f}s eta={eta:.1f}s",
+                flush=True,
+            )
+            if rc != 0:
+                failed.append(info)
+
+    if failed:
+        print("Failed jobs:", flush=True)
+        for info in failed:
+            print(f"  {info['station']} chunk={info['chunk_i']} t0={info['t0']:.3f} out={info['out']}", flush=True)
+        raise SystemExit(1)
+
+
 def parser():
     p = argparse.ArgumentParser(description="AoD peak-Doppler matched-filter bank with complex voltage storage.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -355,6 +458,15 @@ def parser():
     add_common(pr)
     pr.add_argument("--stations", nargs="+", default=DEFAULT_STATIONS)
     pr.add_argument("--out-dir", required=True)
+
+    pb = sub.add_parser("batch")
+    add_common(pb)
+    pb.add_argument("--stations", nargs="+", default=DEFAULT_STATIONS)
+    pb.add_argument("--total-seconds", type=float, default=100.0)
+    pb.add_argument("--chunk-seconds", type=float, default=1.0)
+    pb.add_argument("--max-parallel", type=int, default=128)
+    pb.add_argument("--poll-seconds", type=float, default=2.0)
+    pb.add_argument("--out-dir", required=True)
     return p
 
 
@@ -362,8 +474,10 @@ def main():
     args = parser().parse_args()
     if args.cmd == "station":
         run_station(args)
-    else:
+    elif args.cmd == "parallel":
         run_parallel(args)
+    else:
+        run_batch(args)
 
 
 if __name__ == "__main__":

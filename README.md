@@ -77,3 +77,24 @@ python aod_peak_bank.py parallel \
 The AoD bank stores both `voltage_mf` and `voltage_lstsq` complex products with
 shape `[time, channel, range, tx_code]`, plus peak SNR, peak Doppler, and AoD
 estimates per range gate.
+
+For a many-core server, split the 18:06:20-to-end interval into independent
+station/time chunks. This avoids shared HDF5 writes and can use many cores:
+
+```bash
+python aod_peak_bank.py batch \
+  --start-second 80 \
+  --total-seconds 100 \
+  --chunk-seconds 1 \
+  --max-parallel 128 \
+  --codes-per-step 1 \
+  --range-interp 2 \
+  --snr-threshold-db 6 \
+  --az-step 2 \
+  --el-step 2 \
+  --out-dir products/aod_peak_180620_to_end_batch
+```
+
+This writes one file per station/chunk. Station range windows are built in:
+Beverly 0-300 km, Clinton 0-300 km, Pomfret 300-450 km, Siena 400-500 km, and
+Amherst 0-350 km.
