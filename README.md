@@ -69,8 +69,8 @@ python aod_peak_bank.py parallel \
   --codes-per-step 1 \
   --range-interp 2 \
   --snr-threshold-db 6 \
-  --az-step 2 \
-  --el-step 2 \
+  --grid-size 121 \
+  --max-zenith-angle 90 \
   --out-dir products/aod_peak_180620_to_end
 ```
 
@@ -90,11 +90,15 @@ python aod_peak_bank.py batch \
   --codes-per-step 1 \
   --range-interp 2 \
   --snr-threshold-db 6 \
-  --az-step 2 \
-  --el-step 2 \
+  --grid-size 121 \
+  --max-zenith-angle 90 \
   --out-dir products/aod_peak_180620_to_end_batch
 ```
 
 This writes one file per station/chunk. Station range windows are built in:
 Beverly 0-300 km, Clinton 0-300 km, Pomfret 300-450 km, Siena 400-500 km, and
 Amherst 0-350 km.
+
+The AoD search grid follows the PANSY interferometry style: a regular grid in
+horizontal direction cosines over a zenith-angle cap, with elevation and
+azimuth derived from the resulting ENU unit vectors.

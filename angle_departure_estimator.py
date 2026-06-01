@@ -84,6 +84,27 @@ def unit_vectors_enu(az_deg, el_deg):
     return np.stack((east, north, up), axis=-1)
 
 
+def regular_direction_grid(grid_size=121, max_zenith_angle=90.0):
+    """
+    Regular direction-cosine grid like the PANSY interferometry u/v search.
+
+    Returns ENU unit vectors with east/north sampled uniformly in horizontal
+    direction cosine and up derived from the unit sphere. Points outside the
+    requested zenith-angle cap are removed.
+    """
+    umax = np.sin(np.deg2rad(max_zenith_angle))
+    u = np.linspace(-umax, umax, int(grid_size), dtype=np.float64)
+    east, north = np.meshgrid(u, u)
+    h2 = east * east + north * north
+    keep = h2 <= umax * umax
+    up = np.sqrt(np.maximum(0.0, 1.0 - h2))
+    unit = np.column_stack((east[keep], north[keep], up[keep]))
+    az = np.rad2deg(np.arctan2(unit[:, 0], unit[:, 1]))
+    az = (az + 360.0) % 360.0
+    el = np.rad2deg(np.arcsin(unit[:, 2]))
+    return unit.astype(np.float32), az.astype(np.float32), el.astype(np.float32)
+
+
 def read_pick_from_rdmf(fname, snr_threshold=0.0):
     with h5py.File(fname, "r") as h:
         P = h["P"][()]

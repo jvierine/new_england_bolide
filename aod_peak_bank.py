@@ -11,7 +11,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from angle_departure_estimator import estimate_aod, load_station_yaml
+from angle_departure_estimator import estimate_aod, load_station_yaml, regular_direction_grid
 from range_doppler_mf_bolide import (
     detrend_window,
     get_codes,
@@ -45,7 +45,7 @@ def read_station_channels(args, site):
     return zc, sr, idx0
 
 
-def make_output(args, site, n_steps, range_idx, fvec):
+def make_output(args, site, n_steps, range_idx, fvec, dir_unit, dir_az, dir_el):
     ofile = Path(args.out)
     if ofile.exists() and not args.overwrite:
         raise FileExistsError(f"{ofile} exists; refusing to overwrite")
@@ -68,6 +68,9 @@ def make_output(args, site, n_steps, range_idx, fvec):
     h["range_idx"] = range_idx.astype(np.int32)
     h["range_km"] = range_km.astype(np.float32)
     h["fvec"] = fvec.astype(np.float32)
+    h["direction_unit_enu"] = dir_unit.astype(np.float32)
+    h["direction_az_deg"] = dir_az.astype(np.float32)
+    h["direction_el_deg"] = dir_el.astype(np.float32)
     h["sample_rate"] = float(args.sample_rate)
     h["t0_sample"] = float(args.abs_index0)
     h["n_coh"] = args.n_coh
@@ -92,27 +95,12 @@ def make_output(args, site, n_steps, range_idx, fvec):
     return h
 
 
-def steering_grid(site, az_grid, el_grid, phase_sign):
+def steering_grid(site, dir_unit, phase_sign):
     ant = site["antenna_pos_tx"]
     wavelength = 299792458.0 / site["frequency_hz"]
     k = 2.0 * np.pi / wavelength
-    dirs = []
-    az_out = []
-    el_out = []
-    for el in el_grid:
-        az = np.deg2rad(az_grid)
-        elr = np.deg2rad(el)
-        u = np.column_stack((
-            np.sin(az) * np.cos(elr),
-            np.cos(az) * np.cos(elr),
-            np.full_like(az, np.sin(elr)),
-        ))
-        phase = phase_sign * k * (u @ ant.T)
-        dirs.append(np.exp(1j * phase).astype(np.complex64))
-        az_out.append(az_grid.astype(np.float32))
-        el_out.append(np.full_like(az_grid, el, dtype=np.float32))
-    steering = np.vstack(dirs)
-    return steering, np.concatenate(az_out), np.concatenate(el_out)
+    phase = phase_sign * k * (dir_unit @ ant.T)
+    return np.exp(1j * phase).astype(np.complex64)
 
 
 def estimate_many_aod(voltages, snr_row, threshold_linear, steering, dir_az, dir_el):
@@ -175,11 +163,13 @@ def run_station(args):
     codes = get_codes(site["seeds"], site["code_len"], args.n_coh, range_interp=args.range_interp)
     codes_arr = np.array(codes)
     threshold_linear = 10.0 ** (args.snr_threshold_db / 10.0)
-    az_grid = np.arange(0.0, 360.0 + 0.5 * args.az_step, args.az_step)
-    el_grid = np.arange(args.el_min, args.el_max + 0.5 * args.el_step, args.el_step)
-    steering, dir_az, dir_el = steering_grid(site, az_grid, el_grid, args.phase_sign)
+    dir_unit, dir_az, dir_el = regular_direction_grid(
+        grid_size=args.grid_size,
+        max_zenith_angle=args.max_zenith_angle,
+    )
+    steering = steering_grid(site, dir_unit, args.phase_sign)
 
-    h = make_output(args, site, n_steps, range_idx, fvec0)
+    h = make_output(args, site, n_steps, range_idx, fvec0, dir_unit, dir_az, dir_el)
     t0 = time.time()
     try:
         for ti in range(n_steps):
@@ -285,10 +275,8 @@ def run_parallel(args):
             "--fmin", str(args.fmin),
             "--fmax", str(args.fmax),
             "--snr-threshold-db", str(args.snr_threshold_db),
-            "--az-step", str(args.az_step),
-            "--el-step", str(args.el_step),
-            "--el-min", str(args.el_min),
-            "--el-max", str(args.el_max),
+            "--grid-size", str(args.grid_size),
+            "--max-zenith-angle", str(args.max_zenith_angle),
             "--phase-sign", str(args.phase_sign),
             "--progress-every", str(args.progress_every),
             "--flush-every", str(args.flush_every),
@@ -354,10 +342,8 @@ def run_batch(args):
                 "--fmin", str(args.fmin),
                 "--fmax", str(args.fmax),
                 "--snr-threshold-db", str(args.snr_threshold_db),
-                "--az-step", str(args.az_step),
-                "--el-step", str(args.el_step),
-                "--el-min", str(args.el_min),
-                "--el-max", str(args.el_max),
+                "--grid-size", str(args.grid_size),
+                "--max-zenith-angle", str(args.max_zenith_angle),
                 "--phase-sign", str(args.phase_sign),
                 "--progress-every", str(args.progress_every),
                 "--flush-every", str(args.flush_every),
@@ -437,10 +423,8 @@ def parser():
         q.add_argument("--fmin", type=float, default=-50000.0)
         q.add_argument("--fmax", type=float, default=50000.0)
         q.add_argument("--snr-threshold-db", type=float, default=6.0)
-        q.add_argument("--az-step", type=float, default=2.0)
-        q.add_argument("--el-step", type=float, default=2.0)
-        q.add_argument("--el-min", type=float, default=0.0)
-        q.add_argument("--el-max", type=float, default=90.0)
+        q.add_argument("--grid-size", type=int, default=121)
+        q.add_argument("--max-zenith-angle", type=float, default=90.0)
         q.add_argument("--phase-sign", type=float, choices=[-1.0, 1.0], default=1.0)
         q.add_argument("--spike-sigma", type=float, default=0.0)
         q.add_argument("--progress-every", type=int, default=25)
