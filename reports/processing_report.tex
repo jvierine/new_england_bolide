@@ -245,6 +245,58 @@ detection point.
   \label{fig:trajectory-map}
 \end{figure}
 
+\section{Orbit and Source Association}
+
+The best-fit heliocentric orbit was obtained by propagating the fitted radar
+state backward with the JPL ephemeris until the object was outside
+0.01 AU from Earth, then converting the resulting state to Keplerian elements
+in the heliocentric mean ecliptic frame.  The same orbit was compared with the
+local MPC near-Earth asteroid catalogue in \texttt{data/NEA.txt} and with the
+2026 IAU Meteor Data Center established shower list in
+\texttt{data/streamestablisheddata2026.txt}.  The shower comparison uses only
+established-shower entries whose reference field contains Jenniskens or Brown.
+For showers, the catalogue orbital elements are compared without using a mean
+anomaly, because a meteor stream is not represented by a single body at a
+specified orbital phase.  The table therefore lists \(a,q,e,i,\omega,\Omega\),
+the catalogue geocentric J2000 radiant RA/Dec, the Jopek \(D_H\) orbital
+dissimilarity, and the angular radiant separation \(\Delta_R\).
+
+\begin{table}[ht]
+  \centering
+  \caption{Best-fit bolide orbit and the closest catalogue matches.  The NEA
+  entries are ranked from \texttt{data/NEA.txt}; the stream entries are ranked
+  from the established meteor stream catalogue.}
+  \resizebox{\linewidth}{!}{\input{orbit_source_table.tex}}
+  \label{tab:orbit-source}
+\end{table}
+
+The radar-derived radiant used for the stream comparison is the
+zenithal-attraction-corrected radiant from the orbit solution, not the apparent
+local radiant shown in Figure~\ref{fig:trajectory-altitude}.  The corrected
+radiant is estimated directly from the sampled orbital solutions and is shown
+with its 95\% uncertainty region in Figure~\ref{fig:shower-radiants}.  Shower
+marker area scales with the number of meteors \(N\) listed in the established
+shower catalogue, so large markers indicate better-populated shower solutions
+rather than larger angular uncertainty.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/shower_radiant_comparison.png}
+  \caption{Corrected bolide radiant compared with nearby established shower
+  radiants from Jenniskens or Brown catalogue entries.  The bolide marker and
+  shaded ellipse show the mean and sampled 95\% zenithal-attraction-corrected
+  radiant uncertainty.  Shower marker area scales with catalogue member count,
+  and color gives Jopek \(D_H\) orbital dissimilarity.}
+  \label{fig:shower-radiants}
+\end{figure}
+
+The closest NEA and established-shower entries are listed in
+Table~\ref{tab:orbit-source}.  Agreement in \(D_H\) alone is not taken as a
+source identification: the radiant RA/Dec and geocentric speed are additional
+constraints, and the closest orbital-element match can still be a poor radiant
+match.  Conversely, a nearby radiant without orbital-element agreement is also
+not sufficient for association.
+
 GOES-19 Geostationary Lightning Mapper (GLM) data provide an independent data
 source for this event.  Public reports noted a GLM optical burst over the
 Massachusetts coast at approximately the same time as the reported sonic boom.
