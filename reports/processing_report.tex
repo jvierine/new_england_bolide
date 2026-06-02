@@ -11,6 +11,7 @@
 \usepackage{xcolor}
 
 \input{report_stats.tex}
+\input{trajectory_stats.tex}
 \onehalfspacing
 \setlength{\parskip}{0.45em}
 \setlength{\parindent}{0pt}
@@ -156,13 +157,26 @@ divides out the median range power at each Doppler before the peak is selected.
 \section{Trajectory Fit and GOES-19 GLM Context}
 
 The current head-echo trajectory estimate is a straight-line fit to the manual
-head-echo ROIs from Beverly, Clinton, and Pomfret.  The fit uses both bistatic
-delay,
+head-echo ROIs from Beverly, Clinton, and Pomfret.  Within each station ROI,
+one measurement is extracted at each time step by choosing the range gate with
+the highest SNR, requiring SNR greater than 5 dB.  A robust outlier rejection
+step is then applied independently to each station's delay and Doppler
+sequence.  The current fit uses \TrajectoryNObservations{} retained
+measurements and rejects \TrajectoryNRejected{} ROI peak measurements as
+outliers.
+
+The fitted state is a six-parameter straight-line trajectory in the local ENU
+frame of the transmitter:
+\[
+  {\bf x}(t) = {\bf x}_0 + {\bf v}(t-t_0).
+\]
+Both bistatic delay and bistatic Doppler are fit simultaneously.  For each
+transmitter--meteor--receiver path, the delay model is
 \[
   \tau(t)=\frac{|{\bf x}(t)-{\bf x}_{\mathrm{tx}}|
              +|{\bf x}(t)-{\bf x}_{\mathrm{rx}}|}{c},
 \]
-and bistatic Doppler,
+and the bistatic Doppler model is
 \[
   f_D(t)=\frac{f_0}{c}
   \left[
@@ -175,6 +189,41 @@ and bistatic Doppler,
 \]
 This Doppler sign convention is the same as in the New Mexico bolide analysis:
 positive Doppler corresponds to an increasing total bistatic propagation path.
+The residual RMS values for the current fit are \TrajectoryRangeRmsM{} m in
+bistatic range and \TrajectoryDopplerRmsHz{} Hz in Doppler.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/head_echo_range_doppler_fit.png}
+  \caption{Range and Doppler measurements used in the head-echo trajectory
+  fit.  Points show the ROI-derived measurements after SNR thresholding and
+  outlier rejection; lines show the fitted straight-line trajectory model for
+  each bistatic path.}
+  \label{fig:trajectory-observables}
+\end{figure}
+
+The first retained detection occurs at \TrajectoryFirstDetectionUTC{}.  The
+best-fit initial detection height is \TrajectoryInitialHeightKm{} km at
+latitude \TrajectoryInitialLat{} deg and longitude \TrajectoryInitialLon{} deg.
+The fitted initial velocity is
+\[
+  {\bf v}_{\mathrm{ENU}} =
+  (\TrajectoryVEastKmS{},\ \TrajectoryVNorthKmS{},\ \TrajectoryVUpKmS{})
+  \ \mathrm{km\,s^{-1}},
+\]
+with speed \TrajectorySpeedKmS{} km s\(^{-1}\).  The large negative upward
+component indicates a steeply descending trajectory during the head-echo
+interval.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/head_echo_altitude_velocity.png}
+  \caption{Altitude and velocity implied by the straight-line fit over the
+  retained head-echo detection interval.  The fitted model is constant
+  velocity, so the speed and ENU velocity components are constant in this
+  preliminary fit.}
+  \label{fig:trajectory-altitude}
+\end{figure}
 
 \begin{figure}[ht]
   \centering
