@@ -7,6 +7,8 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 
+from station_config import short_station_name
+
 
 def read_rdmf(fname):
     with h5py.File(fname, "r") as h:
@@ -40,6 +42,7 @@ def main():
     args = p.parse_args()
 
     P, N, D, tvec, rvec_km, station, frequency_hz = read_rdmf(args.input)
+    station_name = short_station_name(station)
     tplot = datetime64_to_mpl(tvec)
     snr = P / np.maximum(N, 1e-12)
     snr_db = 10.0 * np.log10(np.maximum(snr, 1e-6))
@@ -64,7 +67,7 @@ def main():
     pcm = ax.pcolormesh(tplot, rvec_km, snr_db.T, shading="auto", cmap="inferno")
     cb = fig.colorbar(pcm, ax=ax)
     cb.set_label("SNR (dB)")
-    ax.set_title(f"{station} range-time intensity")
+    ax.set_title(f"{station_name} range-time intensity")
     ax.set_xlabel("Time (UTC)")
     ax.set_ylabel("Bistatic group range (km)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
@@ -88,7 +91,7 @@ def main():
     )
     cb = fig.colorbar(pcm, ax=ax)
     cb.set_label("Doppler shift (Hz)")
-    ax.set_title(f"{station} peak Doppler, SNR >= {args.snr_threshold:g}")
+    ax.set_title(f"{station_name} peak Doppler, SNR >= {args.snr_threshold:g}")
     ax.set_xlabel("Time (UTC)")
     ax.set_ylabel("Bistatic group range (km)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))

@@ -20,6 +20,14 @@ STATION_PLACE_NAMES = {
     "siena": "Siena College, New York",
 }
 
+STATION_SHORT_NAMES = {
+    "amherstnh": "Amherst",
+    "beverly": "Beverly",
+    "clinton": "Clinton",
+    "pomfret": "Pomfret",
+    "siena": "Siena",
+}
+
 TRANSMITTER_PLACE_NAMES = {
     "haystack": "Haystack, Massachusetts",
 }
@@ -42,6 +50,10 @@ class StationConfig:
 
 def human_station_name(station: str) -> str:
     return STATION_PLACE_NAMES.get(station, station)
+
+
+def short_station_name(station: str) -> str:
+    return STATION_SHORT_NAMES.get(station, station)
 
 
 def human_tx_name(tx_name: str) -> str:

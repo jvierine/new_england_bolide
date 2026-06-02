@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from plot_aod_chunks import unix_to_mpl
+from station_config import short_station_name
 
 
 DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
@@ -73,7 +74,7 @@ def draw(datasets, out_png, title, snr_vmax=None):
         snr_db = 10.0 * np.log10(np.maximum(snr, 1e-12))
         ax = axes[row, 0]
         snr_mesh = ax.pcolormesh(tplot, r, snr_db.T, shading="auto", cmap="inferno", vmin=snr_vmin, vmax=snr_vmax)
-        ax.set_ylabel(f"{d['station']}\nrange (km)")
+        ax.set_ylabel(f"{short_station_name(d['station'])}\nrange (km)")
         if row == 0:
             ax.set_title("Matched-filter RTI")
 

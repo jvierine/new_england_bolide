@@ -20,6 +20,7 @@ from angle_departure_estimator import (
     load_station_yaml,
 )
 from plot_head_echo_roi_points import load_points
+from station_config import short_station_name
 
 
 C = 299792458.0
@@ -372,7 +373,7 @@ def plot_cartopy_trajectory_uncertainty(out_dir, obs, fit, covariance, n_samples
             label=None if receiver_labeled else "receivers",
         )
         receiver_labeled = True
-        ax.text(rx_lon + 0.025, rx_lat + 0.015, station, fontsize=8, transform=data_crs, zorder=8)
+        ax.text(rx_lon + 0.025, rx_lat + 0.015, short_station_name(station), fontsize=8, transform=data_crs, zorder=8)
         if tx_key not in tx_seen:
             ax.scatter(tx_lon, tx_lat, marker="*", s=110, color="gold", edgecolor="0.2", transform=data_crs, zorder=7, label="transmitter")
             ax.text(tx_lon + 0.025, tx_lat + 0.015, "TX", fontsize=8, weight="bold", transform=data_crs, zorder=8)
@@ -603,8 +604,9 @@ def write_outputs(
     stations = sorted(set(o["station"] for o in obs))
     for station in stations:
         idx = np.array([i for i, o in enumerate(obs) if o["station"] == station])
-        ax.scatter(t[idx], np.array([obs[i]["range_m"] for i in idx]) / 1000.0, s=18, label=f"{station} obs")
-        ax.plot(t[idx], fit["pred_range_m"][idx] / 1000.0, lw=1.5, label=f"{station} fit")
+        station_name = short_station_name(station)
+        ax.scatter(t[idx], np.array([obs[i]["range_m"] for i in idx]) / 1000.0, s=18, label=f"{station_name} obs")
+        ax.plot(t[idx], fit["pred_range_m"][idx] / 1000.0, lw=1.5, label=f"{station_name} fit")
     ax.set_xlabel(f"Seconds relative to {iso_utc(fit['t_ref'])}")
     ax.set_ylabel("Bistatic range (km)")
     ax.set_title("Head echo range observations and straight-line trajectory fit")
@@ -674,10 +676,11 @@ def show_interactive_fit(obs, fit):
         fit_delay_ms = fit["pred_range_m"][order] / C * 1e3
         doppler_khz = np.array([obs[i]["doppler_hz"] for i in order]) / 1e3
         fit_doppler_khz = fit["pred_doppler_hz"][order] / 1e3
-        axes[0].scatter(t[order], delay_ms, s=26, label=f"{station} obs")
-        axes[0].plot(t[order], fit_delay_ms, lw=1.8, label=f"{station} fit")
-        axes[1].scatter(t[order], doppler_khz, s=26, label=f"{station} obs")
-        axes[1].plot(t[order], fit_doppler_khz, lw=1.8, label=f"{station} fit")
+        station_name = short_station_name(station)
+        axes[0].scatter(t[order], delay_ms, s=26, label=f"{station_name} obs")
+        axes[0].plot(t[order], fit_delay_ms, lw=1.8, label=f"{station_name} fit")
+        axes[1].scatter(t[order], doppler_khz, s=26, label=f"{station_name} obs")
+        axes[1].plot(t[order], fit_doppler_khz, lw=1.8, label=f"{station_name} fit")
 
     range_axis = axes[0].secondary_yaxis(
         "right",

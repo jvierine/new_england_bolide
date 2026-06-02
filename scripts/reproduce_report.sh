@@ -72,6 +72,8 @@ run python rdmf_peak_batch.py batch \
   --fmin -50000 \
   --fmax 50000 \
   --ignore-freq 0 \
+  --dc-cancel-start-second 75 \
+  --dc-cancel-seconds 5 \
   --doppler-whiten \
   --out-dir "$CHUNK_DIR" \
   --overwrite
@@ -100,6 +102,12 @@ run python estimate_head_echo_trajectory.py \
   --no-show
 
 run python reports/generate_trajectory_report_assets.py
+
+run python specular_trail_positions_from_merged.py \
+  --annotations annotations/trail_echo_rois.json \
+  --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --out-dir products/specular_trail_positions \
+  --report-fig reports/figures/head_echo_trajectory_trail_heatmap.png
 
 run python orbit_det_sample.py \
   --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \

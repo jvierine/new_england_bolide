@@ -1,0 +1,221 @@
+{
+  "description": "Near-zero-Doppler trail echo ROI labels from RTI products; all cells in the ROI may be used.",
+  "schema": "new_england_bolide.trail_echo_roi.v1",
+  "stations": {
+    "amherstnh": {
+      "has_trail_echo": true,
+      "range_km": {
+        "max": 348.75,
+        "min": 209.25
+      },
+      "selection": {
+        "max_abs_doppler_hz": 100.0,
+        "multiple_range_gates_per_time": true,
+        "range_window_km": [
+          200.0,
+          350.0
+        ],
+        "snr_threshold_db": 6.0
+      },
+      "source_file": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_amherstnh_merged.h5",
+      "summary": {
+        "abs_doppler_hz": {
+          "max": 87.5,
+          "median": 12.5
+        },
+        "n_cells": 4077,
+        "n_range_bins": 83,
+        "n_time_bins": 390,
+        "range_gates_per_time": {
+          "max": 21,
+          "median": 11.0,
+          "min": 1
+        },
+        "snr_db": {
+          "max": 15.093865394592285,
+          "median": 8.918055534362793,
+          "min": 6.000221252441406,
+          "p95": 13.353797912597656
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164384.91,
+        "end_utc": "2026-05-30T18:06:24.910000Z",
+        "start_unix": 1780164375.44,
+        "start_utc": "2026-05-30T18:06:15.440000Z"
+      }
+    },
+    "beverly": {
+      "has_trail_echo": true,
+      "range_km": {
+        "max": 258.0,
+        "min": 206.25
+      },
+      "selection": {
+        "max_abs_doppler_hz": 100.0,
+        "multiple_range_gates_per_time": true,
+        "range_window_km": [
+          180.0,
+          275.0
+        ],
+        "snr_threshold_db": 6.0
+      },
+      "source_file": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_beverly_merged.h5",
+      "summary": {
+        "abs_doppler_hz": {
+          "max": 50.0,
+          "median": 12.5
+        },
+        "n_cells": 6169,
+        "n_range_bins": 64,
+        "n_time_bins": 367,
+        "range_gates_per_time": {
+          "max": 31,
+          "median": 16.0,
+          "min": 1
+        },
+        "snr_db": {
+          "max": 20.193836212158203,
+          "median": 10.539227485656738,
+          "min": 6.000932693481445,
+          "p95": 16.861528396606445
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164384.91,
+        "end_utc": "2026-05-30T18:06:24.910000Z",
+        "start_unix": 1780164381.21,
+        "start_utc": "2026-05-30T18:06:21.210000Z"
+      }
+    },
+    "clinton": {
+      "has_trail_echo": true,
+      "range_km": {
+        "max": 276.0,
+        "min": 240.75
+      },
+      "selection": {
+        "max_abs_doppler_hz": 100.0,
+        "multiple_range_gates_per_time": true,
+        "range_window_km": [
+          220.0,
+          280.0
+        ],
+        "snr_threshold_db": 6.0
+      },
+      "source_file": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_clinton_merged.h5",
+      "summary": {
+        "abs_doppler_hz": {
+          "max": 87.5,
+          "median": 12.5
+        },
+        "n_cells": 4926,
+        "n_range_bins": 45,
+        "n_time_bins": 388,
+        "range_gates_per_time": {
+          "max": 21,
+          "median": 13.0,
+          "min": 1
+        },
+        "snr_db": {
+          "max": 16.801965713500977,
+          "median": 9.608370780944824,
+          "min": 6.001350402832031,
+          "p95": 14.536958694458008
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164384.91,
+        "end_utc": "2026-05-30T18:06:24.910000Z",
+        "start_unix": 1780164375.0,
+        "start_utc": "2026-05-30T18:06:15Z"
+      }
+    },
+    "pomfret": {
+      "has_trail_echo": true,
+      "range_km": {
+        "max": 400.5,
+        "min": 379.5
+      },
+      "selection": {
+        "max_abs_doppler_hz": 100.0,
+        "multiple_range_gates_per_time": true,
+        "range_window_km": [
+          350.0,
+          420.0
+        ],
+        "snr_threshold_db": 6.0
+      },
+      "source_file": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_pomfret_merged.h5",
+      "summary": {
+        "abs_doppler_hz": {
+          "max": 25.0,
+          "median": 12.5
+        },
+        "n_cells": 5738,
+        "n_range_bins": 29,
+        "n_time_bins": 402,
+        "range_gates_per_time": {
+          "max": 28,
+          "median": 15.0,
+          "min": 1
+        },
+        "snr_db": {
+          "max": 20.447566986083984,
+          "median": 10.882168769836426,
+          "min": 6.000493049621582,
+          "p95": 18.05593490600586
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164384.91,
+        "end_utc": "2026-05-30T18:06:24.910000Z",
+        "start_unix": 1780164380.67,
+        "start_utc": "2026-05-30T18:06:20.670000Z"
+      }
+    },
+    "siena": {
+      "has_trail_echo": true,
+      "range_km": {
+        "max": 418.5,
+        "min": 411.0
+      },
+      "selection": {
+        "max_abs_doppler_hz": 100.0,
+        "multiple_range_gates_per_time": true,
+        "range_window_km": [
+          400.0,
+          500.0
+        ],
+        "snr_threshold_db": 6.0
+      },
+      "source_file": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_siena_merged.h5",
+      "summary": {
+        "abs_doppler_hz": {
+          "max": 12.5,
+          "median": 12.5
+        },
+        "n_cells": 1143,
+        "n_range_bins": 11,
+        "n_time_bins": 185,
+        "range_gates_per_time": {
+          "max": 10,
+          "median": 7.0,
+          "min": 1
+        },
+        "snr_db": {
+          "max": 14.836875915527344,
+          "median": 8.57056713104248,
+          "min": 6.001169681549072,
+          "p95": 13.321249961853027
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164384.87,
+        "end_utc": "2026-05-30T18:06:24.870000Z",
+        "start_unix": 1780164381.33,
+        "start_utc": "2026-05-30T18:06:21.330000Z"
+      }
+    }
+  }
+}

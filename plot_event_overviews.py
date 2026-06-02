@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from plot_aod_chunks import load_station, unix_to_mpl
+from station_config import short_station_name
 
 
 DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
@@ -63,6 +64,7 @@ def draw_panel_grid(datasets, out_png, title, snr_threshold_db):
         tplot = unix_to_mpl(d["t"])
         r = d["range_km"]
         station = d["station"]
+        station_name = short_station_name(station)
         snr_plot = d.get("snr_time", d["snr"])
         snr_db = 10.0 * np.log10(np.maximum(snr_plot, 1e-12))
         good = snr_plot >= threshold_linear
@@ -72,7 +74,7 @@ def draw_panel_grid(datasets, out_png, title, snr_threshold_db):
             snr_mesh = ax.pcolormesh(
                 tplot, r, snr_db.T, shading="auto", cmap="inferno", vmin=snr_vmin, vmax=snr_vmax
             )
-        ax.set_ylabel(f"{station}\nrange (km)")
+        ax.set_ylabel(f"{station_name}\nrange (km)")
         if row == 0:
             ax.set_title("RTI / SNR")
 

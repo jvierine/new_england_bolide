@@ -24,6 +24,7 @@ from estimate_head_echo_trajectory import (
     predict_ranges,
     sample_fit_parameters,
 )
+from station_config import short_station_name
 
 
 DATA_DIR = ROOT / "2026_05_30_bolide"
@@ -87,6 +88,14 @@ def covariance_samples(fit, n_samples=800):
     )
 
 
+def prediction_interval_from_samples(sample_values, residual_half_width, coverage=0.95):
+    pred_mean = np.nanmean(sample_values, axis=0)
+    lo, hi = np.nanpercentile(sample_values, [(1.0 - coverage) * 50.0, 100.0 - (1.0 - coverage) * 50.0], axis=0)
+    param_half_width = np.maximum(pred_mean - lo, hi - pred_mean)
+    total_half_width = np.sqrt(param_half_width * param_half_width + residual_half_width * residual_half_width)
+    return pred_mean - total_half_width, pred_mean + total_half_width
+
+
 def plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples):
     obs = fit["observations"]
     t_ref = fit["t_ref_unix"]
@@ -106,16 +115,19 @@ def plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples):
         pred_dop_khz = predict_dopplers(params, model_obs, geom, t_ref, tx0, rot) / 1000.0
         sample_range = np.array([predict_ranges(p, model_obs, geom, t_ref, tx0, rot) / 1000.0 for p in samples])
         sample_dop = np.array([predict_dopplers(p, model_obs, geom, t_ref, tx0, rot) / 1000.0 for p in samples])
-        range_lo, range_hi = np.percentile(sample_range, [2.5, 97.5], axis=0)
-        dop_lo, dop_hi = np.percentile(sample_dop, [2.5, 97.5], axis=0)
+        range_residual_half_width_km = float(np.nanpercentile(np.abs(pred_range_km - range_km), 95.0))
+        doppler_residual_half_width_khz = float(np.nanpercentile(np.abs(pred_dop_khz - dop_khz), 95.0))
+        range_lo, range_hi = prediction_interval_from_samples(sample_range, range_residual_half_width_km)
+        dop_lo, dop_hi = prediction_interval_from_samples(sample_dop, doppler_residual_half_width_khz)
 
-        uncertainty_label = "95% fit uncertainty" if si == 0 else None
-        axes[0].scatter(tr, range_km, s=20, alpha=0.75, color=color, label=f"{station} measured")
+        uncertainty_label = "95% prediction interval" if si == 0 else None
+        station_name = short_station_name(station)
+        axes[0].scatter(tr, range_km, s=20, alpha=0.75, color=color, label=f"{station_name} measured")
         axes[0].fill_between(tr, range_lo, range_hi, color=color, alpha=0.18, linewidth=0, label=uncertainty_label)
-        axes[0].plot(tr, pred_range_km, color=color, lw=2.0, label=f"{station} fit")
-        axes[1].scatter(tr, dop_khz, s=20, alpha=0.75, color=color, label=f"{station} measured")
+        axes[0].plot(tr, pred_range_km, color=color, lw=2.0, label=f"{station_name} fit")
+        axes[1].scatter(tr, dop_khz, s=20, alpha=0.75, color=color, label=f"{station_name} measured")
         axes[1].fill_between(tr, dop_lo, dop_hi, color=color, alpha=0.18, linewidth=0, label=uncertainty_label)
-        axes[1].plot(tr, pred_dop_khz, color=color, lw=2.0, label=f"{station} fit")
+        axes[1].plot(tr, pred_dop_khz, color=color, lw=2.0, label=f"{station_name} fit")
 
     axes[0].set_ylabel("Bistatic range (km)")
     axes[0].set_title("Head-echo trajectory fit observables")
@@ -349,7 +361,7 @@ def plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples):
             label=None if receiver_labeled else "receivers",
         )
         receiver_labeled = True
-        ax.text(rx_lon + 0.025, rx_lat + 0.015, station, fontsize=8, transform=data_crs, zorder=8, clip_on=True)
+        ax.text(rx_lon + 0.025, rx_lat + 0.015, short_station_name(station), fontsize=8, transform=data_crs, zorder=8, clip_on=True)
         if tx_key not in tx_seen:
             ax.scatter(tx_lon, tx_lat, marker="*", s=110, color="gold", edgecolor="0.2", transform=data_crs, zorder=7, label="transmitter")
             ax.text(tx_lon + 0.025, tx_lat + 0.015, "TX", fontsize=8, weight="bold", transform=data_crs, zorder=8, clip_on=True)

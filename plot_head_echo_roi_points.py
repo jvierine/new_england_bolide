@@ -8,6 +8,8 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
+from station_config import short_station_name
+
 
 DEFAULT_ANNOTATIONS = "annotations/head_echo_rois.json"
 C = 299792458.0
@@ -141,10 +143,11 @@ def plot_points(points):
         d = np.array([p["doppler_hz"] for p in ps])
         s = np.array([p["snr_db"] for p in ps])
         axes[0].plot(t, delay_ms, lw=0.9, alpha=0.55)
-        axes[0].scatter(t, delay_ms, s=28, label=station)
+        label = short_station_name(station)
+        axes[0].scatter(t, delay_ms, s=28, label=label)
         axes[1].plot(t, d / 1e3, lw=0.9, alpha=0.55)
-        axes[1].scatter(t, d / 1e3, s=28, label=station)
-        axes[2].plot(t, s, marker=".", lw=1.0, label=station)
+        axes[1].scatter(t, d / 1e3, s=28, label=label)
+        axes[2].plot(t, s, marker=".", lw=1.0, label=label)
 
     range_axis = axes[0].secondary_yaxis(
         "right",

@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from plot_aod_chunks import load_station, unix_to_mpl
+from station_config import short_station_name
 
 
 DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
@@ -46,6 +47,7 @@ def plot_station_head(data, outdir, seconds, dynamic_doppler_hz):
     tplot = unix_to_mpl(t)
 
     station = data["station"]
+    station_name = short_station_name(station)
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -57,7 +59,7 @@ def plot_station_head(data, outdir, seconds, dynamic_doppler_hz):
 
     pcm = axes[0].pcolormesh(tplot, r, snr_db.T, shading="auto", cmap="inferno", vmin=snr_vmin, vmax=snr_vmax)
     fig.colorbar(pcm, ax=axes[0], label="dB")
-    axes[0].set_title(f"{station}: matched-filter RTI, incoherent average over 2 pols and all codes")
+    axes[0].set_title(f"{station_name}: matched-filter RTI, incoherent average over 2 pols and all codes")
     axes[0].set_ylabel("Range (km)")
 
     pcm = axes[1].pcolormesh(tplot, r, pwr_db.T, shading="auto", cmap="magma", vmin=pwr_vmin, vmax=pwr_vmax)

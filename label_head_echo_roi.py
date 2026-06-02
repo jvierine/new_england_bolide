@@ -7,6 +7,8 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+
+from station_config import short_station_name
 from matplotlib.patches import Rectangle
 from matplotlib.widgets import Button, RectangleSelector
 
@@ -171,7 +173,8 @@ class HeadEchoLabeler:
 
         snr_lim = np.nanpercentile(snr_db, [2, 99.7])
         self.ax_rti.pcolormesh(tplot, r, snr_db.T, shading="auto", cmap="inferno", vmin=snr_lim[0], vmax=snr_lim[1])
-        self.ax_rti.set_title(f"{self.data['station']} RTI / SNR")
+        station_name = short_station_name(self.data["station"])
+        self.ax_rti.set_title(f"{station_name} RTI / SNR")
         self.ax_rti.set_ylabel("Bistatic group range (km)")
         self.ax_rti.set_xlabel(f"Seconds after {iso_utc(self.t0_unix)}")
 
@@ -180,7 +183,7 @@ class HeadEchoLabeler:
         cmap = plt.cm.seismic.copy()
         cmap.set_bad("0.65")
         self.ax_dop.pcolormesh(tplot, r, dop.T, shading="auto", cmap=cmap, vmin=-vmax, vmax=vmax)
-        self.ax_dop.set_title(f"{self.data['station']} head-gated Doppler, SNR >= {self.snr_threshold:g} dB")
+        self.ax_dop.set_title(f"{station_name} head-gated Doppler, SNR >= {self.snr_threshold:g} dB")
         self.ax_dop.set_xlabel(f"Seconds after {iso_utc(self.t0_unix)}")
 
         for ax in (self.ax_rti, self.ax_dop):
@@ -327,7 +330,7 @@ class HeadEchoLabeler:
                 label = "head echo ROI saved"
             else:
                 label = "marked no head echo"
-            msg = f"{self.index + 1}/{len(self.files)} {station}: {label}"
+            msg = f"{self.index + 1}/{len(self.files)} {short_station_name(station)}: {label}"
         self.ax_status.clear()
         self.ax_status.axis("off")
         self.ax_status.text(0.0, 0.5, msg, va="center", ha="left", fontsize=10)

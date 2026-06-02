@@ -209,19 +209,43 @@ divides out the median range power at each Doppler before the peak is selected.
   \caption{Range--time intensity for all five stations over the
   high-resolution 18:06:18--18:06:25 UTC interval.  The plotted range windows
   are Beverly 180--275 km, Clinton 220--280 km, Pomfret 350--420 km, Siena
-  400--500 km, and Amherst 200--350 km.}
+  400--500 km, and Amherst 200--350 km.  The right-side manual labels mark the
+  meteor altitude inferred from the fitted head-echo trajectory at the
+  corresponding bistatic range for each station.}
   \label{fig:station-rti-snr}
 \end{figure}
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{figures/station_range_time_head_snr.png}
-  \caption{Range--time SNR over the same station range windows as
-  Figure~\ref{fig:station-rti-snr}, but using the meteor head-echo Doppler
-  selection criterion.  At each time and range gate, the plotted SNR is the
-  peak selected after requiring \(|f_D| \ge 250\) Hz, suppressing the
-  near-zero-Doppler trail/clutter bins emphasized in the all-Doppler RTI.}
+  \caption{Range--time SNR from 18:06:19 to 18:06:22 UTC over the same
+  station range windows as Figure~\ref{fig:station-rti-snr}, but using the
+  meteor head-echo Doppler selection criterion.  At each time and range gate,
+  the plotted SNR is the peak selected after requiring \(|f_D| \ge 250\) Hz,
+  suppressing the near-zero-Doppler trail/clutter bins emphasized in the
+  all-Doppler RTI.}
   \label{fig:station-rti-head-snr}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/station_range_time_head_doppler.png}
+  \caption{Doppler shift from 18:06:19 to 18:06:22 UTC for the same
+  head-echo-selected bins shown in Figure~\ref{fig:station-rti-head-snr}.
+  Values are shown only where the head-gated SNR is at least 7.5 dB.}
+  \label{fig:station-rti-head-doppler}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/trail_echo_roi.png}
+  \caption{Near-zero-Doppler trail echo ROI for Amherst, Siena, Pomfret,
+  Clinton, and Beverly.  The cyan contours mark cells with SNR at least 6 dB
+  and \(|f_D| < 100\) Hz; all qualifying range gates are retained, so multiple
+  range gates can contribute at one time step.  The right-side manual labels
+  mark the meteor altitude inferred from the fitted head-echo trajectory at the
+  corresponding bistatic range for each station.}
+  \label{fig:trail-echo-roi}
 \end{figure}
 
 \section{Trajectory Fit}
@@ -271,8 +295,9 @@ bistatic range and \TrajectoryDopplerRmsHz{} Hz in Doppler.
   \caption{Range and Doppler measurements used in the head-echo trajectory
   fit.  Points show the ROI-derived measurements after SNR thresholding and
   outlier rejection; lines show the fitted straight-line trajectory model for
-  each bistatic path.  Shaded bands show the sampled 95\% fit uncertainty
-  from the linearized least-squares covariance.}
+  each bistatic path.  Shaded bands show 95\% prediction intervals formed by
+  combining the sampled linearized parameter covariance with the empirical
+  post-fit range and Doppler residual scatter.}
   \label{fig:trajectory-observables}
 \end{figure}
 
@@ -317,6 +342,19 @@ detection point.
   \label{fig:trajectory-map}
 \end{figure}
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/head_echo_trajectory_trail_heatmap.png}
+  \caption{Non-specular trail echo positions from AoD and bistatic-delay
+  solutions, overlaid on the tri-static head-echo trajectory map.  Trail echo
+  cells are selected from the saved near-zero-Doppler ROIs with SNR at least
+  8 dB.  The heat map is built from Monte Carlo position samples using the
+  range-gate width and the assumed AoD angle uncertainty; white markers show
+  the corresponding nominal AoD plus range position solves.  A small
+  AoD-alias cluster north of Cape Cod is excluded before plotting.}
+  \label{fig:trajectory-trail-heatmap}
+\end{figure}
+
 \section{Orbit and Source Association}
 
 The best-fit heliocentric orbit was obtained by propagating the fitted radar
@@ -342,6 +380,15 @@ dissimilarity, and the angular radiant separation \(\Delta_R\).
   bolide epoch.}
   \label{fig:orbit-xy}
 \end{figure}
+
+\begin{table}[ht]
+  \centering
+  \caption{Bolide heliocentric mean-ecliptic orbital elements and corrected
+  geocentric radiant with 1-sigma Monte Carlo uncertainties propagated from the
+  six-parameter radar trajectory covariance.}
+  \resizebox{0.78\linewidth}{!}{\input{orbit_parameter_table.tex}}
+  \label{tab:orbit-parameters}
+\end{table}
 
 \begin{table}[ht]
   \centering

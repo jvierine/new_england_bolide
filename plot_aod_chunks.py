@@ -10,6 +10,8 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 
+from station_config import short_station_name
+
 
 def read_chunk(fname):
     try:
@@ -65,6 +67,7 @@ def unix_to_mpl(t):
 
 def plot_station(data, outdir, snr_threshold_db):
     station = data["station"]
+    station_name = short_station_name(station)
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -90,7 +93,7 @@ def plot_station(data, outdir, snr_threshold_db):
     fig, ax = plt.subplots(figsize=(10.5, 5.0), constrained_layout=True)
     pcm = ax.pcolormesh(tplot, r, snr_db.T, shading="auto", cmap="inferno")
     fig.colorbar(pcm, ax=ax, label="SNR (dB)")
-    ax.set_title(f"{station}: range-time intensity")
+    ax.set_title(f"{station_name}: range-time intensity")
     ax.set_xlabel("UTC")
     ax.set_ylabel("Bistatic group range (km)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
@@ -107,7 +110,7 @@ def plot_station(data, outdir, snr_threshold_db):
     fig, ax = plt.subplots(figsize=(10.5, 5.0), constrained_layout=True)
     pcm = ax.pcolormesh(tplot, r, dop.T, shading="auto", cmap=cmap, vmin=-vmax, vmax=vmax)
     fig.colorbar(pcm, ax=ax, label="Peak Doppler (Hz)")
-    ax.set_title(f"{station}: peak Doppler, SNR >= {snr_threshold_db:g} dB")
+    ax.set_title(f"{station_name}: peak Doppler, SNR >= {snr_threshold_db:g} dB")
     ax.set_xlabel("UTC")
     ax.set_ylabel("Bistatic group range (km)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
@@ -121,11 +124,11 @@ def plot_station(data, outdir, snr_threshold_db):
         fig, (ax0, ax1) = plt.subplots(2, 1, figsize=(10.5, 7.0), sharex=True, constrained_layout=True)
         sc = ax0.scatter(tplot[ti], r[ri], c=data["az"][ti, ri], s=7, cmap="twilight", vmin=0, vmax=360)
         fig.colorbar(sc, ax=ax0, label="Azimuth (deg)")
-        ax0.set_title(f"{station}: AoD azimuth, SNR >= {snr_threshold_db:g} dB")
+        ax0.set_title(f"{station_name}: AoD azimuth, SNR >= {snr_threshold_db:g} dB")
         ax0.set_ylabel("Bistatic group range (km)")
         sc = ax1.scatter(tplot[ti], r[ri], c=data["el"][ti, ri], s=7, cmap="viridis", vmin=0, vmax=90)
         fig.colorbar(sc, ax=ax1, label="Elevation (deg)")
-        ax1.set_title(f"{station}: AoD elevation")
+        ax1.set_title(f"{station_name}: AoD elevation")
         ax1.set_xlabel("UTC")
         ax1.set_ylabel("Bistatic group range (km)")
         ax1.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))

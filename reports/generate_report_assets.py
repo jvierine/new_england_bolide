@@ -17,6 +17,7 @@ from range_doppler_mf_bolide import (
     read_channel_files,
     rf_file_for_time,
 )
+from station_config import short_station_name
 
 
 DATA_DIR = ROOT / "2026_05_30_bolide"
@@ -131,7 +132,7 @@ def plot_detrend_example(spike_sigma=8.0):
     ax.axhline(threshold, color="0.25", ls="--", lw=1.2, label=f"{spike_sigma:g} x median(|sample|)")
     ax.axvline(0, color="0.4", lw=1.0)
     ax.set_title(
-        f"Example spike removed by detrend_window: {worst['station']} ch{worst['channel']}, "
+        f"Example spike removed by detrend_window: {short_station_name(worst['station'])} ch{worst['channel']}, "
         f"18:06:15+{worst['time_second']:.5f} s"
     )
     ax.set_xlabel("Time relative to spike (ms)")
@@ -292,7 +293,7 @@ def write_stats_tex(rows, total_samples, total_spikes, worst, snap, spike_sigma=
     lines.append(f"\\newcommand{{\\SpikeTotalSamples}}{{{total_samples:,}}}\n")
     lines.append(f"\\newcommand{{\\SpikeTotalRemoved}}{{{total_spikes:,}}}\n")
     lines.append(f"\\newcommand{{\\SpikeFractionPercent}}{{{100.0 * total_spikes / total_samples:.5f}\\%}}\n")
-    lines.append(f"\\newcommand{{\\WorstSpikeStation}}{{{worst['station']}}}\n")
+    lines.append(f"\\newcommand{{\\WorstSpikeStation}}{{{short_station_name(worst['station'])}}}\n")
     lines.append(f"\\newcommand{{\\WorstSpikeChannel}}{{{worst['channel']}}}\n")
     lines.append(f"\\newcommand{{\\WorstSpikeScore}}{{{worst['score']:.1f}}}\n")
     lines.append(f"\\newcommand{{\\WorstSpikeOffset}}{{{worst['time_second']:.5f}}}\n")
@@ -305,7 +306,7 @@ def write_stats_tex(rows, total_samples, total_spikes, worst, snap, spike_sigma=
     lines.append(f"\\newcommand{{\\BeverlySelectedSnr}}{{{snap['selected_doppler_snr_db']:.1f}}}\n")
     table = ["\\begin{tabular}{lrrrr}\n", "\\toprule\n", "Station & Channel & Samples & Removed & Fraction \\\\\n", "\\midrule\n"]
     for station, channel, n, count, _ in rows:
-        table.append(f"{station} & {channel} & {n:,} & {count:,} & {100.0 * count / n:.5f}\\% \\\\\n")
+        table.append(f"{short_station_name(station)} & {channel} & {n:,} & {count:,} & {100.0 * count / n:.5f}\\% \\\\\n")
     table.append("\\bottomrule\n\\end{tabular}\n")
     (ROOT / "reports" / "spike_stats_table.tex").write_text("".join(table), encoding="utf-8")
     (ROOT / "reports" / "report_stats.tex").write_text("".join(lines), encoding="utf-8")

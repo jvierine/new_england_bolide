@@ -1,0 +1,3394 @@
+{
+  "schema": "new_england_bolide.constrained_aod.v1",
+  "trajectory_json": "products/head_echo_trajectory_roi_fit/head_echo_trajectory.json",
+  "merged_dir": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431",
+  "phase_sign": -1.0,
+  "cone_deg": 20.0,
+  "grid_size": 361,
+  "min_snr_db": 8.0,
+  "n_observations": 124,
+  "n_used": 124,
+  "n_skipped": 0,
+  "summary_by_station": {
+    "beverly": {
+      "n": 61,
+      "weighted_best_az_deg": 134.52449412003557,
+      "weighted_best_el_deg": 36.86125515815937,
+      "weighted_prior_az_deg": 134.90340564549,
+      "weighted_prior_el_deg": 38.23047017871105,
+      "weighted_prior_offset_deg": 1.4017822647601403,
+      "median_per_pick_prior_offset_deg": 2.1133379552217457,
+      "median_score": 0.14860008656978607
+    },
+    "clinton": {
+      "n": 25,
+      "weighted_best_az_deg": 133.90332360052412,
+      "weighted_best_el_deg": 36.86069988793706,
+      "weighted_prior_az_deg": 135.2321969966324,
+      "weighted_prior_el_deg": 40.00942595823697,
+      "weighted_prior_offset_deg": 3.3162014313683605,
+      "median_per_pick_prior_offset_deg": 3.857381648335664,
+      "median_score": 0.15206009149551392
+    },
+    "pomfret": {
+      "n": 38,
+      "weighted_best_az_deg": 134.67624262881185,
+      "weighted_best_el_deg": 35.93641811470047,
+      "weighted_prior_az_deg": 134.9604998570597,
+      "weighted_prior_el_deg": 38.54592344989451,
+      "weighted_prior_offset_deg": 2.6192944965676017,
+      "median_per_pick_prior_offset_deg": 2.8658347032325957,
+      "median_score": 0.16920454055070877
+    }
+  },
+  "estimates": [
+    {
+      "best_unit_enu": [
+        0.5277777910232544,
+        -0.5444444417953491,
+        0.6519439220428467
+      ],
+      "best_az_deg": 135.89053539541635,
+      "best_el_deg": 40.688326107183634,
+      "prior_az_deg": 135.5683090187697,
+      "prior_el_deg": 41.736036545474036,
+      "prior_offset_deg": 1.0753473929715718,
+      "score": 0.15561163425445557,
+      "n_search_directions": 7928,
+      "station": "beverly",
+      "unix_time": 1780164380.28,
+      "range_km": 245.25,
+      "snr_db": 8.32787036895752,
+      "time_index": 528,
+      "range_index": 327,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5223973354402737,
+        -0.5328646786382955,
+        0.6656998258859681
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5555555820465088,
+        0.6136060357093811
+      ],
+      "best_az_deg": 134.71495103509835,
+      "best_el_deg": 37.85070204716801,
+      "prior_az_deg": 135.5683090187697,
+      "prior_el_deg": 41.736036545474036,
+      "prior_offset_deg": 3.940195625299705,
+      "score": 0.17270435392856598,
+      "n_search_directions": 7928,
+      "station": "pomfret",
+      "unix_time": 1780164380.28,
+      "range_km": 393.0,
+      "snr_db": 8.363215446472168,
+      "time_index": 528,
+      "range_index": 524,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5223973354402737,
+        -0.5328646786382955,
+        0.6656998258859681
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5555555820465088,
+        0.6136060357093811
+      ],
+      "best_az_deg": 134.71495103509835,
+      "best_el_deg": 37.85070204716801,
+      "prior_az_deg": 135.5483800800481,
+      "prior_el_deg": 41.63618398602906,
+      "prior_offset_deg": 3.8392693059588434,
+      "score": 0.18240909278392792,
+      "n_search_directions": 7904,
+      "station": "pomfret",
+      "unix_time": 1780164380.29,
+      "range_km": 393.0,
+      "snr_db": 9.346270561218262,
+      "time_index": 529,
+      "range_index": 524,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.523394316308081,
+        -0.5335102993862094,
+        0.6643983369223869
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.550000011920929,
+        0.6185905933380127
+      ],
+      "best_az_deg": 134.4270628696882,
+      "best_el_deg": 38.21328502423512,
+      "prior_az_deg": 135.52848184425244,
+      "prior_el_deg": 41.53617217742344,
+      "prior_offset_deg": 3.4286253833048734,
+      "score": 0.16710364818572998,
+      "n_search_directions": 7893,
+      "station": "pomfret",
+      "unix_time": 1780164380.3,
+      "range_km": 393.0,
+      "snr_db": 8.629159927368164,
+      "time_index": 530,
+      "range_index": 524,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5243912240891443,
+        -0.5341552673059085,
+        0.6630927495514051
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5555555820465088,
+        -0.5388888716697693,
+        0.6332114934921265
+      ],
+      "best_az_deg": 134.12754059673188,
+      "best_el_deg": 39.28746014952666,
+      "prior_az_deg": 135.5086142452738,
+      "prior_el_deg": 41.43600138574526,
+      "prior_offset_deg": 2.3923126441563185,
+      "score": 0.17305733263492584,
+      "n_search_directions": 7887,
+      "station": "pomfret",
+      "unix_time": 1780164380.31,
+      "range_km": 392.25,
+      "snr_db": 9.244877815246582,
+      "time_index": 531,
+      "range_index": 523,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5253880454733107,
+        -0.5347995709516323,
+        0.6617830615720568
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5555555820465088,
+        -0.5166666507720947,
+        0.6514703035354614
+      ],
+      "best_az_deg": 132.92282299338956,
+      "best_el_deg": 40.65254840063313,
+      "prior_az_deg": 135.4887772171772,
+      "prior_el_deg": 41.33567188181893,
+      "prior_offset_deg": 2.0535761597025552,
+      "score": 0.13792620599269867,
+      "n_search_directions": 7875,
+      "station": "beverly",
+      "unix_time": 1780164380.32,
+      "range_km": 243.75,
+      "snr_db": 8.429590225219727,
+      "time_index": 532,
+      "range_index": 325,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5263847670850295,
+        -0.5354431988391839,
+        0.6604692708958545
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.5722222328186035,
+        0.5590721964836121
+      ],
+      "best_az_deg": 133.64253354828696,
+      "best_el_deg": 33.991658205122505,
+      "prior_az_deg": 135.4887772171772,
+      "prior_el_deg": 41.33567188181893,
+      "prior_offset_deg": 7.487470364332177,
+      "score": 0.1566435992717743,
+      "n_search_directions": 7875,
+      "station": "clinton",
+      "unix_time": 1780164380.32,
+      "range_km": 264.0,
+      "snr_db": 9.134257316589355,
+      "time_index": 532,
+      "range_index": 352,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5263847670850295,
+        -0.5354431988391839,
+        0.6604692708958545
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5444444417953491,
+        -0.5388888716697693,
+        0.6427900195121765
+      ],
+      "best_az_deg": 134.70617728939555,
+      "best_el_deg": 40.00018024152756,
+      "prior_az_deg": 135.4887772171772,
+      "prior_el_deg": 41.33567188181893,
+      "prior_offset_deg": 1.4614808183344838,
+      "score": 0.1444764882326126,
+      "n_search_directions": 7875,
+      "station": "pomfret",
+      "unix_time": 1780164380.32,
+      "range_km": 391.5,
+      "snr_db": 8.227797508239746,
+      "time_index": 532,
+      "range_index": 522,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5263847670850295,
+        -0.5354431988391839,
+        0.6604692708958545
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5277777910232544,
+        0.6376557946205139
+      ],
+      "best_az_deg": 133.24659680253563,
+      "best_el_deg": 39.61723928084029,
+      "prior_az_deg": 135.46897069420112,
+      "prior_el_deg": 41.23518394122293,
+      "prior_offset_deg": 2.3407603520747022,
+      "score": 0.12795187532901764,
+      "n_search_directions": 7856,
+      "station": "beverly",
+      "unix_time": 1780164380.33,
+      "range_km": 243.75,
+      "snr_db": 8.119288444519043,
+      "time_index": 533,
+      "range_index": 325,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5273813754836895,
+        -0.5360861394463458,
+        0.6591513755477149
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.2222222238779068,
+        0.781242311000824
+      ],
+      "best_az_deg": 110.85445883079831,
+      "best_el_deg": 51.374461374114865,
+      "prior_az_deg": 135.46897069420112,
+      "prior_el_deg": 41.23518394122293,
+      "prior_offset_deg": 19.656479400688816,
+      "score": 0.1224200427532196,
+      "n_search_directions": 7856,
+      "station": "clinton",
+      "unix_time": 1780164380.33,
+      "range_km": 264.0,
+      "snr_db": 9.082916259765625,
+      "time_index": 533,
+      "range_index": 352,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5273813754836895,
+        -0.5360861394463458,
+        0.6591513755477149
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5388888716697693,
+        0.6380429267883301
+      ],
+      "best_az_deg": 134.41536794330227,
+      "best_el_deg": 39.64603979890975,
+      "prior_az_deg": 135.46897069420112,
+      "prior_el_deg": 41.23518394122293,
+      "prior_offset_deg": 1.7799510028452645,
+      "score": 0.1519429236650467,
+      "n_search_directions": 7856,
+      "station": "pomfret",
+      "unix_time": 1780164380.33,
+      "range_km": 391.5,
+      "snr_db": 9.22854232788086,
+      "time_index": 533,
+      "range_index": 522,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5273813754836895,
+        -0.5360861394463458,
+        0.6591513755477149
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.22777777910232544,
+        -0.6611111164093018,
+        0.714877188205719
+      ],
+      "best_az_deg": 160.989233622636,
+      "best_el_deg": 45.63313519454709,
+      "prior_az_deg": 135.44919461075688,
+      "prior_el_deg": 41.13453784430714,
+      "prior_offset_deg": 19.01082524746506,
+      "score": 0.10335969924926758,
+      "n_search_directions": 7831,
+      "station": "beverly",
+      "unix_time": 1780164380.34,
+      "range_km": 243.0,
+      "snr_db": 8.635153770446777,
+      "time_index": 534,
+      "range_index": 324,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5283778571639666,
+        -0.5367283812133031,
+        0.6578293736668817
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5388888716697693,
+        -0.550000011920929,
+        0.6380429267883301
+      ],
+      "best_az_deg": 135.58463205669773,
+      "best_el_deg": 39.64603979890975,
+      "prior_az_deg": 135.44919461075688,
+      "prior_el_deg": 41.13453784430714,
+      "prior_offset_deg": 1.4920615976231648,
+      "score": 0.10262895375490189,
+      "n_search_directions": 7831,
+      "station": "clinton",
+      "unix_time": 1780164380.34,
+      "range_km": 264.0,
+      "snr_db": 9.731206893920898,
+      "time_index": 534,
+      "range_index": 352,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5283778571639666,
+        -0.5367283812133031,
+        0.6578293736668817
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5444444417953491,
+        -0.5111111402511597,
+        0.6650907397270203
+      ],
+      "best_az_deg": 133.1912624466736,
+      "best_el_deg": 41.68928707360218,
+      "prior_az_deg": 135.4294489014285,
+      "prior_el_deg": 41.03373387620996,
+      "prior_offset_deg": 1.80315369377228,
+      "score": 0.11992693692445755,
+      "n_search_directions": 7816,
+      "station": "beverly",
+      "unix_time": 1780164380.35,
+      "range_km": 243.75,
+      "snr_db": 9.695919036865234,
+      "time_index": 535,
+      "range_index": 325,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5293741985561787,
+        -0.5373699125430741,
+        0.656503263507846
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6111111044883728,
+        -0.5666666626930237,
+        0.5526590943336487
+      ],
+      "best_az_deg": 132.83892062103723,
+      "best_el_deg": 33.5496298979547,
+      "prior_az_deg": 135.4294489014285,
+      "prior_el_deg": 41.03373387620996,
+      "prior_offset_deg": 7.761604338748231,
+      "score": 0.11807127296924591,
+      "n_search_directions": 7816,
+      "station": "clinton",
+      "unix_time": 1780164380.35,
+      "range_km": 264.75,
+      "snr_db": 9.254035949707031,
+      "time_index": 535,
+      "range_index": 353,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5293741985561787,
+        -0.5373699125430741,
+        0.656503263507846
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5333333611488342,
+        0.6426939964294434
+      ],
+      "best_az_deg": 134.1185968761822,
+      "best_el_deg": 39.99299861825061,
+      "prior_az_deg": 135.40973350097147,
+      "prior_el_deg": 40.93277232687527,
+      "prior_offset_deg": 1.359362937898081,
+      "score": 0.10095260292291641,
+      "n_search_directions": 7796,
+      "station": "beverly",
+      "unix_time": 1780164380.36,
+      "range_km": 243.75,
+      "snr_db": 9.109914779663086,
+      "time_index": 536,
+      "range_index": 325,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5303703860266508,
+        -0.538010721801947,
+        0.6551730434412647
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5444444417953491,
+        0.623485803604126
+      ],
+      "best_az_deg": 134.1363107624008,
+      "best_el_deg": 38.571135563724944,
+      "prior_az_deg": 135.40973350097147,
+      "prior_el_deg": 40.93277232687527,
+      "prior_offset_deg": 2.5564703469095407,
+      "score": 0.15350307524204254,
+      "n_search_directions": 7796,
+      "station": "pomfret",
+      "unix_time": 1780164380.36,
+      "range_km": 391.5,
+      "snr_db": 8.304868698120117,
+      "time_index": 536,
+      "range_index": 522,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5303703860266508,
+        -0.538010721801947,
+        0.6551730434412647
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5555555820465088,
+        0.5979388356208801
+      ],
+      "best_az_deg": 133.8766974040485,
+      "best_el_deg": 36.722419809692326,
+      "prior_az_deg": 135.3900483443132,
+      "prior_el_deg": 40.83165349106924,
+      "prior_offset_deg": 4.275018722612197,
+      "score": 0.17318183183670044,
+      "n_search_directions": 7777,
+      "station": "beverly",
+      "unix_time": 1780164380.37,
+      "range_km": 242.25,
+      "snr_db": 8.758440017700195,
+      "time_index": 537,
+      "range_index": 323,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5313664058780881,
+        -0.538650797319925,
+        0.6538387119548763
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.550000011920929,
+        0.6284902691841125
+      ],
+      "best_az_deg": 135.0,
+      "best_el_deg": 38.93882495935656,
+      "prior_az_deg": 135.3900483443132,
+      "prior_el_deg": 40.83165349106924,
+      "prior_offset_deg": 1.9163010806031595,
+      "score": 0.09352156519889832,
+      "n_search_directions": 7777,
+      "station": "clinton",
+      "unix_time": 1780164380.37,
+      "range_km": 264.0,
+      "snr_db": 8.63949203491211,
+      "time_index": 537,
+      "range_index": 352,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5313664058780881,
+        -0.538650797319925,
+        0.6538387119548763
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5555555820465088,
+        0.6032575964927673
+      ],
+      "best_az_deg": 134.15332681131127,
+      "best_el_deg": 37.103563811422795,
+      "prior_az_deg": 135.37039289829937,
+      "prior_el_deg": 40.73037525192152,
+      "prior_offset_deg": 3.748269026865218,
+      "score": 0.15598435699939728,
+      "n_search_directions": 7768,
+      "station": "beverly",
+      "unix_time": 1780164380.38,
+      "range_km": 242.25,
+      "snr_db": 8.613444328308105,
+      "time_index": 538,
+      "range_index": 323,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5323622680903493,
+        -0.5392901426250294,
+        0.652500235694344
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5722222328186035,
+        0.5928326845169067
+      ],
+      "best_az_deg": 135.279490121898,
+      "best_el_deg": 36.358282824103675,
+      "prior_az_deg": 135.37039289829937,
+      "prior_el_deg": 40.73037525192152,
+      "prior_offset_deg": 4.372675959424786,
+      "score": 0.1443183869123459,
+      "n_search_directions": 7768,
+      "station": "clinton",
+      "unix_time": 1780164380.38,
+      "range_km": 263.25,
+      "snr_db": 10.441184043884277,
+      "time_index": 538,
+      "range_index": 351,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5323622680903493,
+        -0.5392901426250294,
+        0.652500235694344
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5333333611488342,
+        -0.5555555820465088,
+        0.637897789478302
+      ],
+      "best_az_deg": 136.16913919994806,
+      "best_el_deg": 39.6352409710187,
+      "prior_az_deg": 135.35076803542051,
+      "prior_el_deg": 40.62894274311017,
+      "prior_offset_deg": 1.1741724099281408,
+      "score": 0.09525633603334427,
+      "n_search_directions": 7756,
+      "station": "beverly",
+      "unix_time": 1780164380.39,
+      "range_km": 243.0,
+      "snr_db": 8.02558708190918,
+      "time_index": 539,
+      "range_index": 324,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5333579113544579,
+        -0.539928715490159,
+        0.6511576772063409
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5444444417953491,
+        0.6333089470863342
+      ],
+      "best_az_deg": 134.7091602173707,
+      "best_el_deg": 39.29467477502207,
+      "prior_az_deg": 135.35076803542051,
+      "prior_el_deg": 40.62894274311017,
+      "prior_offset_deg": 1.4220141920947675,
+      "score": 0.16231495141983032,
+      "n_search_directions": 7756,
+      "station": "clinton",
+      "unix_time": 1780164380.39,
+      "range_km": 263.25,
+      "snr_db": 10.39299488067627,
+      "time_index": 539,
+      "range_index": 351,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5333579113544579,
+        -0.539928715490159,
+        0.6511576772063409
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5555555820465088,
+        -0.5388888716697693,
+        0.6332114934921265
+      ],
+      "best_az_deg": 134.12754059673188,
+      "best_el_deg": 39.28746014952666,
+      "prior_az_deg": 135.35076803542051,
+      "prior_el_deg": 40.62894274311017,
+      "prior_offset_deg": 1.6366172122187597,
+      "score": 0.14653033018112183,
+      "n_search_directions": 7756,
+      "station": "pomfret",
+      "unix_time": 1780164380.39,
+      "range_km": 390.75,
+      "snr_db": 8.480000495910645,
+      "time_index": 539,
+      "range_index": 521,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5333579113544579,
+        -0.539928715490159,
+        0.6511576772063409
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5611110925674438,
+        0.5980936884880066
+      ],
+      "best_az_deg": 134.43829319045835,
+      "best_el_deg": 36.733489795028746,
+      "prior_az_deg": 135.3311732221439,
+      "prior_el_deg": 40.52735386123004,
+      "prior_offset_deg": 3.857381648335664,
+      "score": 0.16165964305400848,
+      "n_search_directions": 7739,
+      "station": "beverly",
+      "unix_time": 1780164380.4,
+      "range_km": 241.5,
+      "snr_db": 8.424694061279297,
+      "time_index": 540,
+      "range_index": 322,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5343533455294694,
+        -0.5405665193909628,
+        0.6498110034733202
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5611110925674438,
+        0.5980936884880066
+      ],
+      "best_az_deg": 134.43829319045835,
+      "best_el_deg": 36.733489795028746,
+      "prior_az_deg": 135.3311732221439,
+      "prior_el_deg": 40.52735386123004,
+      "prior_offset_deg": 3.857381648335664,
+      "score": 0.15206009149551392,
+      "n_search_directions": 7739,
+      "station": "clinton",
+      "unix_time": 1780164380.4,
+      "range_km": 263.25,
+      "snr_db": 10.936531066894531,
+      "time_index": 540,
+      "range_index": 351,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5343533455294694,
+        -0.5405665193909628,
+        0.6498110034733202
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.550000011920929,
+        0.6135054230690002
+      ],
+      "best_az_deg": 134.14490342518138,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 135.3311732221439,
+      "prior_el_deg": 40.52735386123004,
+      "prior_offset_deg": 2.8369879111663288,
+      "score": 0.15909996628761292,
+      "n_search_directions": 7739,
+      "station": "pomfret",
+      "unix_time": 1780164380.4,
+      "range_km": 390.75,
+      "snr_db": 8.09466552734375,
+      "time_index": 540,
+      "range_index": 521,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5343533455294694,
+        -0.5405665193909628,
+        0.6498110034733202
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5555555820465088,
+        0.6084792017936707
+      ],
+      "best_az_deg": 134.4327351567606,
+      "best_el_deg": 37.47962040190871,
+      "prior_az_deg": 135.31160839407767,
+      "prior_el_deg": 40.425608920498505,
+      "prior_offset_deg": 3.0241548475308413,
+      "score": 0.14860008656978607,
+      "n_search_directions": 7729,
+      "station": "beverly",
+      "unix_time": 1780164380.41,
+      "range_km": 240.75,
+      "snr_db": 8.660612106323242,
+      "time_index": 541,
+      "range_index": 321,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5353485566675255,
+        -0.5412035425168895,
+        0.6484602134604456
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5555555820465088,
+        0.6084792017936707
+      ],
+      "best_az_deg": 134.4327351567606,
+      "best_el_deg": 37.47962040190871,
+      "prior_az_deg": 135.31160839407767,
+      "prior_el_deg": 40.425608920498505,
+      "prior_offset_deg": 3.0241548475308413,
+      "score": 0.15201056003570557,
+      "n_search_directions": 7729,
+      "station": "clinton",
+      "unix_time": 1780164380.41,
+      "range_km": 263.25,
+      "snr_db": 10.216446876525879,
+      "time_index": 541,
+      "range_index": 351,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5353485566675255,
+        -0.5412035425168895,
+        0.6484602134604456
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5555555820465088,
+        0.6136060357093811
+      ],
+      "best_az_deg": 134.71495103509835,
+      "best_el_deg": 37.85070204716801,
+      "prior_az_deg": 135.29207348699856,
+      "prior_el_deg": 40.323708240035074,
+      "prior_offset_deg": 2.513212037359294,
+      "score": 0.15653522312641144,
+      "n_search_directions": 7700,
+      "station": "beverly",
+      "unix_time": 1780164380.42,
+      "range_km": 240.75,
+      "snr_db": 9.011677742004395,
+      "time_index": 542,
+      "range_index": 321,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5363435307591513,
+        -0.5418397730234322,
+        0.6471053062544943
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.550000011920929,
+        0.6284902691841125
+      ],
+      "best_az_deg": 135.0,
+      "best_el_deg": 38.93882495935656,
+      "prior_az_deg": 135.29207348699856,
+      "prior_el_deg": 40.323708240035074,
+      "prior_offset_deg": 1.40297915729016,
+      "score": 0.15054523944854736,
+      "n_search_directions": 7700,
+      "station": "clinton",
+      "unix_time": 1780164380.42,
+      "range_km": 264.0,
+      "snr_db": 10.897428512573242,
+      "time_index": 542,
+      "range_index": 352,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5363435307591513,
+        -0.5418397730234322,
+        0.6471053062544943
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.550000011920929,
+        0.6185905933380127
+      ],
+      "best_az_deg": 134.4270628696882,
+      "best_el_deg": 38.21328502423512,
+      "prior_az_deg": 135.272568436852,
+      "prior_el_deg": 40.2216521438766,
+      "prior_offset_deg": 2.1124687017927024,
+      "score": 0.1488073170185089,
+      "n_search_directions": 7682,
+      "station": "beverly",
+      "unix_time": 1780164380.43,
+      "range_km": 240.75,
+      "snr_db": 9.0860595703125,
+      "time_index": 543,
+      "range_index": 321,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5373382537336843,
+        -0.5424751990326151,
+        0.6457462810647535
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5666666626930237,
+        0.6033599376678467
+      ],
+      "best_az_deg": 135.28224368210567,
+      "best_el_deg": 37.11091636414845,
+      "prior_az_deg": 135.272568436852,
+      "prior_el_deg": 40.2216521438766,
+      "prior_offset_deg": 3.110755463503114,
+      "score": 0.1521073281764984,
+      "n_search_directions": 7682,
+      "station": "clinton",
+      "unix_time": 1780164380.43,
+      "range_km": 263.25,
+      "snr_db": 8.090225219726562,
+      "time_index": 543,
+      "range_index": 351,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5373382537336843,
+        -0.5424751990326151,
+        0.6457462810647535
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.550000011920929,
+        0.6185905933380127
+      ],
+      "best_az_deg": 134.4270628696882,
+      "best_el_deg": 38.21328502423512,
+      "prior_az_deg": 135.25309317975137,
+      "prior_el_deg": 40.11944096099226,
+      "prior_offset_deg": 2.0108433657493423,
+      "score": 0.14716896414756775,
+      "n_search_directions": 7664,
+      "station": "beverly",
+      "unix_time": 1780164380.44,
+      "range_km": 240.75,
+      "snr_db": 9.502065658569336,
+      "time_index": 544,
+      "range_index": 321,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5383327114597101,
+        -0.5431098086334879,
+        0.6443831372239133
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5555555820465088,
+        0.6084792017936707
+      ],
+      "best_az_deg": 134.4327351567606,
+      "best_el_deg": 37.47962040190871,
+      "prior_az_deg": 135.25309317975137,
+      "prior_el_deg": 40.11944096099226,
+      "prior_offset_deg": 2.716069588465107,
+      "score": 0.1606222689151764,
+      "n_search_directions": 7664,
+      "station": "clinton",
+      "unix_time": 1780164380.44,
+      "range_km": 262.5,
+      "snr_db": 9.283287048339844,
+      "time_index": 544,
+      "range_index": 350,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5383327114597101,
+        -0.5431098086334879,
+        0.6443831372239133
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5555555820465088,
+        0.6032575964927673
+      ],
+      "best_az_deg": 134.15332681131127,
+      "best_el_deg": 37.103563811422795,
+      "prior_az_deg": 135.23364765197744,
+      "prior_el_deg": 40.01707502529826,
+      "prior_offset_deg": 3.0334237748016157,
+      "score": 0.15963102877140045,
+      "n_search_directions": 7660,
+      "station": "beverly",
+      "unix_time": 1780164380.45,
+      "range_km": 240.0,
+      "snr_db": 10.65072250366211,
+      "time_index": 545,
+      "range_index": 320,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5393268897455107,
+        -0.5437435898826283,
+        0.6430158741889551
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5666666626930237,
+        0.6033599376678467
+      ],
+      "best_az_deg": 135.28224368210567,
+      "best_el_deg": 37.11091636414845,
+      "prior_az_deg": 135.23364765197744,
+      "prior_el_deg": 40.01707502529826,
+      "prior_offset_deg": 2.9064181954142607,
+      "score": 0.1745588332414627,
+      "n_search_directions": 7660,
+      "station": "clinton",
+      "unix_time": 1780164380.45,
+      "range_km": 262.5,
+      "snr_db": 9.1987886428833,
+      "time_index": 545,
+      "range_index": 350,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5393268897455107,
+        -0.5437435898826283,
+        0.6430158741889551
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5666666626930237,
+        0.6033599376678467
+      ],
+      "best_az_deg": 135.28224368210567,
+      "best_el_deg": 37.11091636414845,
+      "prior_az_deg": 135.23364765197744,
+      "prior_el_deg": 40.01707502529826,
+      "prior_offset_deg": 2.9064181954142607,
+      "score": 0.17929485440254211,
+      "n_search_directions": 7660,
+      "station": "pomfret",
+      "unix_time": 1780164380.45,
+      "range_km": 390.0,
+      "snr_db": 8.49905014038086,
+      "time_index": 545,
+      "range_index": 520,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5393268897455107,
+        -0.5437435898826283,
+        0.6430158741889551
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.550000011920929,
+        0.6030529141426086
+      ],
+      "best_az_deg": 133.58905855348075,
+      "best_el_deg": 37.088860846460044,
+      "prior_az_deg": 135.21423178997793,
+      "prior_el_deg": 39.914554675672285,
+      "prior_offset_deg": 3.0985603992557254,
+      "score": 0.15448801219463348,
+      "n_search_directions": 7644,
+      "station": "beverly",
+      "unix_time": 1780164380.46,
+      "range_km": 240.0,
+      "snr_db": 11.00660228729248,
+      "time_index": 546,
+      "range_index": 320,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5403207743395183,
+        -0.544376530804649,
+        0.6416444915420364
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.550000011920929,
+        0.6135054230690002
+      ],
+      "best_az_deg": 134.14490342518138,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 135.21423178997793,
+      "prior_el_deg": 39.914554675672285,
+      "prior_offset_deg": 2.2321134404653082,
+      "score": 0.15488845109939575,
+      "n_search_directions": 7644,
+      "station": "clinton",
+      "unix_time": 1780164380.46,
+      "range_km": 262.5,
+      "snr_db": 9.022895812988281,
+      "time_index": 546,
+      "range_index": 350,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5403207743395183,
+        -0.544376530804649,
+        0.6416444915420364
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.5555555820465088,
+        0.5925202369689941
+      ],
+      "best_az_deg": 133.60282131169822,
+      "best_el_deg": 36.336056572557226,
+      "prior_az_deg": 135.19484553036727,
+      "prior_el_deg": 39.81188025596765,
+      "prior_offset_deg": 3.694678302008312,
+      "score": 0.14885295927524567,
+      "n_search_directions": 7628,
+      "station": "beverly",
+      "unix_time": 1780164380.47,
+      "range_km": 240.0,
+      "snr_db": 11.268586158752441,
+      "time_index": 547,
+      "range_index": 320,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5413143509307818,
+        -0.5450086193927154,
+        0.6402689889913713
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5777778029441833,
+        0.5820090770721436
+      ],
+      "best_az_deg": 135.27678976946714,
+      "best_el_deg": 35.59197483723877,
+      "prior_az_deg": 135.19484553036727,
+      "prior_el_deg": 39.81188025596765,
+      "prior_offset_deg": 4.220388440355761,
+      "score": 0.16862282156944275,
+      "n_search_directions": 7628,
+      "station": "clinton",
+      "unix_time": 1780164380.47,
+      "range_km": 262.5,
+      "snr_db": 9.036999702453613,
+      "time_index": 547,
+      "range_index": 350,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5413143509307818,
+        -0.5450086193927154,
+        0.6402689889913713
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5666666626930237,
+        0.6135054230690002
+      ],
+      "best_az_deg": 135.85509657481862,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 135.19484553036727,
+      "prior_el_deg": 39.81188025596765,
+      "prior_offset_deg": 2.0345316119319246,
+      "score": 0.1728234738111496,
+      "n_search_directions": 7628,
+      "station": "pomfret",
+      "unix_time": 1780164380.47,
+      "range_km": 390.0,
+      "snr_db": 8.056708335876465,
+      "time_index": 547,
+      "range_index": 520,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5413143509307818,
+        -0.5450086193927154,
+        0.6402689889913713
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5611110925674438,
+        0.5927285552024841
+      ],
+      "best_az_deg": 134.16158283195574,
+      "best_el_deg": 36.35087478200661,
+      "prior_az_deg": 135.1754888099258,
+      "prior_el_deg": 39.709052115027184,
+      "prior_offset_deg": 3.451767404746217,
+      "score": 0.1518368422985077,
+      "n_search_directions": 7603,
+      "station": "beverly",
+      "unix_time": 1780164380.48,
+      "range_km": 240.0,
+      "snr_db": 10.162946701049805,
+      "time_index": 548,
+      "range_index": 320,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5423076051494404,
+        -0.5456398436090669,
+        0.6388893663721064
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5555555820465088,
+        0.6136060357093811
+      ],
+      "best_az_deg": 134.71495103509835,
+      "best_el_deg": 37.85070204716801,
+      "prior_az_deg": 135.1754888099258,
+      "prior_el_deg": 39.709052115027184,
+      "prior_offset_deg": 1.8926774573146874,
+      "score": 0.15047770738601685,
+      "n_search_directions": 7603,
+      "station": "clinton",
+      "unix_time": 1780164380.48,
+      "range_km": 262.5,
+      "snr_db": 9.466362953186035,
+      "time_index": 548,
+      "range_index": 350,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5423076051494404,
+        -0.5456398436090669,
+        0.6388893663721064
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5666666626930237,
+        0.6135054230690002
+      ],
+      "best_az_deg": 135.85509657481862,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 135.1561615655993,
+      "prior_el_deg": 39.60607060669684,
+      "prior_offset_deg": 1.8450438286357058,
+      "score": 0.15334533154964447,
+      "n_search_directions": 7589,
+      "station": "beverly",
+      "unix_time": 1780164380.49,
+      "range_km": 240.0,
+      "snr_db": 10.573500633239746,
+      "time_index": 549,
+      "range_index": 320,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.543300522567207,
+        -0.5462701913855488,
+        0.6375056236471924
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.5555555820465088,
+        0.5925202369689941
+      ],
+      "best_az_deg": 133.60282131169822,
+      "best_el_deg": 36.336056572557226,
+      "prior_az_deg": 135.1561615655993,
+      "prior_el_deg": 39.60607060669684,
+      "prior_offset_deg": 3.4916061334465764,
+      "score": 0.17771461606025696,
+      "n_search_directions": 7589,
+      "station": "clinton",
+      "unix_time": 1780164380.49,
+      "range_km": 261.75,
+      "snr_db": 8.256710052490234,
+      "time_index": 549,
+      "range_index": 349,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.543300522567207,
+        -0.5462701913855488,
+        0.6375056236471924
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5833333134651184,
+        0.5976806879043579
+      ],
+      "best_az_deg": 136.68468272398871,
+      "best_el_deg": 36.70396911904065,
+      "prior_az_deg": 135.1561615655993,
+      "prior_el_deg": 39.60607060669684,
+      "prior_offset_deg": 3.1410233446083002,
+      "score": 0.1705189198255539,
+      "n_search_directions": 7589,
+      "station": "pomfret",
+      "unix_time": 1780164380.49,
+      "range_km": 390.0,
+      "snr_db": 8.531685829162598,
+      "time_index": 549,
+      "range_index": 520,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.543300522567207,
+        -0.5462701913855488,
+        0.6375056236471924
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.550000011920929,
+        -0.5777778029441833,
+        0.6030529141426086
+      ],
+      "best_az_deg": 136.41094144651925,
+      "best_el_deg": 37.088860846460044,
+      "prior_az_deg": 135.13686373449877,
+      "prior_el_deg": 39.502936089839004,
+      "prior_offset_deg": 2.612872116770297,
+      "score": 0.13743659853935242,
+      "n_search_directions": 7571,
+      "station": "beverly",
+      "unix_time": 1780164380.5,
+      "range_km": 240.0,
+      "snr_db": 9.868563652038574,
+      "time_index": 550,
+      "range_index": 320,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5442930886978613,
+        -0.546899650624148,
+        0.6361177609082511
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5555555820465088,
+        0.6084792017936707
+      ],
+      "best_az_deg": 134.4327351567606,
+      "best_el_deg": 37.47962040190871,
+      "prior_az_deg": 135.13686373449877,
+      "prior_el_deg": 39.502936089839004,
+      "prior_offset_deg": 2.0969715672741445,
+      "score": 0.1655885875225067,
+      "n_search_directions": 7571,
+      "station": "clinton",
+      "unix_time": 1780164380.5,
+      "range_km": 261.0,
+      "snr_db": 9.288717269897461,
+      "time_index": 550,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5442930886978613,
+        -0.546899650624148,
+        0.6361177609082511
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5722222328186035,
+        0.5980936884880066
+      ],
+      "best_az_deg": 135.56170680954165,
+      "best_el_deg": 36.733489795028746,
+      "prior_az_deg": 135.11759525389982,
+      "prior_el_deg": 39.39964892834556,
+      "prior_offset_deg": 2.6889752153876065,
+      "score": 0.1269790530204773,
+      "n_search_directions": 7556,
+      "station": "beverly",
+      "unix_time": 1780164380.51,
+      "range_km": 239.25,
+      "snr_db": 9.131595611572266,
+      "time_index": 551,
+      "range_index": 319,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5452852889977523,
+        -0.5475282091975382,
+        0.6347257783764376
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6111111044883728,
+        -0.5833333134651184,
+        0.5350377559661865
+      ],
+      "best_az_deg": 133.66777948157142,
+      "best_el_deg": 32.34647196582295,
+      "prior_az_deg": 135.11759525389982,
+      "prior_el_deg": 39.39964892834556,
+      "prior_offset_deg": 7.150046763062466,
+      "score": 0.1503400057554245,
+      "n_search_directions": 7556,
+      "station": "clinton",
+      "unix_time": 1780164380.51,
+      "range_km": 261.0,
+      "snr_db": 10.733175277709961,
+      "time_index": 551,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5452852889977523,
+        -0.5475282091975382,
+        0.6347257783764376
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5777778029441833,
+        0.5927285552024841
+      ],
+      "best_az_deg": 135.83841716804426,
+      "best_el_deg": 36.35087478200661,
+      "prior_az_deg": 135.09835606124182,
+      "prior_el_deg": 39.296209491150606,
+      "prior_offset_deg": 3.002757276841483,
+      "score": 0.12689010798931122,
+      "n_search_directions": 7541,
+      "station": "beverly",
+      "unix_time": 1780164380.52,
+      "range_km": 239.25,
+      "snr_db": 8.629138946533203,
+      "time_index": 552,
+      "range_index": 319,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5462771088663101,
+        -0.5481558549496311,
+        0.6333296764032967
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5777778029441833,
+        0.5651395320892334
+      ],
+      "best_az_deg": 134.45434391187717,
+      "best_el_deg": 34.411981226995685,
+      "prior_az_deg": 135.09835606124182,
+      "prior_el_deg": 39.296209491150606,
+      "prior_offset_deg": 4.911294247103592,
+      "score": 0.1571653038263321,
+      "n_search_directions": 7541,
+      "station": "clinton",
+      "unix_time": 1780164380.52,
+      "range_km": 261.0,
+      "snr_db": 10.188411712646484,
+      "time_index": 552,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5462771088663101,
+        -0.5481558549496311,
+        0.6333296764032967
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.4166666567325592,
+        0.7063643932342529
+      ],
+      "best_az_deg": 126.06043384193475,
+      "best_el_deg": 44.93987697508006,
+      "prior_az_deg": 135.0791460941282,
+      "prior_el_deg": 39.192618152242915,
+      "prior_offset_deg": 8.813955394190039,
+      "score": 0.08980360627174377,
+      "n_search_directions": 7528,
+      "station": "beverly",
+      "unix_time": 1780164380.53,
+      "range_km": 237.75,
+      "snr_db": 8.608051300048828,
+      "time_index": 553,
+      "range_index": 317,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.547268533646566,
+        -0.5487825756961358,
+        0.6319294554716155
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5777778029441833,
+        0.5592929720878601
+      ],
+      "best_az_deg": 134.1854237509047,
+      "best_el_deg": 34.00691614354461,
+      "prior_az_deg": 135.0791460941282,
+      "prior_el_deg": 39.192618152242915,
+      "prior_offset_deg": 5.235006164350346,
+      "score": 0.15536247193813324,
+      "n_search_directions": 7528,
+      "station": "clinton",
+      "unix_time": 1780164380.53,
+      "range_km": 261.0,
+      "snr_db": 12.272934913635254,
+      "time_index": 553,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.547268533646566,
+        -0.5487825756961358,
+        0.6319294554716155
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5055555701255798,
+        0.6253393888473511
+      ],
+      "best_az_deg": 130.38007689221718,
+      "best_el_deg": 38.7071020296352,
+      "prior_az_deg": 135.05996529032518,
+      "prior_el_deg": 39.088875290678025,
+      "prior_offset_deg": 3.6617338040158627,
+      "score": 0.10521850734949112,
+      "n_search_directions": 7513,
+      "station": "beverly",
+      "unix_time": 1780164380.54,
+      "range_km": 237.75,
+      "snr_db": 9.175520896911621,
+      "time_index": 554,
+      "range_index": 317,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5482595486256847,
+        -0.5494083592251232,
+        0.6305251161962688
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5777778029441833,
+        0.5764942765235901
+      ],
+      "best_az_deg": 135.0,
+      "best_el_deg": 35.20434459265435,
+      "prior_az_deg": 135.05996529032518,
+      "prior_el_deg": 39.088875290678025,
+      "prior_offset_deg": 3.8848123936764525,
+      "score": 0.1567777395248413,
+      "n_search_directions": 7513,
+      "station": "clinton",
+      "unix_time": 1780164380.54,
+      "range_km": 261.0,
+      "snr_db": 10.054472923278809,
+      "time_index": 554,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5482595486256847,
+        -0.5494083592251232,
+        0.6305251161962688
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5611110925674438,
+        0.5927285552024841
+      ],
+      "best_az_deg": 134.16158283195574,
+      "best_el_deg": 36.35087478200661,
+      "prior_az_deg": 135.05996529032518,
+      "prior_el_deg": 39.088875290678025,
+      "prior_offset_deg": 2.82867610989873,
+      "score": 0.15297168493270874,
+      "n_search_directions": 7513,
+      "station": "pomfret",
+      "unix_time": 1780164380.54,
+      "range_km": 389.25,
+      "snr_db": 8.484906196594238,
+      "time_index": 554,
+      "range_index": 519,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5482595486256847,
+        -0.5494083592251232,
+        0.6305251161962688
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5777778029441833,
+        0.5927285552024841
+      ],
+      "best_az_deg": 135.83841716804426,
+      "best_el_deg": 36.35087478200661,
+      "prior_az_deg": 135.04081358776193,
+      "prior_el_deg": 38.98498129059017,
+      "prior_offset_deg": 2.708683655486644,
+      "score": 0.13515575230121613,
+      "n_search_directions": 7490,
+      "station": "beverly",
+      "unix_time": 1780164380.55,
+      "range_km": 237.75,
+      "snr_db": 9.863530158996582,
+      "time_index": 555,
+      "range_index": 317,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5492501390355027,
+        -0.5500331932976004,
+        0.6291166593250616
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.5833333134651184,
+        0.5651941895484924
+      ],
+      "best_az_deg": 135.0,
+      "best_el_deg": 34.41577726396131,
+      "prior_az_deg": 135.04081358776193,
+      "prior_el_deg": 38.98498129059017,
+      "prior_offset_deg": 4.569327441325562,
+      "score": 0.12869839370250702,
+      "n_search_directions": 7490,
+      "station": "clinton",
+      "unix_time": 1780164380.55,
+      "range_km": 261.0,
+      "snr_db": 9.606371879577637,
+      "time_index": 555,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5492501390355027,
+        -0.5500331932976004,
+        0.6291166593250616
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5611110925674438,
+        0.5980936884880066
+      ],
+      "best_az_deg": 134.43829319045835,
+      "best_el_deg": 36.733489795028746,
+      "prior_az_deg": 135.04081358776193,
+      "prior_el_deg": 38.98498129059017,
+      "prior_offset_deg": 2.3011773651249934,
+      "score": 0.15875756740570068,
+      "n_search_directions": 7490,
+      "station": "pomfret",
+      "unix_time": 1780164380.55,
+      "range_km": 389.25,
+      "snr_db": 9.604292869567871,
+      "time_index": 555,
+      "range_index": 519,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5492501390355027,
+        -0.5500331932976004,
+        0.6291166593250616
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.6000000238418579,
+        0.5702230334281921
+      ],
+      "best_az_deg": 136.91828240559778,
+      "best_el_deg": 34.765780016780475,
+      "prior_az_deg": 135.0216909245296,
+      "prior_el_deg": 38.88093654120374,
+      "prior_offset_deg": 4.385968344185017,
+      "score": 0.12171207368373871,
+      "n_search_directions": 7480,
+      "station": "beverly",
+      "unix_time": 1780164380.56,
+      "range_km": 237.0,
+      "snr_db": 9.2305908203125,
+      "time_index": 556,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5502402900530781,
+        -0.550657065648089,
+        0.6277040857395629
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.550000011920929,
+        0.5809475183486938
+      ],
+      "best_az_deg": 132.51044656251486,
+      "best_el_deg": 35.5172136612591,
+      "prior_az_deg": 135.0216909245296,
+      "prior_el_deg": 38.88093654120374,
+      "prior_offset_deg": 3.9130925952682274,
+      "score": 0.12267758697271347,
+      "n_search_directions": 7480,
+      "station": "clinton",
+      "unix_time": 1780164380.56,
+      "range_km": 261.0,
+      "snr_db": 9.791013717651367,
+      "time_index": 556,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5502402900530781,
+        -0.550657065648089,
+        0.6277040857395629
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5666666626930237,
+        0.6033599376678467
+      ],
+      "best_az_deg": 135.28224368210567,
+      "best_el_deg": 37.11091636414845,
+      "prior_az_deg": 135.0216909245296,
+      "prior_el_deg": 38.88093654120374,
+      "prior_offset_deg": 1.7819059779936093,
+      "score": 0.14536318182945251,
+      "n_search_directions": 7480,
+      "station": "pomfret",
+      "unix_time": 1780164380.56,
+      "range_km": 389.25,
+      "snr_db": 8.427495002746582,
+      "time_index": 556,
+      "range_index": 519,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5502402900530781,
+        -0.550657065648089,
+        0.6277040857395629
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5666666626930237,
+        0.6033599376678467
+      ],
+      "best_az_deg": 135.28224368210567,
+      "best_el_deg": 37.11091636414845,
+      "prior_az_deg": 135.0025972388812,
+      "prior_el_deg": 38.77674143684448,
+      "prior_offset_deg": 1.6803764722772923,
+      "score": 0.12244909256696701,
+      "n_search_directions": 7451,
+      "station": "beverly",
+      "unix_time": 1780164380.57,
+      "range_km": 237.0,
+      "snr_db": 11.011960983276367,
+      "time_index": 557,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5512299868012501,
+        -0.5512799639852136,
+        0.6262873964559362
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.6000000238418579,
+        0.547468900680542
+      ],
+      "best_az_deg": 135.80693156836992,
+      "best_el_deg": 33.1935416703872,
+      "prior_az_deg": 135.0025972388812,
+      "prior_el_deg": 38.77674143684448,
+      "prior_offset_deg": 5.620934758495133,
+      "score": 0.09945045411586761,
+      "n_search_directions": 7451,
+      "station": "clinton",
+      "unix_time": 1780164380.57,
+      "range_km": 261.0,
+      "snr_db": 10.716713905334473,
+      "time_index": 557,
+      "range_index": 348,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5512299868012501,
+        -0.5512799639852136,
+        0.6262873964559362
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5944444537162781,
+        0.547581672668457
+      ],
+      "best_az_deg": 135.26899299824322,
+      "best_el_deg": 33.201263279903024,
+      "prior_az_deg": 135.0025972388812,
+      "prior_el_deg": 38.77674143684448,
+      "prior_offset_deg": 5.579630835278312,
+      "score": 0.1659751534461975,
+      "n_search_directions": 7451,
+      "station": "pomfret",
+      "unix_time": 1780164380.57,
+      "range_km": 389.25,
+      "snr_db": 8.06007194519043,
+      "time_index": 557,
+      "range_index": 519,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5512299868012501,
+        -0.5512799639852136,
+        0.6262873964559362
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.550000011920929,
+        0.6135054230690002
+      ],
+      "best_az_deg": 134.14490342518138,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 134.9835324692309,
+      "prior_el_deg": 38.67239637695048,
+      "prior_offset_deg": 1.058667068552218,
+      "score": 0.13347813487052917,
+      "n_search_directions": 7431,
+      "station": "beverly",
+      "unix_time": 1780164380.58,
+      "range_km": 237.0,
+      "snr_db": 12.162575721740723,
+      "time_index": 558,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5522192143492066,
+        -0.5519018759922949,
+        0.6248665926257623
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5777778029441833,
+        0.5820090770721436
+      ],
+      "best_az_deg": 135.27678976946714,
+      "best_el_deg": 35.59197483723877,
+      "prior_az_deg": 134.9835324692309,
+      "prior_el_deg": 38.67239637695048,
+      "prior_offset_deg": 3.089255438095446,
+      "score": 0.14580531418323517,
+      "n_search_directions": 7431,
+      "station": "pomfret",
+      "unix_time": 1780164380.58,
+      "range_km": 388.5,
+      "snr_db": 8.533967971801758,
+      "time_index": 558,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5522192143492066,
+        -0.5519018759922949,
+        0.6248665926257623
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.550000011920929,
+        0.6135054230690002
+      ],
+      "best_az_deg": 134.14490342518138,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 134.9644965541537,
+      "prior_el_deg": 38.56790176608264,
+      "prior_offset_deg": 0.9693206935096628,
+      "score": 0.14214038848876953,
+      "n_search_directions": 7415,
+      "station": "beverly",
+      "unix_time": 1780164380.59,
+      "range_km": 237.0,
+      "snr_db": 12.743368148803711,
+      "time_index": 559,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5532079577130623,
+        -0.5525227893279508,
+        0.6234416755368568
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5888888835906982,
+        0.5762801170349121
+      ],
+      "best_az_deg": 136.10170605839335,
+      "best_el_deg": 35.189328948472884,
+      "prior_az_deg": 134.9644965541537,
+      "prior_el_deg": 38.56790176608264,
+      "prior_offset_deg": 3.4987993611239947,
+      "score": 0.15505710244178772,
+      "n_search_directions": 7415,
+      "station": "pomfret",
+      "unix_time": 1780164380.59,
+      "range_km": 388.5,
+      "snr_db": 9.22916316986084,
+      "time_index": 559,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5532079577130623,
+        -0.5525227893279508,
+        0.6234416755368568
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5444444417953491,
+        0.6133041381835938
+      ],
+      "best_az_deg": 133.57502505842137,
+      "best_el_deg": 37.828799038646494,
+      "prior_az_deg": 134.94548943238487,
+      "prior_el_deg": 38.463258013935025,
+      "prior_offset_deg": 1.2506430194633456,
+      "score": 0.15869057178497314,
+      "n_search_directions": 7400,
+      "station": "beverly",
+      "unix_time": 1780164380.6,
+      "range_km": 237.0,
+      "snr_db": 12.689885139465332,
+      "time_index": 560,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5541962018564458,
+        -0.5531426916267049,
+        0.622012646614081
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5888888835906982,
+        0.5707640647888184
+      ],
+      "best_az_deg": 135.8223701920798,
+      "best_el_deg": 34.80352351650751,
+      "prior_az_deg": 134.94548943238487,
+      "prior_el_deg": 38.463258013935025,
+      "prior_offset_deg": 3.7267008471202123,
+      "score": 0.1580018848180771,
+      "n_search_directions": 7400,
+      "station": "pomfret",
+      "unix_time": 1780164380.6,
+      "range_km": 388.5,
+      "snr_db": 9.153447151184082,
+      "time_index": 560,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5541962018564458,
+        -0.5531426916267049,
+        0.622012646614081
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5444444417953491,
+        0.623485803604126
+      ],
+      "best_az_deg": 134.1363107624008,
+      "best_el_deg": 38.571135563724944,
+      "prior_az_deg": 134.92651104281958,
+      "prior_el_deg": 38.3584655353447,
+      "prior_offset_deg": 0.6543579344543399,
+      "score": 0.1622161716222763,
+      "n_search_directions": 7391,
+      "station": "beverly",
+      "unix_time": 1780164380.61,
+      "range_km": 237.0,
+      "snr_db": 11.869308471679688,
+      "time_index": 561,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5551839316910964,
+        -0.5537615704996011,
+        0.6205795074201462
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5722222328186035,
+        0.5874720811843872
+      ],
+      "best_az_deg": 135.0,
+      "best_el_deg": 35.97782387663572,
+      "prior_az_deg": 134.92651104281958,
+      "prior_el_deg": 38.3584655353447,
+      "prior_offset_deg": 2.381352420491446,
+      "score": 0.1758534461259842,
+      "n_search_directions": 7391,
+      "station": "pomfret",
+      "unix_time": 1780164380.61,
+      "range_km": 388.5,
+      "snr_db": 10.600714683532715,
+      "time_index": 561,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5551839316910964,
+        -0.5537615704996011,
+        0.6205795074201462
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5444444417953491,
+        0.623485803604126
+      ],
+      "best_az_deg": 134.1363107624008,
+      "best_el_deg": 38.571135563724944,
+      "prior_az_deg": 134.90756132451241,
+      "prior_el_deg": 38.25352475030141,
+      "prior_offset_deg": 0.6828042350036504,
+      "score": 0.15442147850990295,
+      "n_search_directions": 7373,
+      "station": "beverly",
+      "unix_time": 1780164380.62,
+      "range_km": 237.0,
+      "snr_db": 9.822954177856445,
+      "time_index": 562,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5561711320774702,
+        -0.5543794135348259,
+        0.6191422596564119
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5777778029441833,
+        0.5820090770721436
+      ],
+      "best_az_deg": 135.27678976946714,
+      "best_el_deg": 35.59197483723877,
+      "prior_az_deg": 134.90756132451241,
+      "prior_el_deg": 38.25352475030141,
+      "prior_offset_deg": 2.6778371552825035,
+      "score": 0.1839015781879425,
+      "n_search_directions": 7373,
+      "station": "pomfret",
+      "unix_time": 1780164380.62,
+      "range_km": 388.5,
+      "snr_db": 10.077337265014648,
+      "time_index": 562,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5561711320774702,
+        -0.5543794135348259,
+        0.6191422596564119
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5555555820465088,
+        -0.5388888716697693,
+        0.6332114934921265
+      ],
+      "best_az_deg": 134.12754059673188,
+      "best_el_deg": 39.28746014952666,
+      "prior_az_deg": 134.88863976590244,
+      "prior_el_deg": 38.148433576685804,
+      "prior_offset_deg": 1.2844969182876185,
+      "score": 0.14275327324867249,
+      "n_search_directions": 7354,
+      "station": "beverly",
+      "unix_time": 1780164380.63,
+      "range_km": 237.0,
+      "snr_db": 9.345869064331055,
+      "time_index": 563,
+      "range_index": 316,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5571578113424711,
+        -0.5549962229912886,
+        0.617700870750132
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5777778029441833,
+        0.5820090770721436
+      ],
+      "best_az_deg": 135.27678976946714,
+      "best_el_deg": 35.59197483723877,
+      "prior_az_deg": 134.88863976590244,
+      "prior_el_deg": 38.148433576685804,
+      "prior_offset_deg": 2.5752156958779024,
+      "score": 0.17634379863739014,
+      "n_search_directions": 7354,
+      "station": "pomfret",
+      "unix_time": 1780164380.63,
+      "range_km": 388.5,
+      "snr_db": 9.832315444946289,
+      "time_index": 563,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5571578113424711,
+        -0.5549962229912886,
+        0.617700870750132
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.550000011920929,
+        0.6135054230690002
+      ],
+      "best_az_deg": 134.14490342518138,
+      "best_el_deg": 37.84340176312367,
+      "prior_az_deg": 134.86974720859013,
+      "prior_el_deg": 38.04319745585188,
+      "prior_offset_deg": 0.6054700375771741,
+      "score": 0.14891071617603302,
+      "n_search_directions": 7344,
+      "station": "beverly",
+      "unix_time": 1780164380.64,
+      "range_km": 236.25,
+      "snr_db": 10.270132064819336,
+      "time_index": 564,
+      "range_index": 315,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5581439071980856,
+        -0.555611957002013,
+        0.6162554114115737
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5833333134651184,
+        0.5764407515525818
+      ],
+      "best_az_deg": 135.55090247325563,
+      "best_el_deg": 35.20059146620523,
+      "prior_az_deg": 134.86974720859013,
+      "prior_el_deg": 38.04319745585188,
+      "prior_offset_deg": 2.8946814952988627,
+      "score": 0.17367731034755707,
+      "n_search_directions": 7344,
+      "station": "pomfret",
+      "unix_time": 1780164380.64,
+      "range_km": 388.5,
+      "snr_db": 9.769376754760742,
+      "time_index": 564,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5581439071980856,
+        -0.555611957002013,
+        0.6162554114115737
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5611110925674438,
+        -0.5444444417953491,
+        0.623485803604126
+      ],
+      "best_az_deg": 134.1363107624008,
+      "best_el_deg": 38.571135563724944,
+      "prior_az_deg": 134.85088314064956,
+      "prior_el_deg": 37.937814319551286,
+      "prior_offset_deg": 0.8462269231842271,
+      "score": 0.1481500267982483,
+      "n_search_directions": 7325,
+      "station": "beverly",
+      "unix_time": 1780164380.65,
+      "range_km": 236.25,
+      "snr_db": 8.909900665283203,
+      "time_index": 565,
+      "range_index": 315,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5591294278849335,
+        -0.5562266178085067,
+        0.614805849447105
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5888888835906982,
+        0.5707640647888184
+      ],
+      "best_az_deg": 135.8223701920798,
+      "best_el_deg": 34.80352351650751,
+      "prior_az_deg": 134.85088314064956,
+      "prior_el_deg": 37.937814319551286,
+      "prior_offset_deg": 3.2303578407113447,
+      "score": 0.1708317995071411,
+      "n_search_directions": 7325,
+      "station": "pomfret",
+      "unix_time": 1780164380.65,
+      "range_km": 388.5,
+      "snr_db": 8.22143840789795,
+      "time_index": 565,
+      "range_index": 518,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5591294278849335,
+        -0.5562266178085067,
+        0.614805849447105
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.5666666626930237,
+        0.5819029808044434
+      ],
+      "best_az_deg": 134.16968528827,
+      "best_el_deg": 35.584499779469915,
+      "prior_az_deg": 134.83204750176833,
+      "prior_el_deg": 37.83228460847353,
+      "prior_offset_deg": 2.3096750580506438,
+      "score": 0.1451777219772339,
+      "n_search_directions": 7308,
+      "station": "beverly",
+      "unix_time": 1780164380.66,
+      "range_km": 235.5,
+      "snr_db": 8.077873229980469,
+      "time_index": 566,
+      "range_index": 314,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5601143580645892,
+        -0.5568401929138841,
+        0.6133521871205168
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.5777778029441833,
+        0.5708721876144409
+      ],
+      "best_az_deg": 134.7258618297293,
+      "best_el_deg": 34.81106846678665,
+      "prior_az_deg": 134.81324023179081,
+      "prior_el_deg": 37.72660876850363,
+      "prior_offset_deg": 2.9163915027905847,
+      "score": 0.16603237390518188,
+      "n_search_directions": 7283,
+      "station": "beverly",
+      "unix_time": 1780164380.67,
+      "range_km": 234.0,
+      "snr_db": 9.143461227416992,
+      "time_index": 567,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5610986823505185,
+        -0.5574526698016157,
+        0.6118944268381294
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5555555820465088,
+        0.6084792017936707
+      ],
+      "best_az_deg": 134.4327351567606,
+      "best_el_deg": 37.47962040190871,
+      "prior_az_deg": 134.81324023179081,
+      "prior_el_deg": 37.72660876850363,
+      "prior_offset_deg": 0.38950563035862795,
+      "score": 0.17186492681503296,
+      "n_search_directions": 7283,
+      "station": "pomfret",
+      "unix_time": 1780164380.67,
+      "range_km": 387.75,
+      "snr_db": 8.681554794311523,
+      "time_index": 567,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5610986823505185,
+        -0.5574526698016157,
+        0.6118944268381294
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.5777778029441833,
+        0.5708721876144409
+      ],
+      "best_az_deg": 134.7258618297293,
+      "best_el_deg": 34.81106846678665,
+      "prior_az_deg": 134.7944612707181,
+      "prior_el_deg": 37.620787250729556,
+      "prior_offset_deg": 2.810264241917155,
+      "score": 0.1773030161857605,
+      "n_search_directions": 7265,
+      "station": "beverly",
+      "unix_time": 1780164380.68,
+      "range_km": 234.0,
+      "snr_db": 10.751989364624023,
+      "time_index": 568,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5620823853087394,
+        -0.5580640359361911,
+        0.6104325711495474
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5555555820465088,
+        0.5869990587234497
+      ],
+      "best_az_deg": 133.3316641727348,
+      "best_el_deg": 35.94434024269499,
+      "prior_az_deg": 134.7944612707181,
+      "prior_el_deg": 37.620787250729556,
+      "prior_offset_deg": 2.045169275548662,
+      "score": 0.17018793523311615,
+      "n_search_directions": 7265,
+      "station": "pomfret",
+      "unix_time": 1780164380.68,
+      "range_km": 387.75,
+      "snr_db": 9.069958686828613,
+      "time_index": 568,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5620823853087394,
+        -0.5580640359361911,
+        0.6104325711495474
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.5722222328186035,
+        0.5590721964836121
+      ],
+      "best_az_deg": 133.64253354828696,
+      "best_el_deg": 33.991658205122505,
+      "prior_az_deg": 134.77571055870754,
+      "prior_el_deg": 37.51482051144946,
+      "prior_offset_deg": 3.6410957032356874,
+      "score": 0.17872264981269836,
+      "n_search_directions": 7257,
+      "station": "beverly",
+      "unix_time": 1780164380.69,
+      "range_km": 234.0,
+      "snr_db": 11.296981811523438,
+      "time_index": 569,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5630654514584968,
+        -0.5586742787637899,
+        0.608966622748405
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5666666626930237,
+        0.5874195694923401
+      ],
+      "best_az_deg": 134.44374632448148,
+      "best_el_deg": 35.97410605375844,
+      "prior_az_deg": 134.77571055870754,
+      "prior_el_deg": 37.51482051144946,
+      "prior_offset_deg": 1.5634572519680787,
+      "score": 0.16857746243476868,
+      "n_search_directions": 7257,
+      "station": "pomfret",
+      "unix_time": 1780164380.69,
+      "range_km": 387.75,
+      "snr_db": 9.201242446899414,
+      "time_index": 569,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5630654514584968,
+        -0.5586742787637899,
+        0.608966622748405
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5611110925674438,
+        0.5927285552024841
+      ],
+      "best_az_deg": 134.16158283195574,
+      "best_el_deg": 36.35087478200661,
+      "prior_az_deg": 134.75698803607207,
+      "prior_el_deg": 37.408709012178385,
+      "prior_offset_deg": 1.1601121560049765,
+      "score": 0.1780497431755066,
+      "n_search_directions": 7234,
+      "station": "beverly",
+      "unix_time": 1780164380.7,
+      "range_km": 234.0,
+      "snr_db": 10.8821439743042,
+      "time_index": 570,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5640478652729431,
+        -0.5592833857129573,
+        0.6074965844731041
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5722222328186035,
+        -0.5611110925674438,
+        0.5980936884880066
+      ],
+      "best_az_deg": 134.43829319045835,
+      "best_el_deg": 36.733489795028746,
+      "prior_az_deg": 134.75698803607207,
+      "prior_el_deg": 37.408709012178385,
+      "prior_offset_deg": 0.7215065354619997,
+      "score": 0.17679154872894287,
+      "n_search_directions": 7234,
+      "station": "pomfret",
+      "unix_time": 1780164380.7,
+      "range_km": 387.75,
+      "snr_db": 9.185138702392578,
+      "time_index": 570,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5640478652729431,
+        -0.5592833857129573,
+        0.6074965844731041
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5833333134651184,
+        0.5534961819648743
+      ],
+      "best_az_deg": 134.45948839054643,
+      "best_el_deg": 33.60719787570076,
+      "prior_az_deg": 134.73829364327986,
+      "prior_el_deg": 37.30245321965476,
+      "prior_offset_deg": 3.7022272596359276,
+      "score": 0.18730230629444122,
+      "n_search_directions": 7220,
+      "station": "beverly",
+      "unix_time": 1780164380.71,
+      "range_km": 234.0,
+      "snr_db": 10.494413375854492,
+      "time_index": 571,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5650296111798302,
+        -0.5598913441952875,
+        0.6060224593075441
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5666666626930237,
+        0.5874195694923401
+      ],
+      "best_az_deg": 134.44374632448148,
+      "best_el_deg": 35.97410605375844,
+      "prior_az_deg": 134.73829364327986,
+      "prior_el_deg": 37.30245321965476,
+      "prior_offset_deg": 1.3491515653633168,
+      "score": 0.16853146255016327,
+      "n_search_directions": 7220,
+      "station": "pomfret",
+      "unix_time": 1780164380.71,
+      "range_km": 387.75,
+      "snr_db": 9.615299224853516,
+      "time_index": 571,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5650296111798302,
+        -0.5598913441952875,
+        0.6060224593075441
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5666666626930237,
+        0.5762801170349121
+      ],
+      "best_az_deg": 133.89829394160665,
+      "best_el_deg": 35.189328948472884,
+      "prior_az_deg": 134.71962732095398,
+      "prior_el_deg": 37.196053605846416,
+      "prior_offset_deg": 2.1133379552217457,
+      "score": 0.17386272549629211,
+      "n_search_directions": 7198,
+      "station": "beverly",
+      "unix_time": 1780164380.72,
+      "range_km": 234.0,
+      "snr_db": 10.899526596069336,
+      "time_index": 572,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5660106735622098,
+        -0.5604981416061152,
+        0.6045442503818433
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5833333134651184,
+        0.5594033598899841
+      ],
+      "best_az_deg": 134.72845733634938,
+      "best_el_deg": 34.01454614079874,
+      "prior_az_deg": 134.71962732095398,
+      "prior_el_deg": 37.196053605846416,
+      "prior_offset_deg": 3.181520088299126,
+      "score": 0.1732875257730484,
+      "n_search_directions": 7198,
+      "station": "pomfret",
+      "unix_time": 1780164380.72,
+      "range_km": 387.75,
+      "snr_db": 8.668649673461914,
+      "time_index": 572,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5660106735622098,
+        -0.5604981416061152,
+        0.6045442503818433
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5555555820465088,
+        0.5813723802566528
+      ],
+      "best_az_deg": 133.06320053088206,
+      "best_el_deg": 35.54712655551103,
+      "prior_az_deg": 134.70098900987176,
+      "prior_el_deg": 37.08951064795629,
+      "prior_offset_deg": 2.0297459689623873,
+      "score": 0.16782386600971222,
+      "n_search_directions": 7179,
+      "station": "beverly",
+      "unix_time": 1780164380.73,
+      "range_km": 234.75,
+      "snr_db": 9.072643280029297,
+      "time_index": 573,
+      "range_index": 313,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5669910367591442,
+        -0.5611037653252101,
+        0.6030619609730515
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5555555820465088,
+        0.5813723802566528
+      ],
+      "best_az_deg": 133.06320053088206,
+      "best_el_deg": 35.54712655551103,
+      "prior_az_deg": 134.68237865096444,
+      "prior_el_deg": 36.98282482842769,
+      "prior_offset_deg": 1.9404049849508567,
+      "score": 0.17472593486309052,
+      "n_search_directions": 7160,
+      "station": "beverly",
+      "unix_time": 1780164380.74,
+      "range_km": 234.0,
+      "snr_db": 8.836546897888184,
+      "time_index": 574,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5679706850664255,
+        -0.561708202717482,
+        0.6015755945058537
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5833333134651184,
+        -0.6000000238418579,
+        0.547468900680542
+      ],
+      "best_az_deg": 135.80693156836992,
+      "best_el_deg": 33.1935416703872,
+      "prior_az_deg": 134.68237865096444,
+      "prior_el_deg": 36.98282482842769,
+      "prior_offset_deg": 3.8993199100075144,
+      "score": 0.16234996914863586,
+      "n_search_directions": 7160,
+      "station": "pomfret",
+      "unix_time": 1780164380.74,
+      "range_km": 387.75,
+      "snr_db": 8.703719139099121,
+      "time_index": 574,
+      "range_index": 517,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5679706850664255,
+        -0.561708202717482,
+        0.6015755945058537
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5611110925674438,
+        0.5760122537612915
+      ],
+      "best_az_deg": 133.34769393107229,
+      "best_el_deg": 35.170551805471916,
+      "prior_az_deg": 134.6637961853167,
+      "prior_el_deg": 36.87599663494925,
+      "prior_offset_deg": 2.010319296160793,
+      "score": 0.17739863693714142,
+      "n_search_directions": 7139,
+      "station": "beverly",
+      "unix_time": 1780164380.75,
+      "range_km": 234.0,
+      "snr_db": 8.105690002441406,
+      "time_index": 575,
+      "range_index": 312,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5689496027373045,
+        -0.5623114411336896,
+        0.6000851545532655
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5833333134651184,
+        0.5534961819648743
+      ],
+      "best_az_deg": 134.45948839054643,
+      "best_el_deg": 33.60719787570076,
+      "prior_az_deg": 134.62671469890347,
+      "prior_el_deg": 36.661915103150726,
+      "prior_offset_deg": 3.057782119939301,
+      "score": 0.17785079777240753,
+      "n_search_directions": 7110,
+      "station": "pomfret",
+      "unix_time": 1780164380.77,
+      "range_km": 387.0,
+      "snr_db": 9.198328018188477,
+      "time_index": 577,
+      "range_index": 516,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.570905182974592,
+        -0.5635142703744953,
+        0.5970920692297359
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5666666626930237,
+        0.5762801170349121
+      ],
+      "best_az_deg": 133.89829394160665,
+      "best_el_deg": 35.189328948472884,
+      "prior_az_deg": 134.60821556107055,
+      "prior_el_deg": 36.55466276647332,
+      "prior_offset_deg": 1.4815664088223115,
+      "score": 0.17292927205562592,
+      "n_search_directions": 7090,
+      "station": "beverly",
+      "unix_time": 1780164380.78,
+      "range_km": 233.25,
+      "snr_db": 9.892257690429688,
+      "time_index": 578,
+      "range_index": 311,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5718818138414863,
+        -0.564113835836334,
+        0.5955894317526034
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.5666666626930237,
+        0.5705476999282837
+      ],
+      "best_az_deg": 133.62954833521871,
+      "best_el_deg": 34.78842737064394,
+      "prior_az_deg": 134.58974408236156,
+      "prior_el_deg": 36.44727005913854,
+      "prior_offset_deg": 1.833288052019009,
+      "score": 0.15808138251304626,
+      "n_search_directions": 7085,
+      "station": "beverly",
+      "unix_time": 1780164380.79,
+      "range_km": 233.25,
+      "snr_db": 8.763448715209961,
+      "time_index": 579,
+      "range_index": 311,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5728576506744733,
+        -0.5647121515980543,
+        0.5940827365790217
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6111111044883728,
+        -0.5722222328186035,
+        0.5469048619270325
+      ],
+      "best_az_deg": 133.11771839613795,
+      "best_el_deg": 33.15493158981902,
+      "prior_az_deg": 134.58974408236156,
+      "prior_el_deg": 36.44727005913854,
+      "prior_offset_deg": 3.5070707722104033,
+      "score": 0.14484435319900513,
+      "n_search_directions": 7085,
+      "station": "pomfret",
+      "unix_time": 1780164380.79,
+      "range_km": 387.0,
+      "snr_db": 8.086081504821777,
+      "time_index": 579,
+      "range_index": 516,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5728576506744733,
+        -0.5647121515980543,
+        0.5940827365790217
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.605555534362793,
+        -0.5833333134651184,
+        0.5413175225257874
+      ],
+      "best_az_deg": 133.92917557204953,
+      "best_el_deg": 32.773373426018345,
+      "prior_az_deg": 134.57130020462182,
+      "prior_el_deg": 36.33973749512171,
+      "prior_offset_deg": 3.6053638447322287,
+      "score": 0.15241172909736633,
+      "n_search_directions": 7064,
+      "station": "beverly",
+      "unix_time": 1780164380.8,
+      "range_km": 232.5,
+      "snr_db": 9.042482376098633,
+      "time_index": 580,
+      "range_index": 310,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5738326775253564,
+        -0.5653092049505309,
+        0.5925719880337569
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.605555534362793,
+        -0.5833333134651184,
+        0.5413175225257874
+      ],
+      "best_az_deg": 133.92917557204953,
+      "best_el_deg": 32.773373426018345,
+      "prior_az_deg": 134.57130020462182,
+      "prior_el_deg": 36.33973749512171,
+      "prior_offset_deg": 3.6053638447322287,
+      "score": 0.16258491575717926,
+      "n_search_directions": 7064,
+      "station": "pomfret",
+      "unix_time": 1780164380.8,
+      "range_km": 387.0,
+      "snr_db": 9.634147644042969,
+      "time_index": 580,
+      "range_index": 516,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5738326775253564,
+        -0.5653092049505309,
+        0.5925719880337569
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.605555534362793,
+        -0.5833333134651184,
+        0.5413175225257874
+      ],
+      "best_az_deg": 133.92917557204953,
+      "best_el_deg": 32.773373426018345,
+      "prior_az_deg": 134.55288386984734,
+      "prior_el_deg": 36.232065593664835,
+      "prior_offset_deg": 3.4966844760526405,
+      "score": 0.15310655534267426,
+      "n_search_directions": 7047,
+      "station": "beverly",
+      "unix_time": 1780164380.81,
+      "range_km": 232.5,
+      "snr_db": 9.099615097045898,
+      "time_index": 581,
+      "range_index": 310,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5748068784079657,
+        -0.5659049831748809,
+        0.5910571905938778
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6166666746139526,
+        -0.5777778029441833,
+        0.534691572189331
+      ],
+      "best_az_deg": 133.1352156174238,
+      "best_el_deg": 32.322997017759995,
+      "prior_az_deg": 134.55288386984734,
+      "prior_el_deg": 36.232065593664835,
+      "prior_offset_deg": 4.080641668653223,
+      "score": 0.16044244170188904,
+      "n_search_directions": 7047,
+      "station": "pomfret",
+      "unix_time": 1780164380.81,
+      "range_km": 387.0,
+      "snr_db": 9.49781322479248,
+      "time_index": 581,
+      "range_index": 516,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5748068784079657,
+        -0.5659049831748809,
+        0.5910571905938778
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5888888835906982,
+        -0.5555555820465088,
+        0.5869990587234497
+      ],
+      "best_az_deg": 133.3316641727348,
+      "best_el_deg": 35.94434024269499,
+      "prior_az_deg": 134.51613359792952,
+      "prior_el_deg": 36.01630588174426,
+      "prior_offset_deg": 0.9611579293595834,
+      "score": 0.15128843486309052,
+      "n_search_directions": 6998,
+      "station": "beverly",
+      "unix_time": 1780164380.83,
+      "range_km": 231.0,
+      "snr_db": 8.112143516540527,
+      "time_index": 583,
+      "range_index": 308,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5767527381385908,
+        -0.5670926633194071,
+        0.5880154677038177
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5777778029441833,
+        -0.5666666626930237,
+        0.5874195694923401
+      ],
+      "best_az_deg": 134.44374632448148,
+      "best_el_deg": 35.97410605375844,
+      "prior_az_deg": 134.47949280557566,
+      "prior_el_deg": 35.799995182716,
+      "prior_offset_deg": 0.17606628046548908,
+      "score": 0.14083871245384216,
+      "n_search_directions": 6960,
+      "station": "beverly",
+      "unix_time": 1780164380.85,
+      "range_km": 231.0,
+      "snr_db": 8.617154121398926,
+      "time_index": 585,
+      "range_index": 308,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5786951012479102,
+        -0.568275090114208,
+        0.5849576067950221
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5611110925674438,
+        0.6033599376678467
+      ],
+      "best_az_deg": 134.71775631789433,
+      "best_el_deg": 37.11091636414845,
+      "prior_az_deg": 134.46121332081486,
+      "prior_el_deg": 35.69163456714681,
+      "prior_offset_deg": 1.4342458983218642,
+      "score": 0.14989133179187775,
+      "n_search_directions": 6948,
+      "station": "beverly",
+      "unix_time": 1780164380.86,
+      "range_km": 231.0,
+      "snr_db": 9.024287223815918,
+      "time_index": 586,
+      "range_index": 308,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5796649312236046,
+        -0.5688643016262602,
+        0.583422637412023
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5666666626930237,
+        -0.5722222328186035,
+        0.5928326845169067
+      ],
+      "best_az_deg": 135.279490121898,
+      "best_el_deg": 36.358282824103675,
+      "prior_az_deg": 134.4247354543843,
+      "prior_el_deg": 35.474502966649645,
+      "prior_offset_deg": 1.1226306131690749,
+      "score": 0.09892936050891876,
+      "n_search_directions": 6909,
+      "station": "beverly",
+      "unix_time": 1780164380.88,
+      "range_km": 231.0,
+      "snr_db": 8.024934768676758,
+      "time_index": 588,
+      "range_index": 308,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5816018300996391,
+        -0.5700386710403158,
+        0.5803406109719887
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.5444444417953491,
+        0.5861572027206421
+      ],
+      "best_az_deg": 132.22083186417933,
+      "best_el_deg": 35.884783211525004,
+      "prior_az_deg": 134.40653739378422,
+      "prior_el_deg": 35.36573568768177,
+      "prior_offset_deg": 1.850815561546176,
+      "score": 0.10177057981491089,
+      "n_search_directions": 6900,
+      "station": "beverly",
+      "unix_time": 1780164380.89,
+      "range_km": 230.25,
+      "snr_db": 8.42801570892334,
+      "time_index": 589,
+      "range_index": 307,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5825688434202599,
+        -0.5706237894075029,
+        0.5787936019326773
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6111111044883728,
+        -0.5833333134651184,
+        0.5350377559661865
+      ],
+      "best_az_deg": 133.66777948157142,
+      "best_el_deg": 32.34647196582295,
+      "prior_az_deg": 134.40653739378422,
+      "prior_el_deg": 35.36573568768177,
+      "prior_offset_deg": 3.0809611228486276,
+      "score": 0.1721433699131012,
+      "n_search_directions": 6900,
+      "station": "pomfret",
+      "unix_time": 1780164380.89,
+      "range_km": 386.25,
+      "snr_db": 8.166752815246582,
+      "time_index": 589,
+      "range_index": 515,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5825688434202599,
+        -0.5706237894075029,
+        0.5787936019326773
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6277777552604675,
+        -0.5833333134651184,
+        0.5153807401657104
+      ],
+      "best_az_deg": 132.89834572399866,
+      "best_el_deg": 31.022907584077185,
+      "prior_az_deg": 134.38836636082556,
+      "prior_el_deg": 35.25683398167992,
+      "prior_offset_deg": 4.413752862157655,
+      "score": 0.11610382050275803,
+      "n_search_directions": 6868,
+      "station": "beverly",
+      "unix_time": 1780164380.9,
+      "range_km": 230.25,
+      "snr_db": 8.82266616821289,
+      "time_index": 590,
+      "range_index": 307,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5835348853218139,
+        -0.571207517863589,
+        0.5772425912461546
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6111111044883728,
+        -0.5833333134651184,
+        0.5350377559661865
+      ],
+      "best_az_deg": 133.66777948157142,
+      "best_el_deg": 32.34647196582295,
+      "prior_az_deg": 134.38836636082556,
+      "prior_el_deg": 35.25683398167992,
+      "prior_offset_deg": 2.971324351694005,
+      "score": 0.18161386251449585,
+      "n_search_directions": 6868,
+      "station": "pomfret",
+      "unix_time": 1780164380.9,
+      "range_km": 386.25,
+      "snr_db": 8.803802490234375,
+      "time_index": 590,
+      "range_index": 515,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5835348853218139,
+        -0.571207517863589,
+        0.5772425912461546
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6222222447395325,
+        -0.5777778029441833,
+        0.5282161831855774
+      ],
+      "best_az_deg": 132.87890381385807,
+      "best_el_deg": 31.88500855871002,
+      "prior_az_deg": 134.37022229898844,
+      "prior_el_deg": 35.14779842060161,
+      "prior_offset_deg": 3.491501267799664,
+      "score": 0.11291559040546417,
+      "n_search_directions": 6851,
+      "station": "beverly",
+      "unix_time": 1780164380.91,
+      "range_km": 230.25,
+      "snr_db": 9.049004554748535,
+      "time_index": 591,
+      "range_index": 307,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5844999394835283,
+        -0.5717898436345669,
+        0.5756875849452627
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6222222447395325,
+        -0.5722222328186035,
+        0.534229576587677
+      ],
+      "best_az_deg": 132.6029709654864,
+      "best_el_deg": 32.291678270300466,
+      "prior_az_deg": 134.35210515189874,
+      "prior_el_deg": 35.03862958167156,
+      "prior_offset_deg": 3.1086847288219066,
+      "score": 0.11658542603254318,
+      "n_search_directions": 6832,
+      "station": "beverly",
+      "unix_time": 1780164380.92,
+      "range_km": 230.25,
+      "snr_db": 8.403586387634277,
+      "time_index": 592,
+      "range_index": 307,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5854639895558796,
+        -0.5723707539452901,
+        0.5741285892214506
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.5666666626930237,
+        0.5647024512290955
+      ],
+      "best_az_deg": 133.3634216213153,
+      "best_el_deg": 34.38163154390164,
+      "prior_az_deg": 134.35210515189874,
+      "prior_el_deg": 35.03862958167156,
+      "prior_offset_deg": 1.0450797446427014,
+      "score": 0.16983161866664886,
+      "n_search_directions": 6832,
+      "station": "pomfret",
+      "unix_time": 1780164380.92,
+      "range_km": 386.25,
+      "snr_db": 8.045836448669434,
+      "time_index": 592,
+      "range_index": 515,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5854639895558796,
+        -0.5723707539452901,
+        0.5741285892214506
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.2888889014720917,
+        -0.6833333373069763,
+        0.6705212593078613
+      ],
+      "best_az_deg": 157.08309660596126,
+      "best_el_deg": 42.10730860063147,
+      "prior_az_deg": 134.27990458862007,
+      "prior_el_deg": 34.60063317612324,
+      "prior_offset_deg": 19.31741277277185,
+      "score": 0.09749982506036758,
+      "n_search_directions": 6764,
+      "station": "beverly",
+      "unix_time": 1780164380.96,
+      "range_km": 228.75,
+      "snr_db": 8.500555992126465,
+      "time_index": 596,
+      "range_index": 305,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.589309821004981,
+        -0.5746799850887984,
+        0.5678528415050996
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.5333333611488342,
+        0.596284806728363
+      ],
+      "best_az_deg": 131.63353968985587,
+      "best_el_deg": 36.60427735116262,
+      "prior_az_deg": 134.2619211747379,
+      "prior_el_deg": 34.49080679045242,
+      "prior_offset_deg": 3.006372408882243,
+      "score": 0.1086689755320549,
+      "n_search_directions": 6741,
+      "station": "beverly",
+      "unix_time": 1780164380.97,
+      "range_km": 228.75,
+      "snr_db": 8.926810264587402,
+      "time_index": 597,
+      "range_index": 305,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5902686044441755,
+        -0.5752536264887363,
+        0.5662739971242567
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.5944444537162781,
+        -0.550000011920929,
+        0.5866308808326721
+      ],
+      "best_az_deg": 132.77603893318167,
+      "best_el_deg": 35.91828801209082,
+      "prior_az_deg": 134.24396434040165,
+      "prior_el_deg": 34.380850700714774,
+      "prior_offset_deg": 1.9503941125589899,
+      "score": 0.1320798248052597,
+      "n_search_directions": 6721,
+      "station": "beverly",
+      "unix_time": 1780164380.98,
+      "range_km": 228.75,
+      "snr_db": 8.853113174438477,
+      "time_index": 598,
+      "range_index": 305,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5912262851435554,
+        -0.5758257757997896,
+        0.5646912038272969
+      ]
+    },
+    {
+      "best_unit_enu": [
+        0.6000000238418579,
+        -0.5611110925674438,
+        0.5702230334281921
+      ],
+      "best_az_deg": 133.08171759440222,
+      "best_el_deg": 34.765780016780475,
+      "prior_az_deg": 134.22603403024755,
+      "prior_el_deg": 34.27076552090893,
+      "prior_offset_deg": 1.064898351520591,
+      "score": 0.12035312503576279,
+      "n_search_directions": 6703,
+      "station": "beverly",
+      "unix_time": 1780164380.99,
+      "range_km": 228.75,
+      "snr_db": 8.398001670837402,
+      "time_index": 599,
+      "range_index": 305,
+      "time_error_s": 0.0,
+      "range_error_km": 0.0,
+      "prior_unit_enu": [
+        0.5921828465777503,
+        -0.5763964202620295,
+        0.5631044689293367
+      ]
+    }
+  ]
+}

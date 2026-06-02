@@ -136,7 +136,7 @@ def range_doppler_bank(
     ignore_freq,
     head_min_doppler_hz=250.0,
     dc_cancel=False,
-    dc_cancel_seconds=1.0,
+    dc_cancel_seconds=5.0,
     dc_calibration_data=None,
     spike_sigma=0.0,
     doppler_whiten=False,
@@ -334,8 +334,8 @@ def main():
     p.add_argument("--ignore-freq", type=float, default=150.0)
     p.add_argument("--head-min-doppler-hz", type=float, default=250.0)
     p.add_argument("--dc-cancel", action="store_true")
-    p.add_argument("--dc-cancel-seconds", type=float, default=1.0)
-    p.add_argument("--dc-cancel-start-second", type=float, default=0.0)
+    p.add_argument("--dc-cancel-seconds", type=float, default=5.0)
+    p.add_argument("--dc-cancel-start-second", type=float, default=75.0)
     p.add_argument("--spike-sigma", type=float, default=0.0)
     p.add_argument("--doppler-whiten", action="store_true", default=True)
     p.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
