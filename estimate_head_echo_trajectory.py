@@ -289,9 +289,9 @@ def plot_cartopy_trajectory_uncertainty(out_dir, obs, fit, covariance, n_samples
         crs=data_crs,
     )
     ax.set_facecolor("0.96")
-    ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="0.94", edgecolor="none", zorder=0)
-    ax.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="0.86", edgecolor="none", zorder=0)
-    ax.coastlines(resolution="50m", linewidth=0.9, color="0.15", zorder=3)
+    ax.add_feature(cfeature.LAND.with_scale("10m"), facecolor="0.94", edgecolor="none", zorder=0)
+    ax.add_feature(cfeature.OCEAN.with_scale("10m"), facecolor="0.86", edgecolor="none", zorder=0)
+    ax.coastlines(resolution="10m", linewidth=0.9, color="0.15", zorder=3)
     ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.45, edgecolor="0.35", zorder=3)
     gl = ax.gridlines(draw_labels=True, linewidth=0.4, color="0.7", alpha=0.8)
     gl.top_labels = False
