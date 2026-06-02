@@ -163,7 +163,10 @@ def range_doppler_bank(
             # Normalize each Doppler bin by its median power over range before
             # peak picking. This suppresses Doppler-dependent clutter/leakage,
             # so a detection means "bright relative to other ranges at this
-            # Doppler" rather than simply "bright in absolute power."
+            # Doppler" rather than simply "bright in absolute power." In this
+            # bolide data, the head echo is often not observable without this
+            # whitening step because strong background structure dominates the
+            # absolute-power peak picker.
             dop_floor = np.median(S, axis=0)
             S_pick = S / np.maximum(dop_floor[None, :], 1e-12)
             floor = np.median(S_pick, axis=1)
@@ -276,7 +279,8 @@ def main():
     p.add_argument("--fmax", type=float, default=40000.0)
     p.add_argument("--ignore-freq", type=float, default=150.0)
     p.add_argument("--spike-sigma", type=float, default=0.0)
-    p.add_argument("--doppler-whiten", action="store_true")
+    p.add_argument("--doppler-whiten", action="store_true", default=True)
+    p.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
     p.add_argument("--progress-every", type=int, default=5)
     p.add_argument("--checkpoint-every", type=int, default=25)
     p.add_argument("--out", default=None)

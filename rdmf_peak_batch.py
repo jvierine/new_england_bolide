@@ -137,7 +137,8 @@ def run_station(args):
                 # Match range_doppler_mf_bolide.py: divide each Doppler bin by
                 # its median range power before peak picking. This reduces
                 # Doppler-dependent clutter/leakage and makes the picker look
-                # for range-localized excess power at each Doppler.
+                # for range-localized excess power at each Doppler. In this
+                # bolide data, the head echo is often hidden without this step.
                 dop_floor = np.median(S, axis=0)
                 S_pick = S / np.maximum(dop_floor[None, :], 1e-12)
             else:
@@ -400,7 +401,8 @@ def parser():
         q.add_argument("--fmax", type=float, default=50000.0)
         q.add_argument("--ignore-freq", type=float, default=0.0)
         q.add_argument("--spike-sigma", type=float, default=0.0)
-        q.add_argument("--doppler-whiten", action="store_true")
+        q.add_argument("--doppler-whiten", action="store_true", default=True)
+        q.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
         q.add_argument("--progress-every", type=int, default=25)
         q.add_argument("--flush-every", type=int, default=10)
         q.add_argument("--overwrite", action="store_true")
