@@ -3,6 +3,12 @@
 Range-Doppler matched-filter and transmit angle-of-departure tools for the
 2026-05-30 New England bolide SIMONe/Haystack coded-CW data.
 
+## Figures
+
+![Bolide orbit in the inner solar system](reports/figures/orbit_xy_bolide.png)
+
+![Head-echo trajectory and trail heatmap](reports/figures/head_echo_trajectory_trail_heatmap.png)
+
 ## Inputs
 
 The scripts expect the raw data directory layout under `2026_05_30_bolide/`.
