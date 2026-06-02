@@ -149,12 +149,15 @@ class HeadEchoLabeler:
         self.fig.canvas.mpl_connect("key_press_event", self.on_key)
 
     def draw_station(self):
+        if self.selector:
+            self.selector.disconnect_events()
+            self.selector = None
+        self.clear_rectangles()
         self.data = load_station_file(self.files[self.index])
         self.t0_unix = float(self.data["t_unix"][0])
         self.current_box = None
         self.ax_rti.clear()
         self.ax_dop.clear()
-        self.clear_rectangles()
 
         tplot = self.data["t_unix"] - self.t0_unix
         r = self.data["range_km"]
@@ -184,8 +187,6 @@ class HeadEchoLabeler:
 
         self.draw_existing_annotation()
         self.set_status()
-        if self.selector:
-            self.selector.disconnect_events()
         self.selector = RectangleSelector(
             self.ax_rti,
             self.on_select,
@@ -200,7 +201,10 @@ class HeadEchoLabeler:
 
     def clear_rectangles(self):
         for rect in self.rectangles:
-            rect.remove()
+            try:
+                rect.remove()
+            except (NotImplementedError, ValueError):
+                pass
         self.rectangles = []
 
     def add_box_patches(self, x0, x1, y0, y1, color="cyan"):
