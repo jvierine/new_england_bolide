@@ -6,6 +6,9 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+import astropy.units as u
+from astropy.coordinates import AltAz, EarthLocation, SkyCoord
+from astropy.time import Time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -127,7 +130,34 @@ def plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples):
     return out
 
 
-def plot_altitude_velocity(fit, tx0, rot, params, samples):
+def apparent_radiant(fit, tx0, rot, params):
+    obs = fit["observations"]
+    t_first = min(o["unix_time"] for o in obs)
+    first_state = model_state_series(params, [t_first], fit["t_ref_unix"], tx0, rot)
+    first_lat, first_lon, first_alt_m = first_state["lat_lon_alt"][0]
+    v_enu_tx = np.array(fit["fit_parameters_enu_at_tx"]["velocity_mps"], dtype=float)
+    v_ecef = rot @ v_enu_tx
+    radiant_ecef = -v_ecef / np.linalg.norm(v_ecef)
+    local_rot = enu_to_ecef_matrix(first_lat, first_lon)
+    radiant_enu = local_rot.T @ radiant_ecef
+    az_deg = (np.rad2deg(np.arctan2(radiant_enu[0], radiant_enu[1])) + 360.0) % 360.0
+    el_deg = np.rad2deg(np.arcsin(np.clip(radiant_enu[2], -1.0, 1.0)))
+    loc = EarthLocation(lat=first_lat * u.deg, lon=first_lon * u.deg, height=first_alt_m * u.m)
+    altaz = SkyCoord(
+        az=az_deg * u.deg,
+        alt=el_deg * u.deg,
+        frame=AltAz(obstime=Time(t_first, format="unix"), location=loc),
+    )
+    icrs = altaz.icrs
+    return {
+        "az_deg": float(az_deg),
+        "el_deg": float(el_deg),
+        "ra_deg": float(icrs.ra.deg),
+        "dec_deg": float(icrs.dec.deg),
+    }
+
+
+def plot_altitude_summary(fit, tx0, rot, params, samples):
     obs = fit["observations"]
     t_ref = fit["t_ref_unix"]
     t_obs = np.array([o["unix_time"] for o in obs], dtype=float)
@@ -135,32 +165,36 @@ def plot_altitude_velocity(fit, tx0, rot, params, samples):
     model = model_state_series(params, t_grid, t_ref, tx0, rot)
     sample_states = [model_state_series(p, t_grid, t_ref, tx0, rot) for p in samples]
     sample_alt_km = np.array([s["lat_lon_alt"][:, 2] / 1000.0 for s in sample_states])
-    sample_vel_enu = np.array([s["velocity_enu_mps"] / 1000.0 for s in sample_states])
-    sample_speed = np.array([s["speed_mps"] / 1000.0 for s in sample_states])
     alt_lo, alt_hi = np.percentile(sample_alt_km, [2.5, 97.5], axis=0)
-    speed_lo, speed_hi = np.percentile(sample_speed, [2.5, 97.5], axis=0)
-    vel_lo, vel_hi = np.percentile(sample_vel_enu, [2.5, 97.5], axis=0)
+    radiant = apparent_radiant(fit, tx0, rot, params)
+    speed_kms = fit["fit_parameters_enu_at_tx"]["speed_kmps"]
 
-    fig, axes = plt.subplots(2, 1, figsize=(12.0, 8.2), sharex=True, constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(12.0, 6.6), constrained_layout=True)
     tr = model["time_relative_s"]
-    axes[0].fill_between(tr, alt_lo, alt_hi, color="C0", alpha=0.2, linewidth=0, label="95% fit uncertainty")
-    axes[0].plot(tr, model["lat_lon_alt"][:, 2] / 1000.0, color="C0", lw=2.2, label="fit")
-    axes[0].scatter([0.0], [fit["geodetic_ref_wgs84"]["alt_m"] / 1000.0], color="k", s=32, zorder=4, label="t_ref")
-    axes[0].set_ylabel("Altitude (km)")
-    axes[0].set_title("Best-fit head echo altitude and velocity")
-    axes[0].grid(True, color="0.9", linewidth=0.6)
-    axes[0].legend(loc="upper right")
-
-    vel = model["velocity_enu_mps"] / 1000.0
-    for i, (label, color) in enumerate((("east", "C0"), ("north", "C1"), ("up", "C2"))):
-        axes[1].fill_between(tr, vel_lo[:, i], vel_hi[:, i], color=color, alpha=0.12, linewidth=0)
-        axes[1].plot(tr, vel[:, i], color=color, lw=1.8, label=label)
-    axes[1].fill_between(tr, speed_lo, speed_hi, color="k", alpha=0.12, linewidth=0)
-    axes[1].plot(tr, model["speed_mps"] / 1000.0, color="k", lw=2.5, label="speed")
-    axes[1].set_xlabel(f"Seconds relative to {fit['t_ref_utc']}")
-    axes[1].set_ylabel("Velocity (km/s)")
-    axes[1].grid(True, color="0.9", linewidth=0.6)
-    axes[1].legend(ncol=4)
+    ax.fill_between(tr, alt_lo, alt_hi, color="C0", alpha=0.2, linewidth=0, label="95% fit uncertainty")
+    ax.plot(tr, model["lat_lon_alt"][:, 2] / 1000.0, color="C0", lw=2.2, label="fit")
+    ax.scatter([0.0], [fit["geodetic_ref_wgs84"]["alt_m"] / 1000.0], color="k", s=32, zorder=4, label="t_ref")
+    ax.set_xlabel(f"Seconds relative to {fit['t_ref_utc']}")
+    ax.set_ylabel("Altitude (km)")
+    ax.set_title("Best-fit head echo altitude")
+    ax.grid(True, color="0.9", linewidth=0.6)
+    text = (
+        f"Speed = {speed_kms:.2f} km/s\n"
+        f"Radiant RA = {radiant['ra_deg']:.2f} deg, Dec = {radiant['dec_deg']:.2f} deg\n"
+        f"Radiant Az = {radiant['az_deg']:.2f} deg, El = {radiant['el_deg']:.2f} deg\n"
+        "No zenithal-attraction correction"
+    )
+    ax.text(
+        0.03,
+        0.06,
+        text,
+        transform=ax.transAxes,
+        va="bottom",
+        ha="left",
+        fontsize=14,
+        bbox=dict(boxstyle="round,pad=0.35", fc="white", ec="0.65", alpha=0.92),
+    )
+    ax.legend(loc="upper right")
 
     out = FIG_DIR / "head_echo_altitude_velocity.png"
     fig.savefig(out, dpi=240, bbox_inches="tight")
@@ -183,6 +217,7 @@ def write_trajectory_stats(fit, tx0, rot, params):
     ref_lat, ref_lon, ref_alt_m = ecef_to_geodetic_wgs84(np.array(fit["position_ref_ecef_m"]))
     v_enu = np.array(fit["fit_parameters_enu_at_tx"]["velocity_mps"])
     speed = np.linalg.norm(v_enu)
+    radiant = apparent_radiant(fit, tx0, rot, params)
     first_utc = datetime.fromtimestamp(t_first, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " UTC"
     lines = [
         f"\\newcommand{{\\TrajectoryNObservations}}{{{fit['n_observations']}}}\n",
@@ -198,6 +233,10 @@ def write_trajectory_stats(fit, tx0, rot, params):
         f"\\newcommand{{\\TrajectoryVEastKmS}}{{{v_enu[0] / 1000.0:.2f}}}\n",
         f"\\newcommand{{\\TrajectoryVNorthKmS}}{{{v_enu[1] / 1000.0:.2f}}}\n",
         f"\\newcommand{{\\TrajectoryVUpKmS}}{{{v_enu[2] / 1000.0:.2f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantRADeg}}{{{radiant['ra_deg']:.2f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantDecDeg}}{{{radiant['dec_deg']:.2f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantAzDeg}}{{{radiant['az_deg']:.2f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantElDeg}}{{{radiant['el_deg']:.2f}}}\n",
         f"\\newcommand{{\\TrajectoryRangeRmsM}}{{{fit['range_residual_m']['rms']:.0f}}}\n",
         f"\\newcommand{{\\TrajectoryDopplerRmsHz}}{{{fit['doppler_residual_hz']['rms']:.0f}}}\n",
     ]
@@ -212,7 +251,7 @@ def main():
     fit, geom, tx0, rot, params = load_fit()
     samples = covariance_samples(fit)
     measurement_fig = plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples)
-    altitude_fig = plot_altitude_velocity(fit, tx0, rot, params, samples)
+    altitude_fig = plot_altitude_summary(fit, tx0, rot, params, samples)
     cartopy_fig = copy_cartopy_figure()
     stats = write_trajectory_stats(fit, tx0, rot, params)
     print(measurement_fig)

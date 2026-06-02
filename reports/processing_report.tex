@@ -214,16 +214,20 @@ The fitted initial velocity is
 \]
 with speed \TrajectorySpeedKmS{} km s\(^{-1}\).  The large negative upward
 component indicates a steeply descending trajectory during the head-echo
-interval.
+interval.  The corresponding apparent radiant, without zenithal-attraction
+correction, is RA \TrajectoryRadiantRADeg{} deg,
+Dec \TrajectoryRadiantDecDeg{} deg, or Az \TrajectoryRadiantAzDeg{} deg,
+El \TrajectoryRadiantElDeg{} deg in the local horizon frame at the first
+detection point.
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{figures/head_echo_altitude_velocity.png}
-  \caption{Altitude and velocity implied by the straight-line fit over the
-  retained head-echo detection interval.  The fitted model is constant
-  velocity, so the speed and ENU velocity components are constant in this
-  preliminary fit.  Shaded bands show sampled 95\% fit uncertainty from the
-  linearized least-squares covariance.}
+  \caption{Altitude implied by the straight-line fit over the retained
+  head-echo detection interval.  The text inset gives the fitted absolute
+  speed and apparent radiant in RA/Dec and Az/El.  No zenithal-attraction
+  correction has been applied.  Shaded bands show sampled 95\% fit uncertainty
+  from the linearized least-squares covariance.}
   \label{fig:trajectory-altitude}
 \end{figure}
 
