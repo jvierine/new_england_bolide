@@ -153,4 +153,56 @@ divides out the median range power at each Doppler before the peak is selected.
   \label{fig:beverly-whiten}
 \end{figure}
 
+\section{Trajectory Fit and GOES-19 GLM Context}
+
+The current head-echo trajectory estimate is a straight-line fit to the manual
+head-echo ROIs from Beverly, Clinton, and Pomfret.  The fit uses both bistatic
+delay,
+\[
+  \tau(t)=\frac{|{\bf x}(t)-{\bf x}_{\mathrm{tx}}|
+             +|{\bf x}(t)-{\bf x}_{\mathrm{rx}}|}{c},
+\]
+and bistatic Doppler,
+\[
+  f_D(t)=\frac{f_0}{c}
+  \left[
+    \frac{{\bf x}(t)-{\bf x}_{\mathrm{tx}}}
+         {|{\bf x}(t)-{\bf x}_{\mathrm{tx}}|}
+    +
+    \frac{{\bf x}(t)-{\bf x}_{\mathrm{rx}}}
+         {|{\bf x}(t)-{\bf x}_{\mathrm{rx}}|}
+  \right]\cdot{\bf v}(t).
+\]
+This Doppler sign convention is the same as in the New Mexico bolide analysis:
+positive Doppler corresponds to an increasing total bistatic propagation path.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/head_echo_cartopy_trajectory_uncertainty.png}
+  \caption{Best-fit head-echo trajectory over the detection interval, with
+  \(\pm 2\) s straight-line extrapolation before the first and after the last
+  detection.  The shaded region is the sampled 95\% uncertainty region from
+  the linearized least-squares covariance.  Transmitter and receiver station
+  locations are shown for geographic context.}
+  \label{fig:trajectory-map}
+\end{figure}
+
+GOES-19 Geostationary Lightning Mapper (GLM) data provide an independent data
+source for this event.  Public reports noted a GLM optical burst over the
+Massachusetts coast at approximately the same time as the reported sonic boom.
+Although GLM is designed for lightning, bright bolide emission can appear as a
+compact transient optical source in the lightning mapper.  For this event, the
+GLM detection can be used as an external timing and geolocation constraint on
+the luminous phase, complementary to the radar head-echo trajectory in
+Figure~\ref{fig:trajectory-map}.
+
+The useful GLM products for follow-up are the event, group, and flash
+locations and times near 18:06 UTC on 2026-05-30.  These should be compared
+with the extrapolated radar trajectory, accounting for the GLM geolocation
+uncertainty, cloud-top illumination geometry, and the fact that the optical
+centroid need not coincide exactly with the radar head-echo scattering point.
+In practice, the GLM burst can help reject trajectory solutions whose
+extrapolated ground track misses the observed optical source region or whose
+timing is inconsistent with the optical transient.
+
 \end{document}
