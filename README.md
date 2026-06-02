@@ -16,8 +16,9 @@ Raw data will be archived on Zenodo.
 
 Zenodo DOI: TBD
 
-After downloading the archive, extract it at the repository root so the raw
-data are available under:
+After downloading the archive, place it at the repository root as
+`2026_05_30_bolide.tar.gz`.  The reproduction script below will extract it
+when needed.  After extraction, the raw data are available under:
 
 ```text
 2026_05_30_bolide/
@@ -40,6 +41,32 @@ Check that the scientific Python dependencies import correctly:
 ```bash
 python -c "import astropy, dasst, h5py, matplotlib, numpy, scipy, yaml; print('ok')"
 ```
+
+## Reproduce The Report
+
+From a fresh clone plus `2026_05_30_bolide.tar.gz`, rebuild the products,
+figures, tables, and PDF with:
+
+```bash
+./scripts/reproduce_report.sh --clean 2026_05_30_bolide.tar.gz
+```
+
+Set `MAX_PARALLEL` to control the high-resolution matched-filter batch
+parallelism:
+
+```bash
+MAX_PARALLEL=32 ./scripts/reproduce_report.sh --clean 2026_05_30_bolide.tar.gz
+```
+
+The script creates `.venv`, installs `requirements.txt`, extracts the raw
+archive, regenerates the high-resolution RDMF products, fits the head-echo
+trajectory, recomputes the orbit/source association products, regenerates all
+report figures/tables, and rebuilds `reports/processing_report.pdf`.
+
+All non-raw catalog and ephemeris inputs used by the report are tracked under
+`data/`, including `NEA.txt`, `streamestablisheddata2026.txt`, and
+`de440s.bsp`.  The raw `.h5` radar files and generated `products/` are not
+tracked; they are reconstructed from `2026_05_30_bolide.tar.gz`.
 
 ## Range-Doppler Products
 
@@ -150,8 +177,8 @@ samples its linearized ENU position/velocity covariance, converts samples to
 ECEF/ITRS, and propagates pre-encounter orbits with `dasst`/`rebound`.
 
 The default command expects the trajectory fit at
-`products/head_echo_trajectory_roi_fit/head_echo_trajectory.json` and a JPL
-ephemeris kernel at `/Users/j/src/rebound_examples/data/de440s.bsp`:
+`products/head_echo_trajectory_roi_fit/head_echo_trajectory.json` and the
+tracked JPL ephemeris kernel at `data/de440s.bsp`:
 
 ```bash
 python orbit_det_sample.py \

@@ -5,10 +5,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import AltAz, EarthLocation, SkyCoord
 from astropy.time import Time
+from scipy.spatial import ConvexHull
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -202,11 +204,168 @@ def plot_altitude_summary(fit, tx0, rot, params, samples):
     return out
 
 
-def copy_cartopy_figure():
-    src = PRODUCT_DIR / "head_echo_cartopy_trajectory_uncertainty.png"
-    dst = FIG_DIR / "head_echo_cartopy_trajectory_uncertainty.png"
-    dst.write_bytes(src.read_bytes())
-    return dst
+def _sample_hull(sample_points):
+    cloud = np.reshape(np.array(sample_points), (-1, 2))
+    good = np.all(np.isfinite(cloud), axis=1)
+    cloud = cloud[good]
+    if len(cloud) < 3:
+        return None
+    center = np.median(cloud, axis=0)
+    dist = np.linalg.norm(cloud - center[None, :], axis=1)
+    cloud95 = cloud[dist <= np.percentile(dist, 95.0)]
+    if len(cloud95) < 3:
+        return None
+    return cloud95[ConvexHull(cloud95).vertices]
+
+
+def _annotate_altitudes(ax, lon, lat, alt_km, data_crs, interval_km=10.0):
+    lo = max(0.0, np.ceil(np.nanmin(alt_km) / interval_km) * interval_km)
+    hi = np.floor(np.nanmax(alt_km) / interval_km) * interval_km
+    if hi < lo:
+        return
+    levels = np.arange(lo, hi + 0.1, interval_km)
+    order = np.argsort(alt_km)
+    alt_sorted = alt_km[order]
+    lon_sorted = lon[order]
+    lat_sorted = lat[order]
+    _, unique_idx = np.unique(np.round(alt_sorted, 6), return_index=True)
+    unique_idx = np.sort(unique_idx)
+    alt_unique = alt_sorted[unique_idx]
+    lon_unique = lon_sorted[unique_idx]
+    lat_unique = lat_sorted[unique_idx]
+    offsets = [(0, 13), (0, -13), (22, 9), (-22, -9), (22, -9), (-22, 9)]
+    for idx, level in enumerate(levels):
+        if level < alt_unique[0] or level > alt_unique[-1]:
+            continue
+        x = float(np.interp(level, alt_unique, lon_unique))
+        y = float(np.interp(level, alt_unique, lat_unique))
+        dx, dy = offsets[idx % len(offsets)]
+        ax.annotate(
+            f"{level:.0f}",
+            xy=(x, y),
+            xycoords=data_crs._as_mpl_transform(ax),
+            xytext=(dx, dy),
+            textcoords="offset points",
+            fontsize=7,
+            color="0.1",
+            zorder=10,
+            ha="center",
+            va="center",
+            path_effects=[pe.withStroke(linewidth=2.2, foreground="white")],
+            arrowprops=dict(arrowstyle="-", color="0.45", lw=0.45, shrinkA=0, shrinkB=1.5),
+        )
+
+
+def plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples):
+    try:
+        import cartopy.crs as ccrs
+        import cartopy.feature as cfeature
+    except Exception as exc:
+        print(f"Skipping Cartopy map: {exc}")
+        return None
+
+    obs = fit["observations"]
+    t_ref = fit["t_ref_unix"]
+    t_obs = np.array([o["unix_time"] for o in obs], dtype=float)
+    t_first = float(np.min(t_obs))
+    t_last = float(np.max(t_obs))
+    t_all = np.linspace(t_first - 10.0, t_last + 3.0, 420)
+
+    model = model_state_series(params, t_all, t_ref, tx0, rot)
+    lon = model["lat_lon_alt"][:, 1]
+    lat = model["lat_lon_alt"][:, 0]
+    alt_km = model["lat_lon_alt"][:, 2] / 1000.0
+    pre = t_all < t_first
+    detect = (t_all >= t_first) & (t_all <= t_last)
+    post = t_all > t_last
+
+    sample_lonlat = []
+    for sample in samples:
+        sample_model = model_state_series(sample, t_all, t_ref, tx0, rot)
+        sample_lonlat.append(sample_model["lat_lon_alt"][:, [1, 0]])
+    sample_lonlat = np.array(sample_lonlat)
+
+    station_lons = []
+    station_lats = []
+    for g in geom.values():
+        rx_lat, rx_lon, _ = g["gps_rx"]
+        tx_lat, tx_lon, _ = g["gps_tx"]
+        station_lons.extend([rx_lon, tx_lon])
+        station_lats.extend([rx_lat, tx_lat])
+
+    data_crs = ccrs.PlateCarree()
+    fig = plt.figure(figsize=(9.2, 7.2), constrained_layout=True)
+    ax = fig.add_subplot(1, 1, 1, projection=data_crs)
+    cape_cod_extent = [-71.8, -69.2, 41.2, 42.9]
+
+    hull_poly = _sample_hull(sample_lonlat)
+    extra_lon = hull_poly[:, 0] if hull_poly is not None else np.array([])
+    extra_lat = hull_poly[:, 1] if hull_poly is not None else np.array([])
+    all_lon = np.concatenate([lon, extra_lon, np.array(station_lons)])
+    all_lat = np.concatenate([lat, extra_lat, np.array(station_lats)])
+    pad_lon = max(0.15, 0.2 * (np.nanmax(all_lon) - np.nanmin(all_lon)))
+    pad_lat = max(0.15, 0.2 * (np.nanmax(all_lat) - np.nanmin(all_lat)))
+    extent = [
+        min(cape_cod_extent[0], np.nanmin(all_lon) - pad_lon),
+        max(cape_cod_extent[1], np.nanmax(all_lon) + pad_lon),
+        min(cape_cod_extent[2], np.nanmin(all_lat) - pad_lat),
+        max(cape_cod_extent[3], np.nanmax(all_lat) + pad_lat),
+    ]
+    ax.set_extent(extent, crs=data_crs)
+    ax.set_facecolor("0.96")
+    ax.add_feature(cfeature.LAND.with_scale("10m"), facecolor="0.94", edgecolor="none", zorder=0)
+    ax.add_feature(cfeature.OCEAN.with_scale("10m"), facecolor="0.86", edgecolor="none", zorder=0)
+    ax.coastlines(resolution="10m", linewidth=0.9, color="0.15", zorder=3)
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.45, edgecolor="0.35", zorder=3)
+    gl = ax.gridlines(draw_labels=True, linewidth=0.4, color="0.7", alpha=0.8)
+    gl.top_labels = False
+    gl.right_labels = False
+    if hull_poly is not None:
+        ax.fill(
+            hull_poly[:, 0],
+            hull_poly[:, 1],
+            color="C0",
+            alpha=0.18,
+            transform=data_crs,
+            label="sampled 95% covariance region",
+            zorder=2,
+        )
+    ax.plot(lon[pre], lat[pre], "--", color="C1", lw=2.2, transform=data_crs, label="-10 s extrapolation", zorder=4)
+    ax.plot(lon[detect], lat[detect], "-", color="C3", lw=2.7, transform=data_crs, label="fit over detections", zorder=5)
+    ax.plot(lon[post], lat[post], "--", color="C2", lw=2.2, transform=data_crs, label="+3 s extrapolation", zorder=4)
+    ax.scatter(lon[detect][0], lat[detect][0], s=45, color="k", transform=data_crs, zorder=6, label="first detection")
+    ax.scatter(lon[detect][-1], lat[detect][-1], s=45, facecolor="white", edgecolor="k", transform=data_crs, zorder=6, label="last detection")
+    _annotate_altitudes(ax, lon, lat, alt_km, data_crs, interval_km=10.0)
+
+    tx_seen = set()
+    receiver_labeled = False
+    for station, g in geom.items():
+        rx_lat, rx_lon, _ = g["gps_rx"]
+        tx_lat, tx_lon, _ = g["gps_tx"]
+        tx_key = (round(tx_lat, 5), round(tx_lon, 5))
+        ax.scatter(
+            rx_lon,
+            rx_lat,
+            marker="^",
+            s=58,
+            color="0.1",
+            transform=data_crs,
+            zorder=7,
+            label=None if receiver_labeled else "receivers",
+        )
+        receiver_labeled = True
+        ax.text(rx_lon + 0.025, rx_lat + 0.015, station, fontsize=8, transform=data_crs, zorder=8, clip_on=True)
+        if tx_key not in tx_seen:
+            ax.scatter(tx_lon, tx_lat, marker="*", s=110, color="gold", edgecolor="0.2", transform=data_crs, zorder=7, label="transmitter")
+            ax.text(tx_lon + 0.025, tx_lat + 0.015, "TX", fontsize=8, weight="bold", transform=data_crs, zorder=8, clip_on=True)
+            tx_seen.add(tx_key)
+    ax.set_title("Head-echo trajectory fit with straight-line extrapolation")
+    ax.legend(loc="best", fontsize=8)
+
+    out = FIG_DIR / "head_echo_cartopy_trajectory_uncertainty.png"
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+    return out
 
 
 def write_trajectory_stats(fit, tx0, rot, params):
@@ -253,7 +412,7 @@ def main():
     samples = covariance_samples(fit)
     measurement_fig = plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples)
     altitude_fig = plot_altitude_summary(fit, tx0, rot, params, samples)
-    cartopy_fig = copy_cartopy_figure()
+    cartopy_fig = plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples)
     stats = write_trajectory_stats(fit, tx0, rot, params)
     print(measurement_fig)
     print(altitude_fig)

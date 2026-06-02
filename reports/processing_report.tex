@@ -158,6 +158,27 @@ divides out the median range power at each Doppler before the peak is selected.
   \label{fig:beverly-whiten}
 \end{figure}
 
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/station_range_time_snr.png}
+  \caption{Range--time intensity for all five stations over the
+  high-resolution 18:06:18--18:06:25 UTC interval.  The plotted range windows
+  are Beverly 150--300 km, Clinton 200--300 km, Pomfret 300--450 km, Siena
+  400--500 km, and Amherst 200--350 km.}
+  \label{fig:station-rti-snr}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/station_range_time_doppler.png}
+  \caption{Peak Doppler over the same station range windows as
+  Figure~\ref{fig:station-rti-snr}, plotted on a fixed \(-3000\)--0 Hz scale.
+  Doppler values are masked where the range--time SNR is below 5 dB so that
+  the plotted colors emphasize the detected head/trail echo rather than
+  low-SNR peak-picker fluctuations.}
+  \label{fig:station-rti-doppler}
+\end{figure}
+
 \section{Trajectory Fit}
 
 The current head-echo trajectory estimate is a straight-line fit to the manual
@@ -241,11 +262,12 @@ detection point.
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{figures/head_echo_cartopy_trajectory_uncertainty.png}
-  \caption{Best-fit head-echo trajectory over the detection interval, with
-  \(\pm 2\) s straight-line extrapolation before the first and after the last
-  detection.  The shaded region is the sampled 95\% uncertainty region from
-  the linearized least-squares covariance.  Transmitter and receiver station
-  locations are shown for geographic context.}
+  \caption{Best-fit head-echo trajectory over the detection interval, with a
+  10 s straight-line extrapolation before the first detection and a 3 s
+  extrapolation after the last detection.  Altitude labels are shown at 10 km
+  intervals along the plotted trajectory.  The shaded region is the sampled
+  95\% uncertainty region from the linearized least-squares covariance.
+  Transmitter and receiver station locations are shown for geographic context.}
   \label{fig:trajectory-map}
 \end{figure}
 
@@ -269,10 +291,9 @@ dissimilarity, and the angular radiant separation \(\Delta_R\).
   \centering
   \includegraphics[width=\linewidth]{figures/orbit_xy_bolide.png}
   \caption{Best-fit bolide orbit in the J2000 heliocentric ecliptic \(x\)--\(y\)
-  plane.  The left panel zooms into the inner solar system and shows the
-  Monte Carlo orbit uncertainty envelope; the right panel gives the full
-  planetary context using NASA mean planet elements advanced to the bolide
-  epoch.}
+  plane.  The plot zooms into the inner solar system and shows the Monte Carlo
+  orbit uncertainty envelope with NASA mean planet elements advanced to the
+  bolide epoch.}
   \label{fig:orbit-xy}
 \end{figure}
 

@@ -24,7 +24,7 @@ from angle_departure_estimator import enu_to_ecef_matrix, geodetic_to_ecef, load
 
 DEFAULT_TRAJECTORY = Path("products/head_echo_trajectory_roi_fit/head_echo_trajectory.json")
 DEFAULT_DATA_DIR = Path("2026_05_30_bolide")
-DEFAULT_KERNEL = Path("/Users/j/src/rebound_examples/data/de440s.bsp")
+DEFAULT_KERNEL = Path("data/de440s.bsp")
 DEFAULT_OUT = Path("products/orbit_determination/head_echo_orbit_samples.h5")
 
 KEPLER_OUT_FRAMES = ["ICRS", "HeliocentricMeanEcliptic"]
