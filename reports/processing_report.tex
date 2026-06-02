@@ -19,54 +19,44 @@
 \setlength{\parskip}{0.45em}
 \setlength{\parindent}{0pt}
 
-\title{New England Bolide Range--Doppler Processing Notes}
+\title{Radar Analysis of the 2026 May 30 New England Bolide}
 \author{J. Vierinen and Codex}
 \date{\today}
 
 \begin{document}
 \maketitle
 
-\section{Processing State}
+\section{Introduction}
 
-The high-resolution range--Doppler matched-filter run used for the current
-figures covers 18:06:15--18:06:25 UTC on 2026-05-30.  The run used
-\texttt{codes-per-step = 1}, \texttt{range-interp = 4},
-\texttt{max-range-km = 600}, \texttt{fmin = -50000},
-\texttt{fmax = 50000}, and Doppler whitening enabled.  The source radar
-dataset is archived on Zenodo \cite{volz_2026_20507006}.  The server job
-completed all 620 station/chunk jobs with no failed chunks.
+On 2026 May 30, a bright bolide was observed over New England and was
+independently reported through optical and infrasound-related public accounts.
+This report analyzes coded-CW radar observations of the event using the
+Haystack transmitter and multiple regional receiving stations.  The radar data
+provide bistatic range and Doppler measurements of the meteor head echo, as
+well as near-zero-Doppler non-specular trail echoes after the main body passed
+through the observed volume.  The source radar dataset is archived on Zenodo
+\cite{volz_2026_20507006}.
 
-The merged products are in
-\begin{verbatim}
-products/rdmf_exact_highres_180615_10s_merged_20260602_095431/
-\end{verbatim}
-and the RTI/Doppler plots are in
-\begin{verbatim}
-plots/rdmf_exact_highres_180615_10s_20260602_095431/
-\end{verbatim}
+The goals of the analysis are to isolate the head echo from trail and clutter
+returns, estimate a tri-static straight-line trajectory with statistically
+meaningful uncertainty, compare the inferred head-echo path with trail
+angle-of-departure (AoD) positions, and propagate the fitted radar state to a
+pre-encounter heliocentric orbit.  The figures below therefore move from radar
+system geometry, to range--Doppler detection products, to trajectory and trail
+AoD geometry, and finally to orbit and source-association diagnostics.
 
-The command that creates the station RTI and range--time--Doppler plots is:
-\begin{verbatim}
-python plot_rdmf_bolide.py <merged_station_file.h5> \
-  --snr-threshold 5 \
-  --out-prefix <plot_prefix>
-\end{verbatim}
-For example, for Beverly:
-\begin{verbatim}
-python plot_rdmf_bolide.py \
-  products/rdmf_exact_highres_180615_10s_merged_20260602_095431/\
-rdmf_peak_beverly_merged.h5 \
-  --snr-threshold 5 \
-  --out-prefix plots/rdmf_exact_highres_180615_10s_20260602_095431/\
-rdmf_peak_beverly_merged
-\end{verbatim}
+The main high-resolution radar products cover 18:06:15--18:06:25 UTC.  In the
+range--time displays, the all-Doppler product retains the strongest bin and is
+therefore useful for non-specular trail echoes, while the head-echo product
+requires \(|f_D| \ge 250\) Hz to suppress near-zero-Doppler trail and clutter
+returns.  Reproducibility details, product paths, and command-line examples are
+kept in the repository README rather than in this report.
 
 \section{Station And Transmitter Geometry}
 
-The receiving sites are referred to in the processing scripts by compact
-station keys.  The report tables below translate those keys to the geographic
-receiver sites and list the shared Haystack transmit site used by all bistatic
-paths.
+The receiving sites are identified below by compact station labels.  The
+report tables translate those labels to geographic receiver sites and list the
+shared Haystack transmit site used by all bistatic paths.
 
 \begin{table}[ht]
   \centering
@@ -99,38 +89,32 @@ pseudo-random transmit-code seed.
   \centering
   \includegraphics[width=0.78\linewidth]{figures/tx_aod_match_function.png}
   \caption{Normalized transmit-array angle-of-departure match function in
-  east/north direction cosines for a zenith reference direction.  The sky is
-  masked below 5 deg elevation.  This shows the angular response and
-  sidelobe/ambiguity structure expected from the five-antenna transmit
-  interferometer before measurement noise and echo SNR are considered.}
+  east/north direction cosines for the a priori look direction implied by the
+  tri-static head-echo fit at the reference time.  The sky is masked below
+  5 deg elevation.  This shows the angular response and sidelobe/ambiguity
+  structure expected from the five-antenna transmit interferometer before
+  measurement noise and echo SNR are considered.}
   \label{fig:tx-aod-match}
 \end{figure}
 
-\section{\texttt{detrend\_window}}
+\section{Preprocessing And Range--Doppler Detection}
 
-The function \texttt{detrend\_window} is applied to the complex voltage samples
-before matched filtering.  It first subtracts the complex median of the window.
-This removes a DC-like offset or slowly varying receiver bias on the time scale
-of the coherent integration window.
-
-Optionally, if \texttt{spike\_sigma > 0}, the function then estimates a robust
-amplitude scale using the median absolute value of the median-subtracted
-samples.  Samples with magnitude larger than
-\[
-  \texttt{spike\_sigma} \times \mathrm{median}(|z-\mathrm{median}(z)|)
-\]
-are set to zero.  This is a conservative impulsive-interference excision step.
-When \texttt{spike\_sigma = 0}, no spike excision is performed; only median
-subtraction is used.
+Complex voltage samples are median-subtracted before matched filtering to
+remove DC-like offsets and slowly varying receiver bias over each coherent
+integration window.  The processing code also supports an optional robust
+impulsive-sample excision step, but that step was disabled for the
+high-resolution products used in the trajectory and trail analysis.  The
+diagnostic below shows what would have been removed under the conservative
+spike-excision threshold used for testing.
 
 \begin{figure}[ht]
   \centering
   \includegraphics[width=\linewidth]{figures/detrend_window_spike_example.png}
-  \caption{Operation of \texttt{detrend\_window} and an example removed spike.
-  The example is from \WorstSpikeStation{} channel \WorstSpikeChannel{} at
-  18:06:15+\WorstSpikeOffset{} s.  With \texttt{spike\_sigma=\SpikeSigma},
-  the largest sample is \WorstSpikeScore{} times the median absolute
-  amplitude and is set to zero after median subtraction.}
+  \caption{Diagnostic example of impulsive-sample excision.  The example is
+  from \WorstSpikeStation{} channel \WorstSpikeChannel{} at
+  18:06:15+\WorstSpikeOffset{} s.  Under the tested threshold, the largest
+  sample is \WorstSpikeScore{} times the median absolute amplitude and would
+  be set to zero after median subtraction.}
 \end{figure}
 
 For the 18:06:15--18:06:25 interval, using
@@ -143,12 +127,8 @@ counts are:
 \input{spike_stats_table.tex}
 \end{center}
 
-The high-resolution matched-filter runs discussed here used
-\texttt{spike\_sigma=0}, so the reported RTIs were not affected by spike
-zeroing.  The table above describes what the optional spike excision would
-remove if enabled at \texttt{spike\_sigma=\SpikeSigma}.
-
-\section{Range--Doppler Matched Filter}
+The high-resolution matched-filter runs discussed here used no spike zeroing,
+so the reported RTIs were not affected by this diagnostic excision.
 
 For each receiver station, channel, transmit code, range gate, and time step,
 the processing multiplies a window of complex voltage data by the conjugate of

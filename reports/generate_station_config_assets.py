@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import json
 
 import matplotlib
 
@@ -14,11 +15,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from station_config import STATION_ORDER, load_all_station_configs, transmitter_config
+from estimate_head_echo_trajectory import model_state_series
+from angle_departure_estimator import enu_to_ecef_matrix, geodetic_to_ecef
 
 
 DATA_DIR = ROOT / "2026_05_30_bolide"
 REPORT_DIR = ROOT / "reports"
 FIG_DIR = REPORT_DIR / "figures"
+TRAJECTORY_JSON = ROOT / "products" / "head_echo_trajectory_roi_fit" / "head_echo_trajectory.json"
 C = 299792458.0
 
 
@@ -99,10 +103,27 @@ def plot_tx_antennas(tx) -> Path:
     return out
 
 
+def trajectory_reference_direction_enu(tx) -> tuple[np.ndarray, dict]:
+    fit = json.loads(TRAJECTORY_JSON.read_text(encoding="utf-8"))
+    params = np.r_[
+        fit["fit_parameters_enu_at_tx"]["position_ref_m"],
+        fit["fit_parameters_enu_at_tx"]["velocity_mps"],
+    ]
+    tx_ecef = geodetic_to_ecef(*tx.gps_tx)
+    rot = enu_to_ecef_matrix(tx.gps_tx[0], tx.gps_tx[1])
+    model = model_state_series(params, [fit["t_ref_unix"]], fit["t_ref_unix"], tx_ecef, rot)
+    pos_enu = model["position_enu_m"][0]
+    direction = pos_enu / np.linalg.norm(pos_enu)
+    az_deg = (np.rad2deg(np.arctan2(direction[0], direction[1])) + 360.0) % 360.0
+    el_deg = np.rad2deg(np.arcsin(np.clip(direction[2], -1.0, 1.0)))
+    return direction, {"az_deg": float(az_deg), "el_deg": float(el_deg), "t_ref_utc": fit["t_ref_utc"]}
+
+
 def plot_aod_match_function(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421) -> Path:
     ant = tx.antenna_pos_tx
     wavelength = C / tx.frequency_hz
     k = 2.0 * np.pi / wavelength
+    ref, ref_meta = trajectory_reference_direction_enu(tx)
 
     u = np.linspace(-1.0, 1.0, grid_size)
     east, north = np.meshgrid(u, u)
@@ -112,7 +133,6 @@ def plot_aod_match_function(tx, elevation_floor_deg: float = 5.0, grid_size: int
     up = np.sqrt(np.maximum(0.0, 1.0 - h2))
 
     dirs = np.column_stack((east[keep], north[keep], up[keep]))
-    ref = np.array([0.0, 0.0, 1.0])
     steering_ref = np.exp(1.0j * k * (ant @ ref))
     steering = np.exp(1.0j * k * (dirs @ ant.T))
     match = np.abs(steering @ steering_ref.conj()) ** 2 / float(len(ant) ** 2)
@@ -126,7 +146,7 @@ def plot_aod_match_function(tx, elevation_floor_deg: float = 5.0, grid_size: int
     mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
     circle = plt.Circle((0, 0), np.cos(np.deg2rad(elevation_floor_deg)), color="white", fill=False, lw=1.1)
     ax.add_patch(circle)
-    ax.scatter([0.0], [0.0], marker="+", s=90, color="white", linewidth=1.8, label="reference: zenith")
+    ax.scatter([ref[0]], [ref[1]], marker="+", s=120, color="white", linewidth=2.0, label="tri-static t0 look direction")
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("East direction cosine")
     ax.set_ylabel("North direction cosine")
@@ -134,7 +154,11 @@ def plot_aod_match_function(tx, elevation_floor_deg: float = 5.0, grid_size: int
     ax.grid(True, color="white", alpha=0.22, linewidth=0.5)
     cb = fig.colorbar(mesh, ax=ax)
     cb.set_label("Normalized match (dB)")
-    txt = f"wavelength {wavelength:.2f} m\nmax off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
+    txt = (
+        f"wavelength {wavelength:.2f} m\n"
+        f"look az {ref_meta['az_deg']:.1f} deg, el {ref_meta['el_deg']:.1f} deg\n"
+        f"max off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
+    )
     ax.text(
         0.03,
         0.03,

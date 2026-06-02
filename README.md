@@ -12,9 +12,10 @@ range resolution. Raw `.h5` files and generated products are ignored by git.
 
 ## Data
 
-Raw data will be archived on Zenodo.
+The source radar dataset is archived on Zenodo:
 
-Zenodo DOI: TBD
+- DOI: [10.5281/zenodo.20507006](https://doi.org/10.5281/zenodo.20507006)
+- Dataset: `May 30th 2026 New England Bolide Radar Dataset`
 
 After downloading the archive, place it at the repository root as
 `2026_05_30_bolide.tar.gz`.  The reproduction script below will extract it
@@ -29,7 +30,7 @@ when needed.  After extraction, the raw data are available under:
 This project was set up with Python 3.13.7. To recreate the local environment:
 
 ```bash
-cd /Users/j/src/new_england_bolide
+cd /path/to/new_england_bolide
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -69,6 +70,48 @@ All non-raw catalog and ephemeris inputs used by the report are tracked under
 tracked; they are reconstructed from `2026_05_30_bolide.tar.gz`.
 
 ## Range-Doppler Products
+
+The high-resolution range-Doppler matched-filter products used by the report
+cover `2026-05-30 18:06:15` to `18:06:25 UTC`.  The report products were
+generated with:
+
+- `codes-per-step = 1`
+- `range-interp = 4`
+- `max-range-km = 600`
+- `fmin = -50000`
+- `fmax = 50000`
+- Doppler whitening enabled
+- Clinton DC cancellation estimated over `18:06:15` to `18:06:20 UTC`
+- head-echo peak selection requiring `|f_D| >= 250 Hz`
+
+The merged high-resolution products are written under:
+
+```text
+products/rdmf_exact_highres_180615_10s_merged_20260602_095431/
+```
+
+The station RTI and range-time-Doppler overview plots are written under:
+
+```text
+plots/rdmf_exact_highres_180615_10s_20260602_095431/
+```
+
+To regenerate station overview plots from a merged product:
+
+```bash
+python plot_rdmf_bolide.py <merged_station_file.h5> \
+  --snr-threshold 5 \
+  --out-prefix <plot_prefix>
+```
+
+Example:
+
+```bash
+python plot_rdmf_bolide.py \
+  products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_beverly_merged.h5 \
+  --snr-threshold 5 \
+  --out-prefix plots/rdmf_exact_highres_180615_10s_20260602_095431/rdmf_peak_beverly_merged
+```
 
 Full station-parallel matched-filter run:
 
@@ -152,6 +195,25 @@ Amherst 0-350 km.
 The AoD search grid follows the PANSY interferometry style: a regular grid in
 horizontal direction cosines over a zenith-angle cap, with elevation and
 azimuth derived from the resulting ENU unit vectors.
+
+## Voltage Preprocessing
+
+`detrend_window` is applied to complex voltage samples before matched
+filtering.  It first subtracts the complex median of the coherent integration
+window, removing DC-like offsets or slowly varying receiver bias.
+
+If `spike_sigma > 0`, the function estimates a robust amplitude scale with
+the median absolute value of the median-subtracted samples.  Samples with
+magnitude larger than
+
+```text
+spike_sigma * median(abs(z - median(z)))
+```
+
+are set to zero.  This optional step is intended as conservative impulsive
+interference excision.  When `spike_sigma = 0`, no spike excision is performed;
+only median subtraction is used.  The high-resolution report products used
+`spike_sigma = 0`, so the report RTIs were not affected by spike zeroing.
 
 ## Manual Head Echo ROI Labels
 
