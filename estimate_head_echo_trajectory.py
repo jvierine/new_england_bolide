@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import sys
+import types
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -8,6 +10,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares
+from scipy.spatial import ConvexHull
 
 from angle_departure_estimator import (
     WGS84_A,
@@ -189,6 +192,159 @@ def model_state_series(params, t_unix, t_ref, tx0, rot):
     }
 
 
+def fit_parameter_covariance(result):
+    jac = np.asarray(result.jac, dtype=float)
+    n_meas, n_par = jac.shape
+    dof = max(1, n_meas - n_par)
+    residual_variance = float(2.0 * result.cost / dof)
+    jtj = jac.T @ jac
+    cov = np.linalg.pinv(jtj) * residual_variance
+    return cov, residual_variance
+
+
+def sample_fit_parameters(params, covariance, n_samples=800, seed=20260530):
+    rng = np.random.default_rng(seed)
+    covariance = np.asarray(covariance, dtype=float)
+    covariance = 0.5 * (covariance + covariance.T)
+    vals, vecs = np.linalg.eigh(covariance)
+    vals = np.maximum(vals, 0.0)
+    clean_cov = (vecs * vals) @ vecs.T
+    return rng.multivariate_normal(np.asarray(params, dtype=float), clean_cov, size=n_samples)
+
+
+def plot_cartopy_trajectory_uncertainty(out_dir, obs, fit, covariance, n_samples=800):
+    try:
+        # The local Python 3.13 conda environment can segfault importing the
+        # native readline extension through cartopy -> shapefile -> doctest.
+        # Cartopy does not need readline for plotting, so stub it before import.
+        if "readline" not in sys.modules:
+            readline_stub = types.ModuleType("readline")
+            readline_stub.get_completer = lambda: None
+            readline_stub.set_completer = lambda func: None
+            readline_stub.parse_and_bind = lambda spec: None
+            sys.modules["readline"] = readline_stub
+        import cartopy.crs as ccrs
+        import cartopy.feature as cfeature
+    except Exception as exc:
+        print(f"Skipping Cartopy map: {exc}")
+        return None
+
+    out_dir = Path(out_dir)
+    t_obs = np.array([o["unix_time"] for o in obs], dtype=float)
+    t_first = float(np.min(t_obs))
+    t_last = float(np.max(t_obs))
+    t_ext = np.linspace(t_first - 2.0, t_last + 2.0, 260)
+    model = model_state_series(fit["result"].x, t_ext, fit["t_ref"], fit["tx0"], fit["rot"])
+    rel = model["time_relative_s"]
+    in_detection = (t_ext >= t_first) & (t_ext <= t_last)
+    pre = t_ext < t_first
+    post = t_ext > t_last
+    lon = model["lat_lon_alt"][:, 1]
+    lat = model["lat_lon_alt"][:, 0]
+
+    samples = sample_fit_parameters(fit["result"].x, covariance, n_samples=n_samples)
+    cloud = []
+    for params in samples:
+        sample_model = model_state_series(params, t_ext, fit["t_ref"], fit["tx0"], fit["rot"])
+        cloud.append(sample_model["lat_lon_alt"][:, [1, 0]])
+    cloud = np.reshape(np.array(cloud), (-1, 2))
+    good = np.all(np.isfinite(cloud), axis=1)
+    cloud = cloud[good]
+
+    # Use the central 95% of sampled lon/lat points before making the hull so
+    # the filled region behaves like a covariance ellipse tube, not a max-error
+    # envelope dominated by a few extreme random samples.
+    center = np.median(cloud, axis=0)
+    dist = np.linalg.norm(cloud - center[None, :], axis=1)
+    cloud95 = cloud[dist <= np.percentile(dist, 95.0)]
+    hull_points = cloud95
+    hull = None
+    if len(hull_points) >= 3:
+        hull = ConvexHull(hull_points)
+
+    data_crs = ccrs.PlateCarree()
+    fig = plt.figure(figsize=(9.0, 7.0), constrained_layout=True)
+    ax = fig.add_subplot(1, 1, 1, projection=data_crs)
+    station_lons = []
+    station_lats = []
+    for g in fit.get("station_geometry", {}).values():
+        rx_lat, rx_lon, _ = g["gps_rx"]
+        tx_lat, tx_lon, _ = g["gps_tx"]
+        station_lons.extend([rx_lon, tx_lon])
+        station_lats.extend([rx_lat, tx_lat])
+    extra_lon = hull_points[:, 0] if len(hull_points) else np.array([])
+    extra_lat = hull_points[:, 1] if len(hull_points) else np.array([])
+    all_lon = np.concatenate([lon, extra_lon, np.array(station_lons)])
+    all_lat = np.concatenate([lat, extra_lat, np.array(station_lats)])
+    cape_cod_extent = [-71.8, -69.2, 41.2, 42.9]
+    pad_lon = max(0.15, 0.2 * (np.nanmax(all_lon) - np.nanmin(all_lon)))
+    pad_lat = max(0.15, 0.2 * (np.nanmax(all_lat) - np.nanmin(all_lat)))
+    ax.set_extent(
+        [
+            min(cape_cod_extent[0], np.nanmin(all_lon) - pad_lon),
+            max(cape_cod_extent[1], np.nanmax(all_lon) + pad_lon),
+            min(cape_cod_extent[2], np.nanmin(all_lat) - pad_lat),
+            max(cape_cod_extent[3], np.nanmax(all_lat) + pad_lat),
+        ],
+        crs=data_crs,
+    )
+    ax.set_facecolor("0.96")
+    ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="0.94", edgecolor="none", zorder=0)
+    ax.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="0.86", edgecolor="none", zorder=0)
+    ax.coastlines(resolution="50m", linewidth=0.9, color="0.15", zorder=3)
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.45, edgecolor="0.35", zorder=3)
+    gl = ax.gridlines(draw_labels=True, linewidth=0.4, color="0.7", alpha=0.8)
+    gl.top_labels = False
+    gl.right_labels = False
+
+    if hull is not None:
+        poly = hull_points[hull.vertices]
+        ax.fill(
+            poly[:, 0],
+            poly[:, 1],
+            color="C0",
+            alpha=0.18,
+            transform=data_crs,
+            label="sampled 95% covariance region",
+            zorder=2,
+        )
+    ax.plot(lon[pre], lat[pre], "--", color="C1", lw=2.0, transform=data_crs, label="-2 s extrapolation", zorder=4)
+    ax.plot(lon[in_detection], lat[in_detection], "-", color="C3", lw=2.6, transform=data_crs, label="fit over detections", zorder=5)
+    ax.plot(lon[post], lat[post], "--", color="C2", lw=2.0, transform=data_crs, label="+2 s extrapolation", zorder=4)
+    ax.scatter(lon[in_detection][0], lat[in_detection][0], s=45, color="k", transform=data_crs, zorder=6, label="first detection")
+    ax.scatter(lon[in_detection][-1], lat[in_detection][-1], s=45, facecolor="white", edgecolor="k", transform=data_crs, zorder=6, label="last detection")
+
+    tx_seen = set()
+    receiver_labeled = False
+    for station, g in fit.get("station_geometry", {}).items():
+        rx_lat, rx_lon, _ = g["gps_rx"]
+        tx_lat, tx_lon, _ = g["gps_tx"]
+        tx_key = (round(tx_lat, 5), round(tx_lon, 5))
+        ax.scatter(
+            rx_lon,
+            rx_lat,
+            marker="^",
+            s=58,
+            color="0.1",
+            transform=data_crs,
+            zorder=7,
+            label=None if receiver_labeled else "receivers",
+        )
+        receiver_labeled = True
+        ax.text(rx_lon + 0.025, rx_lat + 0.015, station, fontsize=8, transform=data_crs, zorder=8)
+        if tx_key not in tx_seen:
+            ax.scatter(tx_lon, tx_lat, marker="*", s=110, color="gold", edgecolor="0.2", transform=data_crs, zorder=7, label="transmitter")
+            ax.text(tx_lon + 0.025, tx_lat + 0.015, "TX", fontsize=8, weight="bold", transform=data_crs, zorder=8)
+            tx_seen.add(tx_key)
+
+    ax.set_title("Head echo trajectory fit and +/-2 s extrapolation")
+    ax.legend(loc="best", fontsize=8)
+    out_file = out_dir / "head_echo_cartopy_trajectory_uncertainty.png"
+    fig.savefig(out_file, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+    return out_file
+
+
 def residuals(params, obs, geom, t_ref, tx0, rot, sigma_range_m):
     pred = predict_ranges(params, obs, geom, t_ref, tx0, rot)
     meas = np.array([o["range_m"] for o in obs])
@@ -303,6 +459,7 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
         "t_ref": t_ref,
         "tx0": tx0,
         "rot": rot,
+        "station_geometry": geom,
         "range_residual_m": range_resid,
         "doppler_residual_hz": doppler_resid,
         "pred_range_m": pred,
@@ -316,14 +473,22 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
     }
 
 
-def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_points, use_doppler):
+def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_points, use_doppler, covariance_samples=800):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     res = fit["result"]
     speed = float(np.linalg.norm(res.x[3:6]))
+    covariance, residual_variance = fit_parameter_covariance(res)
     t_obs = np.array([o["unix_time"] for o in obs])
     model_time = np.linspace(float(np.min(t_obs)), float(np.max(t_obs)), 200)
     model = model_state_series(res.x, model_time, fit["t_ref"], fit["tx0"], fit["rot"])
+    cartopy_file = plot_cartopy_trajectory_uncertainty(
+        out_dir,
+        obs,
+        fit,
+        covariance,
+        n_samples=covariance_samples,
+    )
     payload = {
         "schema": "new_england_bolide.head_echo_trajectory.v1",
         "source_annotations": annotations,
@@ -341,6 +506,14 @@ def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_
             "speed_mps": speed,
             "speed_kmps": speed / 1000.0,
         },
+        "linearized_fit_error": {
+            "parameter_order": ["east_m", "north_m", "up_m", "east_mps", "north_mps", "up_mps"],
+            "covariance": covariance.tolist(),
+            "one_sigma": np.sqrt(np.maximum(np.diag(covariance), 0.0)).tolist(),
+            "residual_variance": residual_variance,
+            "covariance_samples_for_map": covariance_samples,
+        },
+        "cartopy_trajectory_uncertainty_plot": str(cartopy_file) if cartopy_file is not None else None,
         "position_ref_ecef_m": fit["position_ref_ecef_m"].tolist(),
         "velocity_ecef_mps": fit["velocity_ecef_mps"].tolist(),
         "geodetic_ref_wgs84": {
@@ -493,6 +666,7 @@ def main():
     p.add_argument("--no-reject-outliers", action="store_true")
     p.add_argument("--delay-sigma", type=float, default=4.0)
     p.add_argument("--doppler-sigma", type=float, default=4.0)
+    p.add_argument("--covariance-samples", type=int, default=800)
     p.add_argument("--no-show", action="store_true")
     args = p.parse_args()
 
@@ -508,7 +682,17 @@ def main():
     geom = station_geometry(args.data_dir, used_stations)
     use_doppler = not args.no_use_doppler
     fit = fit_trajectory(obs, geom, args.data_dir, use_doppler=use_doppler)
-    payload = write_outputs(args.out_dir, annotations, obs, used_stations, geom, fit, rejected, use_doppler)
+    payload = write_outputs(
+        args.out_dir,
+        annotations,
+        obs,
+        used_stations,
+        geom,
+        fit,
+        rejected,
+        use_doppler,
+        covariance_samples=args.covariance_samples,
+    )
     print(f"Used stations: {', '.join(used_stations)}")
     print(f"Observations: {payload['n_observations']}")
     print(f"Rejected ROI outliers: {payload['n_rejected_roi_points']}")
