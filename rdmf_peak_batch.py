@@ -36,6 +36,13 @@ def read_station_channels(args, site):
     return zc, sr, idx0
 
 
+def station_sample_rate(data_dir, station, channel, iso_hour):
+    files = rf_file_for_time(Path(data_dir) / station, channel, iso_hour)
+    with h5py.File(files[0], "r") as h:
+        ds = h["rf_data"]
+        return float(ds.attrs["sample_rate_numerator"]) / float(ds.attrs["sample_rate_denominator"])
+
+
 def make_output(args, site, n_steps, range_idx, fvec):
     ofile = Path(args.out)
     if ofile.exists() and not args.overwrite:
@@ -101,6 +108,8 @@ def run_station(args):
     n_steps = 1 + (min(map(len, zc)) - read_len) // step_len
     if n_steps <= 0:
         raise ValueError("No processing steps available for requested interval/ranges")
+    if args.max_steps is not None:
+        n_steps = min(n_steps, int(args.max_steps))
 
     fvec = np.fft.fftshift(np.fft.fftfreq(win_len, d=1.0 / sample_rate_i))
     fidx = np.where((fvec >= args.fmin) & (fvec <= args.fmax))[0]
@@ -187,7 +196,27 @@ def run_batch(args):
 
     tasks = []
     for station in args.stations:
-        for chunk_i, t0, sec in chunk_starts(args.start_second, args.total_seconds, args.chunk_seconds):
+        site = load_station_yaml(args.data_dir, station)
+        sr = station_sample_rate(args.data_dir, station, args.channels[0], args.iso_hour)
+        code_len_i = site["code_len"] * args.range_interp
+        step_len = args.codes_per_step * code_len_i
+        original_step_seconds = args.codes_per_step * site["code_len"] / sr
+        win_len = args.n_coh * code_len_i
+        gate_km = site["range_resolution_m"] / args.range_interp / 1000.0
+        rmax = int(np.floor(args.range_max_km / gate_km))
+        read_len = win_len + rmax + 1
+        total_samples_i = int(round(args.total_seconds * sr)) * args.range_interp
+        total_steps = 1 + (total_samples_i - read_len) // step_len
+        if total_steps <= 0:
+            raise ValueError(f"No processing steps for {station}")
+        chunk_steps = args.chunk_steps
+        if chunk_steps is None:
+            chunk_steps = max(1, int(np.floor(args.chunk_seconds / original_step_seconds)))
+        read_extra_seconds = read_len / (sr * args.range_interp)
+        for chunk_i, step0 in enumerate(range(0, total_steps, chunk_steps)):
+            n_this = min(chunk_steps, total_steps - step0)
+            t0 = args.start_second + step0 * original_step_seconds
+            sec = n_this * original_step_seconds + read_extra_seconds
             out = out_dir / f"rdmf_peak_{station}_{int(round(t0 * 1000)):09d}ms_{int(round(sec * 1000)):06d}ms.h5"
             cmd = [
                 sys.executable, __file__, "station",
@@ -197,6 +226,7 @@ def run_batch(args):
                 "--channels", *[str(ch) for ch in args.channels],
                 "--start-second", f"{t0:.6f}",
                 "--seconds", f"{sec:.6f}",
+                "--max-steps", str(n_this),
                 "--n-coh", str(args.n_coh),
                 "--codes-per-step", str(args.codes_per_step),
                 "--range-interp", str(args.range_interp),
@@ -350,6 +380,7 @@ def parser():
         q.add_argument("--channels", nargs="+", type=int, default=[0, 1])
         q.add_argument("--start-second", type=float, default=80.0)
         q.add_argument("--seconds", type=float, default=None)
+        q.add_argument("--max-steps", type=int)
         q.add_argument("--n-coh", type=int, default=8)
         q.add_argument("--codes-per-step", type=int, default=1)
         q.add_argument("--range-interp", type=int, default=2)
@@ -374,6 +405,7 @@ def parser():
     pb.add_argument("--stations", nargs="+", default=DEFAULT_STATIONS)
     pb.add_argument("--total-seconds", type=float, default=100.0)
     pb.add_argument("--chunk-seconds", type=float, default=0.1)
+    pb.add_argument("--chunk-steps", type=int)
     pb.add_argument("--max-parallel", type=int, default=128)
     pb.add_argument("--poll-seconds", type=float, default=2.0)
     pb.add_argument("--out-dir", required=True)
