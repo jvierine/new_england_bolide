@@ -160,13 +160,22 @@ def range_doppler_bank(
                 S += np.abs(Z[:, fidx]) ** 2
 
         if doppler_whiten:
+            # Normalize each Doppler bin by its median power over range before
+            # peak picking. This suppresses Doppler-dependent clutter/leakage,
+            # so a detection means "bright relative to other ranges at this
+            # Doppler" rather than simply "bright in absolute power."
             dop_floor = np.median(S, axis=0)
             S_pick = S / np.maximum(dop_floor[None, :], 1e-12)
             floor = np.median(S_pick, axis=1)
         else:
+            # Use absolute matched-filter power. This preserves raw power
+            # differences but lets strong Doppler-dependent clutter dominate
+            # the peak picker.
             S_pick = S
             floor = np.median(S_pick, axis=1)
 
+        # Only the peak search is masked by ignore_freq. Stored power/noise are
+        # from S_pick, and D records the Doppler bin selected by this search.
         S_search = S_pick.copy()
         if np.any(~good_dop):
             S_search[:, ~good_dop] = -np.inf

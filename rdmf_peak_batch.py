@@ -134,11 +134,21 @@ def run_station(args):
 
             S /= float(len(args.channels) * len(codes))
             if args.doppler_whiten:
+                # Match range_doppler_mf_bolide.py: divide each Doppler bin by
+                # its median range power before peak picking. This reduces
+                # Doppler-dependent clutter/leakage and makes the picker look
+                # for range-localized excess power at each Doppler.
                 dop_floor = np.median(S, axis=0)
                 S_pick = S / np.maximum(dop_floor[None, :], 1e-12)
             else:
+                # Use absolute matched-filter power. This is simpler, but
+                # strong clutter in a Doppler bin can dominate the selected peak.
                 S_pick = S
             noise = np.median(S_pick, axis=1)
+
+            # ignore_freq only masks the Doppler bins considered for the peak.
+            # P/N are stored in the same units as S_pick, and voltage_peak is
+            # taken from the unnormalized complex spectrum at the selected bin.
             S_search = S_pick.copy()
             if np.any(~good_dop):
                 S_search[:, ~good_dop] = -np.inf
