@@ -1,0 +1,150 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{siunitx}
+\usepackage{xcolor}
+
+\input{report_stats.tex}
+
+\title{New England Bolide Range--Doppler Processing Notes}
+\author{J. Vierinen and Codex}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Processing State}
+
+The high-resolution range--Doppler matched-filter run used for the current
+figures covers 18:06:15--18:06:25 UTC on 2026-05-30.  The run used
+\texttt{codes-per-step = 1}, \texttt{range-interp = 4},
+\texttt{max-range-km = 600}, \texttt{fmin = -50000},
+\texttt{fmax = 50000}, and Doppler whitening enabled.  The server job
+completed all 620 station/chunk jobs with no failed chunks.
+
+The merged products are in
+\begin{verbatim}
+products/rdmf_exact_highres_180615_10s_merged_20260602_095431/
+\end{verbatim}
+and the RTI/Doppler plots are in
+\begin{verbatim}
+plots/rdmf_exact_highres_180615_10s_20260602_095431/
+\end{verbatim}
+
+The command that creates the station RTI and range--time--Doppler plots is:
+\begin{verbatim}
+python plot_rdmf_bolide.py <merged_station_file.h5> \
+  --snr-threshold 5 \
+  --out-prefix <plot_prefix>
+\end{verbatim}
+For example, for Beverly:
+\begin{verbatim}
+python plot_rdmf_bolide.py \
+  products/rdmf_exact_highres_180615_10s_merged_20260602_095431/\
+rdmf_peak_beverly_merged.h5 \
+  --snr-threshold 5 \
+  --out-prefix plots/rdmf_exact_highres_180615_10s_20260602_095431/\
+rdmf_peak_beverly_merged
+\end{verbatim}
+
+\section{\texttt{detrend\_window}}
+
+The function \texttt{detrend\_window} is applied to the complex voltage samples
+before matched filtering.  It first subtracts the complex median of the window.
+This removes a DC-like offset or slowly varying receiver bias on the time scale
+of the coherent integration window.
+
+Optionally, if \texttt{spike\_sigma > 0}, the function then estimates a robust
+amplitude scale using the median absolute value of the median-subtracted
+samples.  Samples with magnitude larger than
+\[
+  \texttt{spike\_sigma} \times \mathrm{median}(|z-\mathrm{median}(z)|)
+\]
+are set to zero.  This is a conservative impulsive-interference excision step.
+When \texttt{spike\_sigma = 0}, no spike excision is performed; only median
+subtraction is used.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/detrend_window_spike_example.png}
+  \caption{Operation of \texttt{detrend\_window} and an example removed spike.
+  The example is from \WorstSpikeStation{} channel \WorstSpikeChannel{} at
+  18:06:15+\WorstSpikeOffset{} s.  With \texttt{spike\_sigma=\SpikeSigma},
+  the largest sample is \WorstSpikeScore{} times the median absolute
+  amplitude and is set to zero after median subtraction.}
+\end{figure}
+
+For the 18:06:15--18:06:25 interval, using
+\texttt{spike\_sigma=\SpikeSigma} across five stations and two receiver
+channels would remove \SpikeTotalRemoved{} samples out of
+\SpikeTotalSamples{} samples, or \SpikeFractionPercent.  The per-station
+counts are:
+
+\begin{center}
+\input{spike_stats_table.tex}
+\end{center}
+
+The high-resolution matched-filter runs discussed here used
+\texttt{spike\_sigma=0}, so the reported RTIs were not affected by spike
+zeroing.  The table above describes what the optional spike excision would
+remove if enabled at \texttt{spike\_sigma=\SpikeSigma}.
+
+\section{Range--Doppler Matched Filter}
+
+For each receiver station, channel, transmit code, range gate, and time step,
+the processing multiplies a window of complex voltage data by the conjugate of
+the repeated transmit code.  An FFT along the coherent integration window then
+forms a Doppler spectrum.  Power is averaged incoherently over the two receiver
+channels and all transmit codes:
+\[
+  S(r,f) =
+  \frac{1}{N_{\mathrm{ch}}N_{\mathrm{tx}}}
+  \sum_{c=1}^{N_{\mathrm{ch}}}
+  \sum_{m=1}^{N_{\mathrm{tx}}}
+  \left|Z_{c,m}(r,f)\right|^2 .
+\]
+The RTI product stores the selected peak power \(P(t,r)\), the selected Doppler
+\(D(t,r)\), and a noise estimate \(N(t,r)\).  The parallel product also stores
+\texttt{voltage\_peak[t, channel, range, tx\_code]}, the complex matched-filter
+output at the selected Doppler bin, so that angle-of-departure processing can
+be revisited later.
+
+\subsection{Doppler Whitening}
+
+Doppler whitening normalizes each Doppler bin by its median power over range:
+\[
+  S_{\mathrm{white}}(r,f) =
+  \frac{S(r,f)}
+       {\mathrm{median}_{r'}\,S(r',f)} .
+\]
+Peak picking is then done on \(S_{\mathrm{white}}\), not on the absolute power
+\(S\).  This is important for this bolide data because the head echo is often
+not observable in the RTI without whitening: Doppler-dependent clutter and
+background structure can dominate the absolute-power peak picker.  Whitening
+changes the question from ``which Doppler bin has the largest absolute
+matched-filter power?'' to ``which range gate is unusually bright compared with
+other ranges at the same Doppler?''
+
+Figure~\ref{fig:beverly-whiten} shows a Beverly example at 18:06:20.600 UTC.
+The example range gate was selected by searching 200--300 km for the maximum
+whitened SNR with Doppler between \(-3000\) and \(-1000\) Hz.  The selected
+gate is \BeverlyExampleRange{} km, with Doppler
+\BeverlyWhitePeakDoppler{} kHz.  At this gate the selected bin has
+\BeverlyRawSelectedSnr{} dB above the unwhitened range-gate median and
+\BeverlySelectedSnr{} dB above the whitened range-gate median.  The important
+diagnostic is the change in the Doppler-dependent background: whitening
+divides out the median range power at each Doppler before the peak is selected.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=\linewidth]{figures/beverly_doppler_whiten_example.png}
+  \caption{Beverly range--Doppler snapshot at 18:06:20.600 UTC, before and
+  after Doppler whitening.  The lower panels show the Doppler spectrum at the
+  selected range gate and the corresponding range-gate noise floor.}
+  \label{fig:beverly-whiten}
+\end{figure}
+
+\end{document}
