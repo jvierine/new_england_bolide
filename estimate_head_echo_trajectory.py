@@ -103,7 +103,47 @@ def roi_observations(annotation, snr_threshold_db=0.0):
     return out
 
 
-def load_observations(annotation_file, snr_threshold_db, reject_outliers=True, delay_sigma=4.0, doppler_sigma=4.0):
+def parse_station_start_trims(trim_specs):
+    trims = {}
+    for spec in trim_specs or []:
+        if "=" not in spec:
+            raise ValueError(f"Trim spec must have form station=seconds, got {spec!r}")
+        station, value = spec.split("=", 1)
+        trims[station.strip()] = float(value)
+    return trims
+
+
+def trim_station_starts(obs, rejected, trims):
+    if not trims:
+        return obs, rejected
+    kept = []
+    newly_rejected = list(rejected)
+    for station in sorted(set(o["station"] for o in obs)):
+        station_obs = [o for o in obs if o["station"] == station]
+        trim_s = trims.get(station, 0.0)
+        if trim_s <= 0.0 or not station_obs:
+            kept.extend(station_obs)
+            continue
+        t0 = min(o["unix_time"] for o in station_obs)
+        for ob in station_obs:
+            if ob["unix_time"] < t0 + trim_s:
+                rob = dict(ob)
+                rob["reject_reason"] = f"station_start_trim_{trim_s:g}s"
+                newly_rejected.append(rob)
+            else:
+                kept.append(ob)
+    kept.sort(key=lambda x: x["unix_time"])
+    return kept, newly_rejected
+
+
+def load_observations(
+    annotation_file,
+    snr_threshold_db,
+    reject_outliers=True,
+    delay_sigma=4.0,
+    doppler_sigma=4.0,
+    station_start_trims=None,
+):
     annotations = json.loads(Path(annotation_file).read_text(encoding="utf-8"))
     points, rejected = load_points(
         annotation_file,
@@ -123,6 +163,7 @@ def load_observations(annotation_file, snr_threshold_db, reject_outliers=True, d
         for p in points
     ]
     obs.sort(key=lambda x: x["unix_time"])
+    obs, rejected = trim_station_starts(obs, rejected, station_start_trims or {})
     used_stations = sorted(set(o["station"] for o in obs))
     return annotations, obs, used_stations, rejected
 
@@ -473,7 +514,18 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
     }
 
 
-def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_points, use_doppler, covariance_samples=800):
+def write_outputs(
+    out_dir,
+    annotations,
+    obs,
+    used_stations,
+    geom,
+    fit,
+    rejected_points,
+    use_doppler,
+    covariance_samples=800,
+    station_start_trims=None,
+):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     res = fit["result"]
@@ -495,6 +547,7 @@ def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_
         "used_stations": used_stations,
         "n_observations": len(obs),
         "n_rejected_roi_points": len(rejected_points),
+        "station_start_trims_s": station_start_trims or {},
         "fit_uses_doppler": use_doppler,
         "doppler_model": "f_D = (f0/c) * (u_tx + u_rx) dot v, positive for increasing bistatic path length",
         "initial_station_picks": fit["initial_station_picks"],
@@ -666,16 +719,25 @@ def main():
     p.add_argument("--no-reject-outliers", action="store_true")
     p.add_argument("--delay-sigma", type=float, default=4.0)
     p.add_argument("--doppler-sigma", type=float, default=4.0)
+    p.add_argument(
+        "--station-start-trim",
+        action="append",
+        default=["pomfret=0.05"],
+        metavar="STATION=SECONDS",
+        help="Trim this many seconds from the start of a station's retained ROI picks; repeatable.",
+    )
     p.add_argument("--covariance-samples", type=int, default=800)
     p.add_argument("--no-show", action="store_true")
     args = p.parse_args()
 
+    station_start_trims = parse_station_start_trims(args.station_start_trim)
     annotations, obs, used_stations, rejected = load_observations(
         args.annotations,
         args.snr_threshold_db,
         reject_outliers=not args.no_reject_outliers,
         delay_sigma=args.delay_sigma,
         doppler_sigma=args.doppler_sigma,
+        station_start_trims=station_start_trims,
     )
     if len(used_stations) < 3:
         raise SystemExit(f"Need at least three head-echo station ROIs; got {used_stations}")
@@ -692,6 +754,7 @@ def main():
         rejected,
         use_doppler,
         covariance_samples=args.covariance_samples,
+        station_start_trims=station_start_trims,
     )
     print(f"Used stations: {', '.join(used_stations)}")
     print(f"Observations: {payload['n_observations']}")

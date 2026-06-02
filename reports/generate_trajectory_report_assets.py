@@ -222,6 +222,7 @@ def write_trajectory_stats(fit, tx0, rot, params):
     lines = [
         f"\\newcommand{{\\TrajectoryNObservations}}{{{fit['n_observations']}}}\n",
         f"\\newcommand{{\\TrajectoryNRejected}}{{{fit['n_rejected_roi_points']}}}\n",
+        f"\\newcommand{{\\TrajectoryPomfretStartTrimS}}{{{fit['station_start_trims_s'].get('pomfret', 0.0):.2f}}}\n",
         f"\\newcommand{{\\TrajectoryFirstDetectionUTC}}{{{first_utc}}}\n",
         f"\\newcommand{{\\TrajectoryInitialHeightKm}}{{{first_alt_m / 1000.0:.1f}}}\n",
         f"\\newcommand{{\\TrajectoryInitialLat}}{{{first_lat:.3f}}}\n",

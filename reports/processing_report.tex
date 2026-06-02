@@ -161,9 +161,12 @@ head-echo ROIs from Beverly, Clinton, and Pomfret.  Within each station ROI,
 one measurement is extracted at each time step by choosing the range gate with
 the highest SNR, requiring SNR greater than 5 dB.  A robust outlier rejection
 step is then applied independently to each station's delay and Doppler
-sequence.  The current fit uses \TrajectoryNObservations{} retained
-measurements and rejects \TrajectoryNRejected{} ROI peak measurements as
-outliers.
+sequence.  The first \TrajectoryPomfretStartTrimS{} s of Pomfret measurements
+are also trimmed before fitting because these earliest picks are visibly
+inconsistent with the later Pomfret trend.  The current fit uses
+\TrajectoryNObservations{} retained measurements and rejects
+\TrajectoryNRejected{} ROI peak measurements as outliers or station-start
+trimmed points.
 
 The fitted state is a six-parameter straight-line trajectory in the local ENU
 frame of the transmitter:
