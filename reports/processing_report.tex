@@ -5,10 +5,13 @@
 \usepackage[font=large,labelfont=bf]{caption}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
 \usepackage{microtype}
 \usepackage{setspace}
 \usepackage{siunitx}
 \usepackage{xcolor}
+
+\addbibresource{references.bib}
 
 \input{report_stats.tex}
 \input{trajectory_stats.tex}
@@ -29,7 +32,8 @@ The high-resolution range--Doppler matched-filter run used for the current
 figures covers 18:06:15--18:06:25 UTC on 2026-05-30.  The run used
 \texttt{codes-per-step = 1}, \texttt{range-interp = 4},
 \texttt{max-range-km = 600}, \texttt{fmin = -50000},
-\texttt{fmax = 50000}, and Doppler whitening enabled.  The server job
+\texttt{fmax = 50000}, and Doppler whitening enabled.  The source radar
+dataset is archived on Zenodo \cite{volz_2026_20507006}.  The server job
 completed all 620 station/chunk jobs with no failed chunks.
 
 The merged products are in
@@ -314,5 +318,7 @@ centroid need not coincide exactly with the radar head-echo scattering point.
 In practice, the GLM burst can help reject trajectory solutions whose
 extrapolated ground track misses the observed optical source region or whose
 timing is inconsistent with the optical transient.
+
+\printbibliography
 
 \end{document}
