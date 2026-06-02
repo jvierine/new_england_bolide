@@ -218,12 +218,8 @@ def _sample_hull(sample_points):
     return cloud95[ConvexHull(cloud95).vertices]
 
 
-def _annotate_altitudes(ax, lon, lat, alt_km, data_crs, interval_km=10.0):
-    lo = max(0.0, np.ceil(np.nanmin(alt_km) / interval_km) * interval_km)
-    hi = np.floor(np.nanmax(alt_km) / interval_km) * interval_km
-    if hi < lo:
-        return
-    levels = np.arange(lo, hi + 0.1, interval_km)
+def _annotate_altitudes(ax, lon, lat, alt_km, data_crs):
+    levels = np.array([320.0, 260.0, 200.0, 140.0, 100.0, 40.0, 10.0])
     order = np.argsort(alt_km)
     alt_sorted = alt_km[order]
     lon_sorted = lon[order]
@@ -233,20 +229,19 @@ def _annotate_altitudes(ax, lon, lat, alt_km, data_crs, interval_km=10.0):
     alt_unique = alt_sorted[unique_idx]
     lon_unique = lon_sorted[unique_idx]
     lat_unique = lat_sorted[unique_idx]
-    offsets = [(0, 13), (0, -13), (22, 9), (-22, -9), (22, -9), (-22, 9)]
-    for idx, level in enumerate(levels):
+    offsets = [(-18, -24), (-10, -24), (0, -24), (10, -24), (18, -24), (26, -24), (34, -24)]
+    for level, (dx, dy) in zip(levels, offsets, strict=True):
         if level < alt_unique[0] or level > alt_unique[-1]:
             continue
         x = float(np.interp(level, alt_unique, lon_unique))
         y = float(np.interp(level, alt_unique, lat_unique))
-        dx, dy = offsets[idx % len(offsets)]
         ax.annotate(
-            f"{level:.0f}",
+            f"{level:.0f} km",
             xy=(x, y),
             xycoords=data_crs._as_mpl_transform(ax),
             xytext=(dx, dy),
             textcoords="offset points",
-            fontsize=7,
+            fontsize=8,
             color="0.1",
             zorder=10,
             ha="center",
@@ -335,7 +330,7 @@ def plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples):
     ax.plot(lon[post], lat[post], "--", color="C2", lw=2.2, transform=data_crs, label="+3 s extrapolation", zorder=4)
     ax.scatter(lon[detect][0], lat[detect][0], s=45, color="k", transform=data_crs, zorder=6, label="first detection")
     ax.scatter(lon[detect][-1], lat[detect][-1], s=45, facecolor="white", edgecolor="k", transform=data_crs, zorder=6, label="last detection")
-    _annotate_altitudes(ax, lon, lat, alt_km, data_crs, interval_km=10.0)
+    _annotate_altitudes(ax, lon, lat, alt_km, data_crs)
 
     tx_seen = set()
     receiver_labeled = False
