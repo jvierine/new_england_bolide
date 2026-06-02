@@ -103,6 +103,22 @@ def detrend_window(z, spike_sigma=0.0):
     return z
 
 
+def estimate_range_gate_dc(channel_data, ridx, sample_rate_i, seconds):
+    if seconds <= 0:
+        return None
+    n_cal = int(round(seconds * sample_rate_i))
+    if n_cal <= 0:
+        return None
+    offsets = np.zeros((len(channel_data), len(ridx)), dtype=np.complex64)
+    for chi, z in enumerate(channel_data):
+        max_stop = int(ridx[-1]) + n_cal
+        if max_stop > len(z):
+            raise ValueError("Not enough data to estimate range-gate DC offsets")
+        cs = np.concatenate(([0.0j], np.cumsum(z[:max_stop], dtype=np.complex128)))
+        offsets[chi, :] = ((cs[ridx + n_cal] - cs[ridx]) / float(n_cal)).astype(np.complex64)
+    return offsets
+
+
 def range_doppler_bank(
     channel_data,
     sample_rate,
@@ -118,6 +134,10 @@ def range_doppler_bank(
     fmin,
     fmax,
     ignore_freq,
+    head_min_doppler_hz=250.0,
+    dc_cancel=False,
+    dc_cancel_seconds=1.0,
+    dc_calibration_data=None,
     spike_sigma=0.0,
     doppler_whiten=False,
     progress_every=1,
@@ -139,22 +159,36 @@ def range_doppler_bank(
     fvec = np.fft.fftshift(np.fft.fftfreq(fftlen, d=1.0 / sample_rate_i))
     fidx = np.where((fvec >= fmin) & (fvec <= fmax))[0]
     fvec0 = fvec[fidx]
-    good_dop = np.abs(fvec0) >= ignore_freq
+    good_rti_dop = np.abs(fvec0) >= ignore_freq
+    good_head_dop = np.abs(fvec0) >= head_min_doppler_hz
+    if not np.any(good_head_dop):
+        raise ValueError(
+            f"No Doppler bins satisfy head_min_doppler_hz={head_min_doppler_hz:g} "
+            f"within [{fmin:g}, {fmax:g}] Hz"
+        )
 
-    P = np.zeros((n_steps, len(ridx)), dtype=np.float32)
-    D = np.zeros_like(P)
-    N = np.zeros_like(P)
+    P_rti = np.zeros((n_steps, len(ridx)), dtype=np.float32)
+    D_rti = np.zeros_like(P_rti)
+    P_head = np.zeros_like(P_rti)
+    D_head = np.zeros_like(P_rti)
+    N = np.zeros_like(P_rti)
     t_sample = abs_index0 + np.arange(n_steps, dtype=np.float64) * original_step_len
     t_start = time.time()
+    dc_source = channel_data if dc_calibration_data is None else dc_calibration_data
+    dc_offsets = estimate_range_gate_dc(dc_source, ridx, sample_rate_i, dc_cancel_seconds) if dc_cancel else None
+    if dc_offsets is not None:
+        print(f"subtracting per-range DC offsets estimated from {dc_cancel_seconds:g}s", flush=True)
 
     # for all time steps, compute the matched filter for all codes and ranges,
     # store matched filter power, best Doppler bin, and noise floor estimate. Optionally apply Doppler whitening.
     for ti in range(n_steps):
         start = ti * step_len
         S = np.zeros((len(ridx), len(fidx)), dtype=np.float32)
-        for z in channel_data:
+        for chi, z in enumerate(channel_data):
             z0 = detrend_window(z[start : start + read_len], spike_sigma=spike_sigma)
             windows = np.lib.stride_tricks.sliding_window_view(z0, win_len)[ridx, :]
+            if dc_offsets is not None:
+                windows = windows - dc_offsets[chi, :, None]
             for code in codes:
                 Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), axis=1), axes=1)
                 S += np.abs(Z[:, fidx]) ** 2
@@ -177,17 +211,24 @@ def range_doppler_bank(
             S_pick = S
             floor = np.median(S_pick, axis=1)
 
-        # Only the peak search is masked by ignore_freq. Stored power/noise are
-        # from S_pick, and D records the Doppler bin selected by this search.
-        S_search = S_pick.copy()
-        if np.any(~good_dop):
-            S_search[:, ~good_dop] = -np.inf
-        imax = np.argmax(S_search, axis=1)
-        P[ti, :] = S_pick[np.arange(len(ridx)), imax]
-        D[ti, :] = fvec0[imax]
+        # RTI products keep the strongest bin, including non-specular trail
+        # echoes. Head products use a stricter Doppler gate for dynamic
+        # head-echo measurements.
+        S_rti_search = S_pick.copy()
+        if np.any(~good_rti_dop):
+            S_rti_search[:, ~good_rti_dop] = -np.inf
+        imax_rti = np.argmax(S_rti_search, axis=1)
+        P_rti[ti, :] = S_pick[np.arange(len(ridx)), imax_rti]
+        D_rti[ti, :] = fvec0[imax_rti]
+
+        S_head_search = S_pick.copy()
+        S_head_search[:, ~good_head_dop] = -np.inf
+        imax_head = np.argmax(S_head_search, axis=1)
+        P_head[ti, :] = S_pick[np.arange(len(ridx)), imax_head]
+        D_head[ti, :] = fvec0[imax_head]
         N[ti, :] = floor
 
-        snr = P[ti, :] / np.maximum(N[ti, :], 1e-12)
+        snr = P_head[ti, :] / np.maximum(N[ti, :], 1e-12)
         best = int(np.argmax(snr))
         n_done = ti + 1
         if progress_every > 0 and (n_done == 1 or n_done == n_steps or n_done % progress_every == 0):
@@ -198,15 +239,19 @@ def range_doppler_bank(
                 f"PROGRESS {n_done}/{n_steps} "
                 f"elapsed={elapsed:.1f}s eta={eta:.1f}s rate={steps_per_sec:.3f}steps/s "
                 f"t={((abs_index0 + ti * original_step_len) / sample_rate):.3f} "
-                f"range_idx={ridx[best]} dop={D[ti, best]:.1f}Hz snr={snr[best]:.2f}",
+                f"range_idx={ridx[best]} head_dop={D_head[ti, best]:.1f}Hz snr={snr[best]:.2f}",
                 flush=True,
             )
 
         if checkpoint_func and checkpoint_every > 0 and (n_done == n_steps or n_done % checkpoint_every == 0):
             checkpoint_func(
                 {
-                    "P": P[:n_done, :],
-                    "D": D[:n_done, :],
+                    "P_rti": P_rti[:n_done, :],
+                    "D_rti": D_rti[:n_done, :],
+                    "P_head": P_head[:n_done, :],
+                    "D_head": D_head[:n_done, :],
+                    "P": P_head[:n_done, :],
+                    "D": D_head[:n_done, :],
                     "N": N[:n_done, :],
                     "t_sample": t_sample[:n_done],
                     "range_idx": ridx.astype(np.int32),
@@ -218,8 +263,12 @@ def range_doppler_bank(
             )
 
     return {
-        "P": P,
-        "D": D,
+        "P_rti": P_rti,
+        "D_rti": D_rti,
+        "P_head": P_head,
+        "D_head": D_head,
+        "P": P_head,
+        "D": D_head,
         "N": N,
         "t_sample": t_sample,
         "range_idx": ridx.astype(np.int32),
@@ -245,6 +294,11 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
         h["codes_per_step"] = args.codes_per_step
         h["range_interp"] = args.range_interp
         h["range_resolution_m"] = args.range_resolution_m
+        h["ignore_freq"] = args.ignore_freq
+        h["head_min_doppler_hz"] = args.head_min_doppler_hz
+        h["dc_cancel"] = int(args.dc_cancel)
+        h["dc_cancel_seconds"] = args.dc_cancel_seconds
+        h["dc_cancel_start_second"] = args.dc_cancel_start_second
         h["doppler_whiten"] = int(args.doppler_whiten)
         h["frequency_hz"] = config["frequency_hz"]
         h["gps_rx"] = np.array(config["gps_rx"], dtype=np.float64)
@@ -278,6 +332,10 @@ def main():
     p.add_argument("--fmin", type=float, default=-40000.0)
     p.add_argument("--fmax", type=float, default=40000.0)
     p.add_argument("--ignore-freq", type=float, default=150.0)
+    p.add_argument("--head-min-doppler-hz", type=float, default=250.0)
+    p.add_argument("--dc-cancel", action="store_true")
+    p.add_argument("--dc-cancel-seconds", type=float, default=1.0)
+    p.add_argument("--dc-cancel-start-second", type=float, default=0.0)
     p.add_argument("--spike-sigma", type=float, default=0.0)
     p.add_argument("--doppler-whiten", action="store_true", default=True)
     p.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
@@ -316,6 +374,20 @@ def main():
         write_output(ofname, result_part, config, args, sample_rate, abs_index0)
         print(f"CHECKPOINT {ofname} {n_done}/{n_steps}", flush=True)
 
+    dc_calibration_data = None
+    if args.dc_cancel:
+        sample_rate_i = sample_rate * args.range_interp
+        cal_seconds = args.dc_cancel_seconds + (float(rmax_idx) + 1.0) / sample_rate_i
+        dc_calibration_data = []
+        for ch in args.channels:
+            files = rf_file_for_time(station_dir, ch, args.iso_hour)
+            z, _sr, _idx0 = read_channel_files(
+                files,
+                start_second=args.dc_cancel_start_second,
+                seconds=cal_seconds,
+            )
+            dc_calibration_data.append(interpolate_rect(z, args.range_interp))
+
     result = range_doppler_bank(
         channel_data=channel_data,
         sample_rate=sample_rate,
@@ -331,6 +403,10 @@ def main():
         fmin=args.fmin,
         fmax=args.fmax,
         ignore_freq=args.ignore_freq,
+        head_min_doppler_hz=args.head_min_doppler_hz,
+        dc_cancel=args.dc_cancel,
+        dc_cancel_seconds=args.dc_cancel_seconds,
+        dc_calibration_data=dc_calibration_data,
         spike_sigma=args.spike_sigma,
         doppler_whiten=args.doppler_whiten,
         progress_every=args.progress_every,

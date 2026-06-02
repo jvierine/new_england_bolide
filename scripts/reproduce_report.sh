@@ -24,8 +24,9 @@ run() {
   "$@"
 }
 
-if [[ ! -f "$RAW_ARCHIVE" ]]; then
+if [[ ! -f "$RAW_ARCHIVE" && ! -d 2026_05_30_bolide ]]; then
   echo "Missing raw archive: $RAW_ARCHIVE" >&2
+  echo "Raw directory 2026_05_30_bolide/ is also absent." >&2
   echo "Usage: $0 [--clean] [2026_05_30_bolide.tar.gz]" >&2
   exit 1
 fi
@@ -55,6 +56,7 @@ fi
 
 mkdir -p products reports/figures "$ORBIT_DIR"
 
+run python reports/generate_station_config_assets.py
 run python reports/generate_report_assets.py
 
 run python rdmf_peak_batch.py batch \

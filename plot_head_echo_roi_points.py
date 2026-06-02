@@ -24,9 +24,9 @@ def load_rdmf(fname):
             "station": h["station"][()].decode(),
             "t_unix": h["t_sample"][()] / sr,
             "range_km": h["range_km"][()],
-            "P": h["P"][()],
+            "P": h["P_head"][()] if "P_head" in h else h["P"][()],
             "N": h["N"][()],
-            "D": h["D"][()],
+            "D": h["D_head"][()] if "D_head" in h else h["D"][()],
         }
 
 

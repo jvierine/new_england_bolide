@@ -28,9 +28,11 @@ def load_station_file(fname):
             "station": station,
             "t_unix": h["t_sample"][()] / sr,
             "range_km": h["range_km"][()],
-            "P": h["P"][()],
+            "P": h["P_head"][()] if "P_head" in h else h["P"][()],
+            "P_rti": h["P_rti"][()] if "P_rti" in h else h["P"][()],
             "N": h["N"][()],
-            "D": h["D"][()],
+            "D": h["D_head"][()] if "D_head" in h else h["D"][()],
+            "D_rti": h["D_rti"][()] if "D_rti" in h else h["D"][()],
         }
 
 
@@ -161,10 +163,11 @@ class HeadEchoLabeler:
 
         tplot = self.data["t_unix"] - self.t0_unix
         r = self.data["range_km"]
-        snr = self.data["P"] / np.maximum(self.data["N"], 1e-12)
+        snr = self.data["P_rti"] / np.maximum(self.data["N"], 1e-12)
         snr_db = 10.0 * np.log10(np.maximum(snr, 1e-12))
+        head_snr = self.data["P"] / np.maximum(self.data["N"], 1e-12)
         dop = self.data["D"].copy()
-        dop[snr < 10.0 ** (self.snr_threshold / 10.0)] = np.nan
+        dop[head_snr < 10.0 ** (self.snr_threshold / 10.0)] = np.nan
 
         snr_lim = np.nanpercentile(snr_db, [2, 99.7])
         self.ax_rti.pcolormesh(tplot, r, snr_db.T, shading="auto", cmap="inferno", vmin=snr_lim[0], vmax=snr_lim[1])
@@ -177,7 +180,7 @@ class HeadEchoLabeler:
         cmap = plt.cm.seismic.copy()
         cmap.set_bad("0.65")
         self.ax_dop.pcolormesh(tplot, r, dop.T, shading="auto", cmap=cmap, vmin=-vmax, vmax=vmax)
-        self.ax_dop.set_title(f"{self.data['station']} peak Doppler, SNR >= {self.snr_threshold:g} dB")
+        self.ax_dop.set_title(f"{self.data['station']} head-gated Doppler, SNR >= {self.snr_threshold:g} dB")
         self.ax_dop.set_xlabel(f"Seconds after {iso_utc(self.t0_unix)}")
 
         for ax in (self.ax_rti, self.ax_dop):

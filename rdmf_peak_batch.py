@@ -22,6 +22,36 @@ from range_doppler_mf_bolide import (
 DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
 
 
+def estimate_range_gate_dc(channel_data, range_idx, sample_rate_i, seconds):
+    if seconds <= 0:
+        return None
+    n_cal = int(round(seconds * sample_rate_i))
+    if n_cal <= 0:
+        return None
+    offsets = np.zeros((len(channel_data), len(range_idx)), dtype=np.complex64)
+    for chi, z in enumerate(channel_data):
+        max_stop = int(range_idx[-1]) + n_cal
+        if max_stop > len(z):
+            raise ValueError("Not enough data to estimate range-gate DC offsets")
+        cs = np.concatenate(([0.0j], np.cumsum(z[:max_stop], dtype=np.complex128)))
+        offsets[chi, :] = ((cs[range_idx + n_cal] - cs[range_idx]) / float(n_cal)).astype(np.complex64)
+    return offsets
+
+
+def read_dc_calibration_channels(args, site, range_idx, sample_rate_i):
+    cal_seconds = args.dc_cancel_seconds + (float(range_idx[-1]) + 1.0) / sample_rate_i
+    old_start = args.start_second
+    old_seconds = args.seconds
+    try:
+        args.start_second = args.dc_cancel_start_second
+        args.seconds = cal_seconds
+        zc, _sample_rate, _abs_index0 = read_station_channels(args, site)
+    finally:
+        args.start_second = old_start
+        args.seconds = old_seconds
+    return zc
+
+
 def read_station_channels(args, site):
     station_dir = Path(args.data_dir) / site["station"]
     zc = []
@@ -74,6 +104,10 @@ def make_output(args, site, n_steps, range_idx, fvec):
     h["range_interp"] = int(args.range_interp)
     h["range_resolution_m"] = float(site["range_resolution_m"])
     h["ignore_freq"] = float(args.ignore_freq)
+    h["head_min_doppler_hz"] = float(args.head_min_doppler_hz)
+    h["dc_cancel"] = int(args.dc_cancel)
+    h["dc_cancel_seconds"] = float(args.dc_cancel_seconds)
+    h["dc_cancel_start_second"] = float(args.dc_cancel_start_second)
     h["doppler_whiten"] = int(args.doppler_whiten)
     h.attrs["config_path"] = site["config_path"]
     h.attrs["iso_hour"] = args.iso_hour
@@ -82,8 +116,14 @@ def make_output(args, site, n_steps, range_idx, fvec):
     h.attrs["complete"] = 0
     h.attrs["n_done"] = 0
     h.create_dataset("t_sample", (n_steps,), dtype="f8")
-    h.create_dataset("P", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
     h.create_dataset("N", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
+    h.create_dataset("P_rti", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
+    h.create_dataset("D_rti", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
+    h.create_dataset("P_head", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
+    h.create_dataset("D_head", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
+    # Backward-compatible aliases for older scripts: P/D are the head-echo
+    # picker, while RTI plots should use P_rti/D_rti when present.
+    h.create_dataset("P", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
     h.create_dataset("D", (n_steps, n_range), dtype="f4", chunks=chunks_2d)
     h.create_dataset("voltage_peak", (n_steps, n_ch, n_range, n_tx), dtype="c8", chunks=chunks_v)
     return h
@@ -114,8 +154,25 @@ def run_station(args):
     fvec = np.fft.fftshift(np.fft.fftfreq(win_len, d=1.0 / sample_rate_i))
     fidx = np.where((fvec >= args.fmin) & (fvec <= args.fmax))[0]
     fvec0 = fvec[fidx]
-    good_dop = np.abs(fvec0) >= args.ignore_freq
+    good_rti_dop = np.abs(fvec0) >= args.ignore_freq
+    good_head_dop = np.abs(fvec0) >= args.head_min_doppler_hz
+    if not np.any(good_head_dop):
+        raise ValueError(
+            f"No Doppler bins satisfy --head-min-doppler-hz={args.head_min_doppler_hz:g} "
+            f"within [{args.fmin:g}, {args.fmax:g}] Hz"
+        )
     codes = get_codes(site["seeds"], site["code_len"], args.n_coh, range_interp=args.range_interp)
+    if args.dc_cancel:
+        dc_zc = read_dc_calibration_channels(args, site, range_idx, sample_rate_i)
+        dc_offsets = estimate_range_gate_dc(dc_zc, range_idx, sample_rate_i, args.dc_cancel_seconds)
+    else:
+        dc_offsets = None
+    if dc_offsets is not None:
+        print(
+            f"{args.station}: subtracting per-range DC offsets estimated from "
+            f"{args.dc_cancel_seconds:g}s at t={args.dc_cancel_start_second:g}s",
+            flush=True,
+        )
 
     h = make_output(args, site, n_steps, range_idx, fvec0)
     t0 = time.time()
@@ -127,6 +184,8 @@ def run_station(args):
             for chi, z in enumerate(zc):
                 z0 = detrend_window(z[start : start + read_len], spike_sigma=args.spike_sigma)
                 windows = np.lib.stride_tricks.sliding_window_view(z0, win_len)[range_idx, :]
+                if dc_offsets is not None:
+                    windows = windows - dc_offsets[chi, :, None]
                 for ci, code in enumerate(codes):
                     Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), axis=1), axes=1)[:, fidx]
                     Z_store[chi, :, ci, :] = Z
@@ -147,24 +206,34 @@ def run_station(args):
                 S_pick = S
             noise = np.median(S_pick, axis=1)
 
-            # ignore_freq only masks the Doppler bins considered for the peak.
-            # P/N are stored in the same units as S_pick, and voltage_peak is
-            # taken from the unnormalized complex spectrum at the selected bin.
-            S_search = S_pick.copy()
-            if np.any(~good_dop):
-                S_search[:, ~good_dop] = -np.inf
-            imax = np.argmax(S_search, axis=1)
-            peak = S_pick[np.arange(len(range_idx)), imax]
-            dop = fvec0[imax]
+            # RTI products keep the strongest bin, including non-specular trail
+            # echoes. Head products use a stricter Doppler gate for dynamic
+            # head-echo measurements.
+            S_rti_search = S_pick.copy()
+            if np.any(~good_rti_dop):
+                S_rti_search[:, ~good_rti_dop] = -np.inf
+            imax_rti = np.argmax(S_rti_search, axis=1)
+            peak_rti = S_pick[np.arange(len(range_idx)), imax_rti]
+            dop_rti = fvec0[imax_rti]
+
+            S_head_search = S_pick.copy()
+            S_head_search[:, ~good_head_dop] = -np.inf
+            imax_head = np.argmax(S_head_search, axis=1)
+            peak_head = S_pick[np.arange(len(range_idx)), imax_head]
+            dop_head = fvec0[imax_head]
 
             voltage = np.zeros((len(args.channels), len(range_idx), len(codes)), dtype=np.complex64)
-            for ri, fi in enumerate(imax):
+            for ri, fi in enumerate(imax_head):
                 voltage[:, ri, :] = Z_store[:, ri, :, fi]
 
             h["t_sample"][ti] = abs_index0 + ti * original_step_len
-            h["P"][ti, :] = peak
             h["N"][ti, :] = noise
-            h["D"][ti, :] = dop
+            h["P_rti"][ti, :] = peak_rti
+            h["D_rti"][ti, :] = dop_rti
+            h["P_head"][ti, :] = peak_head
+            h["D_head"][ti, :] = dop_head
+            h["P"][ti, :] = peak_head
+            h["D"][ti, :] = dop_head
             h["voltage_peak"][ti, :, :, :] = voltage
 
             n_done = ti + 1
@@ -175,12 +244,13 @@ def run_station(args):
                 elapsed = time.time() - t0
                 rate = n_done / max(elapsed, 1e-9)
                 eta = (n_steps - n_done) / max(rate, 1e-9)
-                snr = peak / np.maximum(noise, 1e-12)
+                snr = peak_head / np.maximum(noise, 1e-12)
                 best = int(np.argmax(snr))
                 print(
                     f"PROGRESS {n_done}/{n_steps} elapsed={elapsed:.1f}s eta={eta:.1f}s "
                     f"rate={rate:.3f}steps/s best_range_km={range_idx[best] * gate_km:.1f} "
-                    f"dop={dop[best]:.1f}Hz snr_db={10*np.log10(max(snr[best], 1e-12)):.1f}",
+                    f"head_dop={dop_head[best]:.1f}Hz "
+                    f"head_snr_db={10*np.log10(max(snr[best], 1e-12)):.1f}",
                     flush=True,
                 )
         h.attrs["complete"] = 1
@@ -246,6 +316,9 @@ def run_batch(args):
                 "--fmin", str(args.fmin),
                 "--fmax", str(args.fmax),
                 "--ignore-freq", str(args.ignore_freq),
+                "--head-min-doppler-hz", str(args.head_min_doppler_hz),
+                "--dc-cancel-seconds", str(args.dc_cancel_seconds),
+                "--dc-cancel-start-second", str(args.dc_cancel_start_second),
                 "--spike-sigma", str(args.spike_sigma),
                 "--progress-every", str(args.progress_every),
                 "--flush-every", str(args.flush_every),
@@ -253,6 +326,8 @@ def run_batch(args):
             ]
             if args.doppler_whiten:
                 cmd.append("--doppler-whiten")
+            if station in set(args.dc_cancel_stations):
+                cmd.append("--dc-cancel")
             if args.overwrite:
                 cmd.append("--overwrite")
             tasks.append((station, chunk_i, t0, sec, out, cmd))
@@ -343,9 +418,10 @@ def merge_station(indir, station, out_file, overwrite=False):
                 "station", "channels", "seeds", "code_len", "frequency_hz", "gps_rx", "gps_tx",
                 "range_idx", "range_km", "fvec", "sample_rate", "t0_sample", "n_coh",
                 "codes_per_step", "range_interp", "range_resolution_m", "ignore_freq",
-                "doppler_whiten",
+                "head_min_doppler_hz", "dc_cancel", "dc_cancel_seconds", "dc_cancel_start_second", "doppler_whiten",
             ):
-                out[key] = h0[key][()]
+                if key in h0:
+                    out[key] = h0[key][()]
             for k, v in h0.attrs.items():
                 out.attrs[k] = v
             out.attrs["merged_from"] = str(Path(indir))
@@ -354,9 +430,9 @@ def merge_station(indir, station, out_file, overwrite=False):
             chunks_2d = (min(128, n_total), min(256, n_range))
             chunks_v = (1, n_ch, min(256, n_range), n_tx)
             out.create_dataset("t_sample", (n_total,), dtype="f8")
-            out.create_dataset("P", (n_total, n_range), dtype="f4", chunks=chunks_2d)
             out.create_dataset("N", (n_total, n_range), dtype="f4", chunks=chunks_2d)
-            out.create_dataset("D", (n_total, n_range), dtype="f4", chunks=chunks_2d)
+            for key in ("P_rti", "D_rti", "P_head", "D_head", "P", "D"):
+                out.create_dataset(key, (n_total, n_range), dtype="f4", chunks=chunks_2d)
             out.create_dataset("voltage_peak", (n_total, n_ch, n_range, n_tx), dtype="c8", chunks=chunks_v)
 
             pos = 0
@@ -365,9 +441,23 @@ def merge_station(indir, station, out_file, overwrite=False):
                     n = h["P"].shape[0]
                     sl = slice(pos, pos + n)
                     out["t_sample"][sl] = h["t_sample"][()]
-                    out["P"][sl, :] = h["P"][()]
                     out["N"][sl, :] = h["N"][()]
-                    out["D"][sl, :] = h["D"][()]
+                    if "P_rti" in h:
+                        p_rti = h["P_rti"][()]
+                        d_rti = h["D_rti"][()]
+                        p_head = h["P_head"][()]
+                        d_head = h["D_head"][()]
+                    else:
+                        p_rti = h["P"][()]
+                        d_rti = h["D"][()]
+                        p_head = p_rti
+                        d_head = d_rti
+                    out["P_rti"][sl, :] = p_rti
+                    out["D_rti"][sl, :] = d_rti
+                    out["P_head"][sl, :] = p_head
+                    out["D_head"][sl, :] = d_head
+                    out["P"][sl, :] = p_head
+                    out["D"][sl, :] = d_head
                     out["voltage_peak"][sl, :, :, :] = h["voltage_peak"][()]
                     pos += n
         tmp.replace(out_file)
@@ -400,6 +490,10 @@ def parser():
         q.add_argument("--fmin", type=float, default=-50000.0)
         q.add_argument("--fmax", type=float, default=50000.0)
         q.add_argument("--ignore-freq", type=float, default=0.0)
+        q.add_argument("--head-min-doppler-hz", type=float, default=250.0)
+        q.add_argument("--dc-cancel", action="store_true")
+        q.add_argument("--dc-cancel-seconds", type=float, default=1.0)
+        q.add_argument("--dc-cancel-start-second", type=float, default=0.0)
         q.add_argument("--spike-sigma", type=float, default=0.0)
         q.add_argument("--doppler-whiten", action="store_true", default=True)
         q.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
@@ -415,6 +509,7 @@ def parser():
     pb = sub.add_parser("batch")
     common(pb)
     pb.add_argument("--stations", nargs="+", default=DEFAULT_STATIONS)
+    pb.add_argument("--dc-cancel-stations", nargs="+", default=["clinton"])
     pb.add_argument("--total-seconds", type=float, default=100.0)
     pb.add_argument("--chunk-seconds", type=float, default=0.1)
     pb.add_argument("--chunk-steps", type=int)

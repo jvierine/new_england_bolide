@@ -10,9 +10,9 @@ import numpy as np
 
 def read_rdmf(fname):
     with h5py.File(fname, "r") as h:
-        P = h["P"][()]
+        P = h["P_rti"][()] if "P_rti" in h else h["P"][()]
         N = h["N"][()]
-        D = h["D"][()]
+        D = h["D_rti"][()] if "D_rti" in h else h["D"][()]
         t_sample = h["t_sample"][()]
         range_idx = h["range_idx"][()]
         if "range_km" in h:

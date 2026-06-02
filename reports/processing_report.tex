@@ -61,6 +61,51 @@ rdmf_peak_beverly_merged.h5 \
 rdmf_peak_beverly_merged
 \end{verbatim}
 
+\section{Station And Transmitter Geometry}
+
+The receiving sites are referred to in the processing scripts by compact
+station keys.  The report tables below translate those keys to the geographic
+receiver sites and list the shared Haystack transmit site used by all bistatic
+paths.
+
+\begin{table}[ht]
+  \centering
+  \caption{Transmit and receive station coordinates from the analysis
+  configuration files.}
+  \resizebox{\linewidth}{!}{\input{station_coordinates_table.tex}}
+  \label{tab:station-coordinates}
+\end{table}
+
+The coded-CW transmitter used five transmit antennas.  Their local ENU offsets
+are relative to the transmitter reference point in
+Table~\ref{tab:station-coordinates}.  Each antenna is associated with one
+pseudo-random transmit-code seed.
+
+\begin{table}[ht]
+  \centering
+  \caption{Haystack transmit antenna offsets and pseudo-random code seeds.}
+  \input{tx_antenna_coordinates_table.tex}
+  \label{tab:tx-antennas}
+\end{table}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.72\linewidth]{figures/tx_antenna_coordinates.png}
+  \caption{Transmit antenna ENU offsets and the corresponding code seeds.}
+  \label{fig:tx-antennas}
+\end{figure}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.78\linewidth]{figures/tx_aod_match_function.png}
+  \caption{Normalized transmit-array angle-of-departure match function in
+  east/north direction cosines for a zenith reference direction.  The sky is
+  masked below 5 deg elevation.  This shows the angular response and
+  sidelobe/ambiguity structure expected from the five-antenna transmit
+  interferometer before measurement noise and echo SNR are considered.}
+  \label{fig:tx-aod-match}
+\end{figure}
+
 \section{\texttt{detrend\_window}}
 
 The function \texttt{detrend\_window} is applied to the complex voltage samples
@@ -163,20 +208,20 @@ divides out the median range power at each Doppler before the peak is selected.
   \includegraphics[width=\linewidth]{figures/station_range_time_snr.png}
   \caption{Range--time intensity for all five stations over the
   high-resolution 18:06:18--18:06:25 UTC interval.  The plotted range windows
-  are Beverly 150--300 km, Clinton 200--300 km, Pomfret 300--450 km, Siena
+  are Beverly 180--275 km, Clinton 220--280 km, Pomfret 350--420 km, Siena
   400--500 km, and Amherst 200--350 km.}
   \label{fig:station-rti-snr}
 \end{figure}
 
 \begin{figure}[ht]
   \centering
-  \includegraphics[width=\linewidth]{figures/station_range_time_doppler.png}
-  \caption{Peak Doppler over the same station range windows as
-  Figure~\ref{fig:station-rti-snr}, plotted on a fixed \(-3000\)--0 Hz scale.
-  Doppler values are masked where the range--time SNR is below 5 dB so that
-  the plotted colors emphasize the detected head/trail echo rather than
-  low-SNR peak-picker fluctuations.}
-  \label{fig:station-rti-doppler}
+  \includegraphics[width=\linewidth]{figures/station_range_time_head_snr.png}
+  \caption{Range--time SNR over the same station range windows as
+  Figure~\ref{fig:station-rti-snr}, but using the meteor head-echo Doppler
+  selection criterion.  At each time and range gate, the plotted SNR is the
+  peak selected after requiring \(|f_D| \ge 250\) Hz, suppressing the
+  near-zero-Doppler trail/clutter bins emphasized in the all-Doppler RTI.}
+  \label{fig:station-rti-head-snr}
 \end{figure}
 
 \section{Trajectory Fit}

@@ -23,9 +23,9 @@ def read_merged(fname):
             "station": h["station"][()].decode(),
             "t": h["t_sample"][()] / sr,
             "range_km": h["range_km"][()],
-            "P": h["P"][()],
+            "P": h["P_rti"][()] if "P_rti" in h else h["P"][()],
             "N": h["N"][()],
-            "D": h["D"][()],
+            "D": h["D_rti"][()] if "D_rti" in h else h["D"][()],
         }
 
 

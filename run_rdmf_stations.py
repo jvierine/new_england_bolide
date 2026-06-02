@@ -46,6 +46,12 @@ def build_worker_cmd(args, station, out_file):
         str(args.fmax),
         "--ignore-freq",
         str(args.ignore_freq),
+        "--head-min-doppler-hz",
+        str(args.head_min_doppler_hz),
+        "--dc-cancel-seconds",
+        str(args.dc_cancel_seconds),
+        "--dc-cancel-start-second",
+        str(args.dc_cancel_start_second),
         "--spike-sigma",
         str(args.spike_sigma),
         "--progress-every",
@@ -65,6 +71,8 @@ def build_worker_cmd(args, station, out_file):
         cmd.extend(["--max-range-km", str(args.max_range_km)])
     if args.doppler_whiten:
         cmd.append("--doppler-whiten")
+    if station in set(args.dc_cancel_stations):
+        cmd.append("--dc-cancel")
     return cmd
 
 
@@ -116,6 +124,10 @@ def main():
     p.add_argument("--fmin", type=float, default=-12000.0)
     p.add_argument("--fmax", type=float, default=12000.0)
     p.add_argument("--ignore-freq", type=float, default=250.0)
+    p.add_argument("--head-min-doppler-hz", type=float, default=250.0)
+    p.add_argument("--dc-cancel-stations", nargs="+", default=["clinton"])
+    p.add_argument("--dc-cancel-seconds", type=float, default=1.0)
+    p.add_argument("--dc-cancel-start-second", type=float, default=0.0)
     p.add_argument("--spike-sigma", type=float, default=0.0)
     p.add_argument("--doppler-whiten", action="store_true", default=True)
     p.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
