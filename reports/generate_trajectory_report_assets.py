@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import json
-import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,6 +17,7 @@ from estimate_head_echo_trajectory import (
     model_state_series,
     predict_dopplers,
     predict_ranges,
+    sample_fit_parameters,
 )
 
 
@@ -69,13 +69,27 @@ def load_fit():
     return fit, geom, tx0, rot, params
 
 
-def plot_range_doppler_measurements(fit, geom, tx0, rot, params):
+def covariance_samples(fit, n_samples=800):
+    cov = np.array(fit["linearized_fit_error"]["covariance"], dtype=float)
+    return sample_fit_parameters(
+        np.r_[
+            fit["fit_parameters_enu_at_tx"]["position_ref_m"],
+            fit["fit_parameters_enu_at_tx"]["velocity_mps"],
+        ],
+        cov,
+        n_samples=n_samples,
+        seed=20260530,
+    )
+
+
+def plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples):
     obs = fit["observations"]
     t_ref = fit["t_ref_unix"]
     stations = fit["used_stations"]
     fig, axes = plt.subplots(2, 1, figsize=(12.0, 8.0), sharex=True, constrained_layout=True)
 
-    for station in stations:
+    for si, station in enumerate(stations):
+        color = f"C{si}"
         station_obs = [o for o in obs if o["station"] == station]
         station_obs.sort(key=lambda o: o["unix_time"])
         t_obs = np.array([o["unix_time"] for o in station_obs])
@@ -85,11 +99,18 @@ def plot_range_doppler_measurements(fit, geom, tx0, rot, params):
         model_obs = [{"station": station, "unix_time": float(t)} for t in t_obs]
         pred_range_km = predict_ranges(params, model_obs, geom, t_ref, tx0, rot) / 1000.0
         pred_dop_khz = predict_dopplers(params, model_obs, geom, t_ref, tx0, rot) / 1000.0
+        sample_range = np.array([predict_ranges(p, model_obs, geom, t_ref, tx0, rot) / 1000.0 for p in samples])
+        sample_dop = np.array([predict_dopplers(p, model_obs, geom, t_ref, tx0, rot) / 1000.0 for p in samples])
+        range_lo, range_hi = np.percentile(sample_range, [2.5, 97.5], axis=0)
+        dop_lo, dop_hi = np.percentile(sample_dop, [2.5, 97.5], axis=0)
 
-        axes[0].scatter(tr, range_km, s=20, alpha=0.75, label=f"{station} measured")
-        axes[0].plot(tr, pred_range_km, lw=2.0, label=f"{station} fit")
-        axes[1].scatter(tr, dop_khz, s=20, alpha=0.75, label=f"{station} measured")
-        axes[1].plot(tr, pred_dop_khz, lw=2.0, label=f"{station} fit")
+        uncertainty_label = "95% fit uncertainty" if si == 0 else None
+        axes[0].scatter(tr, range_km, s=20, alpha=0.75, color=color, label=f"{station} measured")
+        axes[0].fill_between(tr, range_lo, range_hi, color=color, alpha=0.18, linewidth=0, label=uncertainty_label)
+        axes[0].plot(tr, pred_range_km, color=color, lw=2.0, label=f"{station} fit")
+        axes[1].scatter(tr, dop_khz, s=20, alpha=0.75, color=color, label=f"{station} measured")
+        axes[1].fill_between(tr, dop_lo, dop_hi, color=color, alpha=0.18, linewidth=0, label=uncertainty_label)
+        axes[1].plot(tr, pred_dop_khz, color=color, lw=2.0, label=f"{station} fit")
 
     axes[0].set_ylabel("Bistatic range (km)")
     axes[0].set_title("Head-echo trajectory fit observables")
@@ -106,17 +127,52 @@ def plot_range_doppler_measurements(fit, geom, tx0, rot, params):
     return out
 
 
-def copy_trajectory_figures():
-    copied = []
-    for name in (
-        "head_echo_altitude_velocity.png",
-        "head_echo_cartopy_trajectory_uncertainty.png",
-    ):
-        src = PRODUCT_DIR / name
-        dst = FIG_DIR / name
-        shutil.copy2(src, dst)
-        copied.append(dst)
-    return copied
+def plot_altitude_velocity(fit, tx0, rot, params, samples):
+    obs = fit["observations"]
+    t_ref = fit["t_ref_unix"]
+    t_obs = np.array([o["unix_time"] for o in obs], dtype=float)
+    t_grid = np.linspace(float(np.min(t_obs)), float(np.max(t_obs)), 220)
+    model = model_state_series(params, t_grid, t_ref, tx0, rot)
+    sample_states = [model_state_series(p, t_grid, t_ref, tx0, rot) for p in samples]
+    sample_alt_km = np.array([s["lat_lon_alt"][:, 2] / 1000.0 for s in sample_states])
+    sample_vel_enu = np.array([s["velocity_enu_mps"] / 1000.0 for s in sample_states])
+    sample_speed = np.array([s["speed_mps"] / 1000.0 for s in sample_states])
+    alt_lo, alt_hi = np.percentile(sample_alt_km, [2.5, 97.5], axis=0)
+    speed_lo, speed_hi = np.percentile(sample_speed, [2.5, 97.5], axis=0)
+    vel_lo, vel_hi = np.percentile(sample_vel_enu, [2.5, 97.5], axis=0)
+
+    fig, axes = plt.subplots(2, 1, figsize=(12.0, 8.2), sharex=True, constrained_layout=True)
+    tr = model["time_relative_s"]
+    axes[0].fill_between(tr, alt_lo, alt_hi, color="C0", alpha=0.2, linewidth=0, label="95% fit uncertainty")
+    axes[0].plot(tr, model["lat_lon_alt"][:, 2] / 1000.0, color="C0", lw=2.2, label="fit")
+    axes[0].scatter([0.0], [fit["geodetic_ref_wgs84"]["alt_m"] / 1000.0], color="k", s=32, zorder=4, label="t_ref")
+    axes[0].set_ylabel("Altitude (km)")
+    axes[0].set_title("Best-fit head echo altitude and velocity")
+    axes[0].grid(True, color="0.9", linewidth=0.6)
+    axes[0].legend(loc="upper right")
+
+    vel = model["velocity_enu_mps"] / 1000.0
+    for i, (label, color) in enumerate((("east", "C0"), ("north", "C1"), ("up", "C2"))):
+        axes[1].fill_between(tr, vel_lo[:, i], vel_hi[:, i], color=color, alpha=0.12, linewidth=0)
+        axes[1].plot(tr, vel[:, i], color=color, lw=1.8, label=label)
+    axes[1].fill_between(tr, speed_lo, speed_hi, color="k", alpha=0.12, linewidth=0)
+    axes[1].plot(tr, model["speed_mps"] / 1000.0, color="k", lw=2.5, label="speed")
+    axes[1].set_xlabel(f"Seconds relative to {fit['t_ref_utc']}")
+    axes[1].set_ylabel("Velocity (km/s)")
+    axes[1].grid(True, color="0.9", linewidth=0.6)
+    axes[1].legend(ncol=4)
+
+    out = FIG_DIR / "head_echo_altitude_velocity.png"
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
+def copy_cartopy_figure():
+    src = PRODUCT_DIR / "head_echo_cartopy_trajectory_uncertainty.png"
+    dst = FIG_DIR / "head_echo_cartopy_trajectory_uncertainty.png"
+    dst.write_bytes(src.read_bytes())
+    return dst
 
 
 def write_trajectory_stats(fit, tx0, rot, params):
@@ -154,12 +210,14 @@ def main():
     set_publication_plot_style()
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     fit, geom, tx0, rot, params = load_fit()
-    measurement_fig = plot_range_doppler_measurements(fit, geom, tx0, rot, params)
-    copied = copy_trajectory_figures()
+    samples = covariance_samples(fit)
+    measurement_fig = plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples)
+    altitude_fig = plot_altitude_velocity(fit, tx0, rot, params, samples)
+    cartopy_fig = copy_cartopy_figure()
     stats = write_trajectory_stats(fit, tx0, rot, params)
     print(measurement_fig)
-    for path in copied:
-        print(path)
+    print(altitude_fig)
+    print(cartopy_fig)
     print(stats)
 
 
