@@ -24,6 +24,25 @@ FIG_DIR = ROOT / "reports" / "figures"
 STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
 
 
+def set_publication_plot_style():
+    plt.rcParams.update(
+        {
+            "font.size": 16,
+            "axes.labelsize": 17,
+            "axes.titlesize": 18,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+            "legend.fontsize": 13,
+            "figure.titlesize": 20,
+            "axes.linewidth": 1.1,
+            "xtick.major.width": 1.0,
+            "ytick.major.width": 1.0,
+            "xtick.major.size": 5,
+            "ytick.major.size": 5,
+        }
+    )
+
+
 def read_raw(station, channel, start_second, seconds):
     files = rf_file_for_time(DATA_DIR / station, channel, "2026-05-30T18-00-00")
     return read_channel_files(files, start_second=start_second, seconds=seconds)
@@ -83,7 +102,7 @@ def plot_detrend_example(spike_sigma=8.0):
     sl = slice(max(0, imax - half), min(len(z), imax + half + 1))
     t_ms = (np.arange(sl.start, sl.stop) - imax) / sr * 1e3
 
-    fig = plt.figure(figsize=(11.0, 7.2), constrained_layout=True)
+    fig = plt.figure(figsize=(12.8, 8.2), constrained_layout=True)
     gs = fig.add_gridspec(2, 1, height_ratios=[0.55, 1.0])
     ax0 = fig.add_subplot(gs[0])
     ax0.axis("off")
@@ -101,16 +120,16 @@ def plot_detrend_example(spike_sigma=8.0):
             ha="center",
             va="center",
             bbox=dict(boxstyle="round,pad=0.35", fc="white", ec="0.25"),
-            fontsize=10,
+            fontsize=15,
         )
     for x0, x1 in zip([b[1] for b in boxes[:-1]], [b[1] for b in boxes[1:]]):
         ax0.annotate("", xy=(x1 - 0.09, 0.55), xytext=(x0 + 0.09, 0.55), arrowprops=dict(arrowstyle="->"))
 
     ax = fig.add_subplot(gs[1])
-    ax.plot(t_ms, np.abs(y[sl]), color="tab:red", lw=1.3, label="after median subtraction")
-    ax.plot(t_ms, np.abs(y_filtered[sl]), color="tab:blue", lw=1.1, label="after spike filter")
-    ax.axhline(threshold, color="0.25", ls="--", lw=1.0, label=f"{spike_sigma:g} x median(|sample|)")
-    ax.axvline(0, color="0.4", lw=0.8)
+    ax.plot(t_ms, np.abs(y[sl]), color="tab:red", lw=1.7, label="after median subtraction")
+    ax.plot(t_ms, np.abs(y_filtered[sl]), color="tab:blue", lw=1.5, label="after spike filter")
+    ax.axhline(threshold, color="0.25", ls="--", lw=1.2, label=f"{spike_sigma:g} x median(|sample|)")
+    ax.axvline(0, color="0.4", lw=1.0)
     ax.set_title(
         f"Example spike removed by detrend_window: {worst['station']} ch{worst['channel']}, "
         f"18:06:15+{worst['time_second']:.5f} s"
@@ -222,11 +241,14 @@ def plot_doppler_whiten_example():
     spec_white_db = white_db[ri, :]
     raw_lim = np.nanpercentile(raw_db, [5, 99.7])
     white_lim = np.nanpercentile(white_db, [5, 99.7])
+    peak_khz = snap["white_peak_hz"] / 1e3
+    xlim = (peak_khz - 6.0, peak_khz + 6.0)
+    ylim = (target_range - 50.0, target_range + 50.0)
 
-    fig, axes = plt.subplots(2, 2, figsize=(13.0, 8.6), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=(15.0, 10.0), constrained_layout=True)
     p = axes[0, 0].pcolormesh(f / 1e3, r, raw_db, shading="auto", cmap="inferno", vmin=raw_lim[0], vmax=raw_lim[1])
     fig.colorbar(p, ax=axes[0, 0], label="dB above range median")
-    axes[0, 0].axhline(target_range, color="cyan", lw=1.0)
+    axes[0, 0].plot(peak_khz, target_range, marker="o", ms=8, mec="cyan", mfc="none", mew=2.0)
     axes[0, 0].set_title("Before Doppler whitening")
     axes[0, 0].set_ylabel("Range (km)")
 
@@ -234,25 +256,30 @@ def plot_doppler_whiten_example():
         f / 1e3, r, white_db, shading="auto", cmap="inferno", vmin=white_lim[0], vmax=white_lim[1]
     )
     fig.colorbar(p, ax=axes[0, 1], label="dB above whitened range median")
-    axes[0, 1].axhline(target_range, color="cyan", lw=1.0)
+    axes[0, 1].plot(peak_khz, target_range, marker="o", ms=8, mec="cyan", mfc="none", mew=2.0)
     axes[0, 1].set_title("After Doppler whitening")
 
-    axes[1, 0].plot(f / 1e3, spec_raw_db, color="tab:red", lw=1.0)
-    axes[1, 0].axhline(0, color="0.3", ls="--", lw=0.8, label="range-gate noise floor")
-    axes[1, 0].axvline(snap["white_peak_hz"] / 1e3, color="tab:blue", ls=":", lw=1.0, label="whitened peak")
+    axes[1, 0].plot(f / 1e3, spec_raw_db, color="tab:red", lw=1.5)
+    axes[1, 0].axhline(0, color="0.3", ls="--", lw=1.0, label="range-gate noise floor")
+    axes[1, 0].axvline(peak_khz, color="tab:blue", ls=":", lw=1.3, label="selected peak")
     axes[1, 0].set_title(f"Range gate {target_range:.1f} km before whitening")
     axes[1, 0].set_ylabel("Power / range-gate median (dB)")
     axes[1, 0].legend(loc="upper right")
 
-    axes[1, 1].plot(f / 1e3, spec_white_db, color="tab:blue", lw=1.0)
-    axes[1, 1].axhline(0, color="0.3", ls="--", lw=0.8, label="whitened range-gate noise floor")
-    axes[1, 1].axvline(snap["white_peak_hz"] / 1e3, color="tab:blue", ls=":", lw=1.0, label="whitened peak")
+    axes[1, 1].plot(f / 1e3, spec_white_db, color="tab:blue", lw=1.5)
+    axes[1, 1].axhline(0, color="0.3", ls="--", lw=1.0, label="whitened range-gate noise floor")
+    axes[1, 1].axvline(peak_khz, color="tab:blue", ls=":", lw=1.3, label="selected peak")
     axes[1, 1].set_title(f"Range gate {target_range:.1f} km after whitening")
     axes[1, 1].legend(loc="upper right")
 
+    for ax in axes[0, :]:
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
     for ax in axes.ravel():
         ax.set_xlabel("Doppler shift (kHz)")
         ax.grid(True, color="0.9", linewidth=0.5)
+    for ax in axes[1, :]:
+        ax.set_xlim(*xlim)
 
     fig.suptitle("Beverly matched-filter snapshot at 18:06:20.600 UTC")
     out = FIG_DIR / "beverly_doppler_whiten_example.png"
@@ -287,6 +314,7 @@ def write_stats_tex(rows, total_samples, total_spikes, worst, snap, spike_sigma=
 
 
 def main():
+    set_publication_plot_style()
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     spike_fig, rows, total_samples, total_spikes, worst = plot_detrend_example(spike_sigma=8.0)
     whiten_fig, snap = plot_doppler_whiten_example()
