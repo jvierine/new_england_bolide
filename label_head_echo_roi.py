@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import h5py
-import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
@@ -14,14 +13,6 @@ from matplotlib.widgets import Button, RectangleSelector
 
 DEFAULT_MERGED_DIR = "products/rdmf_exact_highres_180615_10s_merged_20260602_095431"
 DEFAULT_OUT = "annotations/head_echo_rois.json"
-
-
-def unix_to_mpl(t):
-    return mdates.date2num([datetime.fromtimestamp(float(x), UTC) for x in t])
-
-
-def mpl_to_unix(x):
-    return mdates.num2date(float(x), tz=UTC).timestamp()
 
 
 def iso_utc(t):
@@ -121,6 +112,7 @@ class HeadEchoLabeler:
         self.annotations = load_annotations(self.out_path)
         self.index = 0
         self.data = None
+        self.t0_unix = None
         self.rectangles = []
         self.current_box = None
         self.selector = None
@@ -158,12 +150,13 @@ class HeadEchoLabeler:
 
     def draw_station(self):
         self.data = load_station_file(self.files[self.index])
+        self.t0_unix = float(self.data["t_unix"][0])
         self.current_box = None
         self.ax_rti.clear()
         self.ax_dop.clear()
         self.clear_rectangles()
 
-        tplot = unix_to_mpl(self.data["t_unix"])
+        tplot = self.data["t_unix"] - self.t0_unix
         r = self.data["range_km"]
         snr = self.data["P"] / np.maximum(self.data["N"], 1e-12)
         snr_db = 10.0 * np.log10(np.maximum(snr, 1e-12))
@@ -174,7 +167,7 @@ class HeadEchoLabeler:
         self.ax_rti.pcolormesh(tplot, r, snr_db.T, shading="auto", cmap="inferno", vmin=snr_lim[0], vmax=snr_lim[1])
         self.ax_rti.set_title(f"{self.data['station']} RTI / SNR")
         self.ax_rti.set_ylabel("Bistatic group range (km)")
-        self.ax_rti.set_xlabel("UTC")
+        self.ax_rti.set_xlabel(f"Seconds after {iso_utc(self.t0_unix)}")
 
         vmax = np.nanpercentile(np.abs(dop), 98) if np.any(np.isfinite(dop)) else 1000.0
         vmax = max(1000.0, float(vmax))
@@ -182,12 +175,12 @@ class HeadEchoLabeler:
         cmap.set_bad("0.65")
         self.ax_dop.pcolormesh(tplot, r, dop.T, shading="auto", cmap=cmap, vmin=-vmax, vmax=vmax)
         self.ax_dop.set_title(f"{self.data['station']} peak Doppler, SNR >= {self.snr_threshold:g} dB")
-        self.ax_dop.set_xlabel("UTC")
+        self.ax_dop.set_xlabel(f"Seconds after {iso_utc(self.t0_unix)}")
 
         for ax in (self.ax_rti, self.ax_dop):
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+            ax.set_xlim(float(np.min(tplot)), float(np.max(tplot)))
+            ax.set_ylim(float(np.min(r)), float(np.max(r)))
             ax.grid(True, color="0.85", lw=0.4)
-        self.fig.autofmt_xdate(rotation=25)
 
         self.draw_existing_annotation()
         self.set_status()
@@ -229,7 +222,8 @@ class HeadEchoLabeler:
         if not entry:
             return
         if entry.get("has_head_echo") and "time_range" in entry and "range_km" in entry:
-            x0, x1 = unix_to_mpl([entry["time_range"]["start_unix"], entry["time_range"]["end_unix"]])
+            x0 = float(entry["time_range"]["start_unix"]) - self.t0_unix
+            x1 = float(entry["time_range"]["end_unix"]) - self.t0_unix
             y0 = entry["range_km"]["min"]
             y1 = entry["range_km"]["max"]
             self.add_box_patches(x0, x1, y0, y1, color="lime")
@@ -247,7 +241,7 @@ class HeadEchoLabeler:
 
     def annotation_for_current_box(self):
         x0, x1, y0, y1 = self.current_box
-        t0, t1 = mpl_to_unix(x0), mpl_to_unix(x1)
+        t0, t1 = self.t0_unix + x0, self.t0_unix + x1
         r0, r1 = y0, y1
         summary = summarize_box(self.data, t0, t1, r0, r1)
         return {

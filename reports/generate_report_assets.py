@@ -248,7 +248,6 @@ def plot_doppler_whiten_example():
     fig, axes = plt.subplots(2, 2, figsize=(15.0, 10.0), constrained_layout=True)
     p = axes[0, 0].pcolormesh(f / 1e3, r, raw_db, shading="auto", cmap="inferno", vmin=raw_lim[0], vmax=raw_lim[1])
     fig.colorbar(p, ax=axes[0, 0], label="dB above range median")
-    axes[0, 0].plot(peak_khz, target_range, marker="o", ms=8, mec="cyan", mfc="none", mew=2.0)
     axes[0, 0].set_title("Before Doppler whitening")
     axes[0, 0].set_ylabel("Range (km)")
 
@@ -256,7 +255,6 @@ def plot_doppler_whiten_example():
         f / 1e3, r, white_db, shading="auto", cmap="inferno", vmin=white_lim[0], vmax=white_lim[1]
     )
     fig.colorbar(p, ax=axes[0, 1], label="dB above whitened range median")
-    axes[0, 1].plot(peak_khz, target_range, marker="o", ms=8, mec="cyan", mfc="none", mew=2.0)
     axes[0, 1].set_title("After Doppler whitening")
 
     axes[1, 0].plot(f / 1e3, spec_raw_db, color="tab:red", lw=1.5)
