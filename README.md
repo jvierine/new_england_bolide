@@ -102,3 +102,20 @@ Amherst 0-350 km.
 The AoD search grid follows the PANSY interferometry style: a regular grid in
 horizontal direction cosines over a zenith-angle cap, with elevation and
 azimuth derived from the resulting ENU unit vectors.
+
+## Manual Head Echo ROI Labels
+
+Use the Matplotlib GUI to mark which stations contain a head echo and the
+range-time box to use for trajectory estimation:
+
+```bash
+python label_head_echo_roi.py \
+  --merged-dir products/rdmf_exact_highres_180615_10s_merged_20260602_095431 \
+  --out annotations/head_echo_rois.json
+```
+
+Draw a box on the RTI panel, then click `Save ROI` or press `s`. Click
+`No Head Echo` or press `n` when the station has no usable head echo. Use the
+arrow keys or the `Previous`/`Next` buttons to move between stations. The JSON
+stores the time/range box plus Doppler and SNR summary statistics from the
+selected bins.

@@ -1,0 +1,5 @@
+{
+  "schema": "new_england_bolide.head_echo_roi.v1",
+  "description": "Manual head-echo ROI labels from range-time-Doppler matched-filter products.",
+  "stations": {}
+}
