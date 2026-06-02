@@ -9,7 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import least_squares
 
-from angle_departure_estimator import enu_to_ecef_matrix, geodetic_to_ecef, load_station_yaml
+from angle_departure_estimator import (
+    WGS84_A,
+    WGS84_E2,
+    enu_to_ecef_matrix,
+    geodetic_to_ecef,
+    load_station_yaml,
+)
 from plot_head_echo_roi_points import load_points
 
 
@@ -28,6 +34,22 @@ def ecef_to_geodetic_spherical(x):
     lon = np.rad2deg(np.arctan2(x[1], x[0]))
     alt = r - 6371000.0
     return lat, lon, alt
+
+
+def ecef_to_geodetic_wgs84(x):
+    x = np.asarray(x, dtype=float)
+    lon = np.arctan2(x[1], x[0])
+    p = np.hypot(x[0], x[1])
+    lat = np.arctan2(x[2], p * (1.0 - WGS84_E2))
+    for _ in range(8):
+        sin_lat = np.sin(lat)
+        n = WGS84_A / np.sqrt(1.0 - WGS84_E2 * sin_lat * sin_lat)
+        alt = p / np.cos(lat) - n
+        lat = np.arctan2(x[2], p * (1.0 - WGS84_E2 * n / (n + alt)))
+    sin_lat = np.sin(lat)
+    n = WGS84_A / np.sqrt(1.0 - WGS84_E2 * sin_lat * sin_lat)
+    alt = p / np.cos(lat) - n
+    return float(np.rad2deg(lat)), float(np.rad2deg(lon)), float(alt)
 
 
 def load_rdmf(fname):
@@ -145,6 +167,28 @@ def predict_dopplers(params, obs, geom, t_ref, tx0, rot):
     return pred
 
 
+def model_state_series(params, t_unix, t_ref, tx0, rot):
+    t_unix = np.asarray(t_unix, dtype=float)
+    dt = t_unix - t_ref
+    p0_enu = params[:3]
+    v_enu = params[3:6]
+    pos_enu = p0_enu[None, :] + dt[:, None] * v_enu[None, :]
+    pos_ecef = tx0[None, :] + pos_enu @ rot.T
+    vel_ecef = np.broadcast_to(rot @ v_enu, pos_ecef.shape)
+    llh = np.array([ecef_to_geodetic_wgs84(pos) for pos in pos_ecef])
+    speed = np.linalg.norm(vel_ecef, axis=1)
+    return {
+        "time_unix": t_unix,
+        "time_relative_s": dt,
+        "position_enu_m": pos_enu,
+        "position_ecef_m": pos_ecef,
+        "velocity_enu_mps": np.broadcast_to(v_enu, pos_enu.shape),
+        "velocity_ecef_mps": vel_ecef,
+        "speed_mps": speed,
+        "lat_lon_alt": llh,
+    }
+
+
 def residuals(params, obs, geom, t_ref, tx0, rot, sigma_range_m):
     pred = predict_ranges(params, obs, geom, t_ref, tx0, rot)
     meas = np.array([o["range_m"] for o in obs])
@@ -252,7 +296,7 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
     doppler_resid = pred_doppler - np.array([o["doppler_hz"] for o in obs])
     pos_ref = tx0 + rot @ res.x[:3]
     vel_ecef = rot @ res.x[3:6]
-    lat, lon, alt = ecef_to_geodetic_spherical(pos_ref)
+    lat, lon, alt = ecef_to_geodetic_wgs84(pos_ref)
     return {
         "result": res,
         "score": score,
@@ -265,9 +309,9 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
         "pred_doppler_hz": pred_doppler,
         "position_ref_ecef_m": pos_ref,
         "velocity_ecef_mps": vel_ecef,
-        "lat_ref_deg_spherical": lat,
-        "lon_ref_deg_spherical": lon,
-        "alt_ref_m_spherical": alt,
+        "lat_ref_deg_wgs84": lat,
+        "lon_ref_deg_wgs84": lon,
+        "alt_ref_m_wgs84": alt,
         "initial_station_picks": station_picks,
     }
 
@@ -277,6 +321,9 @@ def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_
     out_dir.mkdir(parents=True, exist_ok=True)
     res = fit["result"]
     speed = float(np.linalg.norm(res.x[3:6]))
+    t_obs = np.array([o["unix_time"] for o in obs])
+    model_time = np.linspace(float(np.min(t_obs)), float(np.max(t_obs)), 200)
+    model = model_state_series(res.x, model_time, fit["t_ref"], fit["tx0"], fit["rot"])
     payload = {
         "schema": "new_england_bolide.head_echo_trajectory.v1",
         "source_annotations": annotations,
@@ -296,10 +343,11 @@ def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_
         },
         "position_ref_ecef_m": fit["position_ref_ecef_m"].tolist(),
         "velocity_ecef_mps": fit["velocity_ecef_mps"].tolist(),
-        "spherical_geodetic_ref": {
-            "lat_deg": float(fit["lat_ref_deg_spherical"]),
-            "lon_deg": float(fit["lon_ref_deg_spherical"]),
-            "alt_m": float(fit["alt_ref_m_spherical"]),
+        "geodetic_ref_wgs84": {
+            "lat_deg": float(fit["lat_ref_deg_wgs84"]),
+            "lon_deg": float(fit["lon_ref_deg_wgs84"]),
+            "alt_m": float(fit["alt_ref_m_wgs84"]),
+            "datum": "WGS84",
         },
         "range_residual_m": {
             "rms": float(np.sqrt(np.mean(fit["range_residual_m"] ** 2))),
@@ -310,6 +358,15 @@ def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_
             "rms": float(np.sqrt(np.mean(fit["doppler_residual_hz"] ** 2))),
             "median": float(np.median(fit["doppler_residual_hz"])),
             "p95_abs": float(np.percentile(np.abs(fit["doppler_residual_hz"]), 95)),
+        },
+        "model_time_series": {
+            "time_unix": model["time_unix"].tolist(),
+            "time_relative_s": model["time_relative_s"].tolist(),
+            "lat_deg": model["lat_lon_alt"][:, 0].tolist(),
+            "lon_deg": model["lat_lon_alt"][:, 1].tolist(),
+            "alt_km": (model["lat_lon_alt"][:, 2] / 1000.0).tolist(),
+            "speed_kmps": (model["speed_mps"] / 1000.0).tolist(),
+            "velocity_enu_kmps": (model["velocity_enu_mps"] / 1000.0).tolist(),
         },
         "observations": obs,
     }
@@ -346,6 +403,34 @@ def write_outputs(out_dir, annotations, obs, used_stations, geom, fit, rejected_
     fig.savefig(out_dir / "head_echo_horizontal_trajectory.png", dpi=220, bbox_inches="tight")
     plt.close(fig)
 
+    fig, axes = plt.subplots(2, 1, figsize=(9.0, 7.0), sharex=True, constrained_layout=True)
+    tr = model["time_relative_s"]
+    axes[0].plot(tr, model["lat_lon_alt"][:, 2] / 1000.0, color="C0", lw=2.0)
+    axes[0].scatter(
+        [0.0],
+        [fit["alt_ref_m_wgs84"] / 1000.0],
+        color="k",
+        s=28,
+        zorder=3,
+        label="t_ref",
+    )
+    axes[0].set_ylabel("Altitude (km)")
+    axes[0].set_title("Best-fit head echo altitude and velocity")
+    axes[0].grid(True, color="0.9")
+    axes[0].legend()
+
+    v_enu = model["velocity_enu_mps"] / 1000.0
+    axes[1].plot(tr, model["speed_mps"] / 1000.0, color="k", lw=2.0, label="speed")
+    axes[1].plot(tr, v_enu[:, 0], lw=1.2, label="east")
+    axes[1].plot(tr, v_enu[:, 1], lw=1.2, label="north")
+    axes[1].plot(tr, v_enu[:, 2], lw=1.2, label="up")
+    axes[1].set_xlabel(f"Seconds relative to {iso_utc(fit['t_ref'])}")
+    axes[1].set_ylabel("Velocity (km/s)")
+    axes[1].grid(True, color="0.9")
+    axes[1].legend(ncol=4)
+    fig.savefig(out_dir / "head_echo_altitude_velocity.png", dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
     return payload
 
 
@@ -353,7 +438,9 @@ def show_interactive_fit(obs, fit):
     t_ref = fit["t_ref"]
     t = np.array([o["unix_time"] - t_ref for o in obs])
     stations = sorted(set(o["station"] for o in obs))
-    fig, axes = plt.subplots(2, 1, figsize=(12.0, 8.0), sharex=True, constrained_layout=True)
+    model_time = np.linspace(min(o["unix_time"] for o in obs), max(o["unix_time"] for o in obs), 200)
+    model = model_state_series(fit["result"].x, model_time, fit["t_ref"], fit["tx0"], fit["rot"])
+    fig, axes = plt.subplots(4, 1, figsize=(12.0, 12.0), sharex=True, constrained_layout=True)
     for station in stations:
         idx = np.array([i for i, o in enumerate(obs) if o["station"] == station])
         order = idx[np.argsort(t[idx])]
@@ -378,10 +465,21 @@ def show_interactive_fit(obs, fit):
     axes[0].set_title("Joint head echo trajectory fit: delay/range and bistatic Doppler")
     axes[0].grid(True, color="0.9")
     axes[0].legend(ncol=2, fontsize=8)
-    axes[1].set_xlabel(f"Seconds relative to {iso_utc(t_ref)}")
     axes[1].set_ylabel("Doppler shift (kHz)")
     axes[1].grid(True, color="0.9")
     axes[1].legend(ncol=2, fontsize=8)
+    axes[2].plot(model["time_relative_s"], model["lat_lon_alt"][:, 2] / 1000.0, color="C0", lw=2.0)
+    axes[2].set_ylabel("Altitude (km)")
+    axes[2].grid(True, color="0.9")
+    v_enu = model["velocity_enu_mps"] / 1000.0
+    axes[3].plot(model["time_relative_s"], model["speed_mps"] / 1000.0, color="k", lw=2.0, label="speed")
+    axes[3].plot(model["time_relative_s"], v_enu[:, 0], lw=1.2, label="east")
+    axes[3].plot(model["time_relative_s"], v_enu[:, 1], lw=1.2, label="north")
+    axes[3].plot(model["time_relative_s"], v_enu[:, 2], lw=1.2, label="up")
+    axes[3].set_ylabel("Velocity (km/s)")
+    axes[3].set_xlabel(f"Seconds relative to {iso_utc(t_ref)}")
+    axes[3].grid(True, color="0.9")
+    axes[3].legend(ncol=4)
     plt.show()
 
 
@@ -416,7 +514,7 @@ def main():
     print(f"Rejected ROI outliers: {payload['n_rejected_roi_points']}")
     print(f"Reference time: {payload['t_ref_utc']}")
     print(f"Speed: {payload['fit_parameters_enu_at_tx']['speed_kmps']:.2f} km/s")
-    print(f"Reference spherical lat/lon/alt: {payload['spherical_geodetic_ref']}")
+    print(f"Reference WGS84 lat/lon/alt: {payload['geodetic_ref_wgs84']}")
     print(f"Range residual RMS: {payload['range_residual_m']['rms']:.1f} m")
     print(f"Doppler residual RMS: {payload['doppler_residual_hz']['rms']:.1f} Hz")
     print(f"Wrote {Path(args.out_dir) / 'head_echo_trajectory.json'}")
