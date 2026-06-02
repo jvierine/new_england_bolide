@@ -10,12 +10,35 @@ The YAML files in that directory are tracked because they contain code seeds,
 site coordinates, TX antenna ENU offsets, radar frequency, code length, and
 range resolution. Raw `.h5` files and generated products are ignored by git.
 
+## Data
+
+Raw data will be archived on Zenodo.
+
+Zenodo DOI: TBD
+
+After downloading the archive, extract it at the repository root so the raw
+data are available under:
+
+```text
+2026_05_30_bolide/
+```
+
 ## Install
 
+This project was set up with Python 3.13.7. To recreate the local environment:
+
 ```bash
-python -m venv .venv
+cd /Users/j/src/new_england_bolide
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Check that the scientific Python dependencies import correctly:
+
+```bash
+python -c "import astropy, dasst, h5py, matplotlib, numpy, scipy, yaml; print('ok')"
 ```
 
 ## Range-Doppler Products
@@ -119,3 +142,31 @@ Draw a box on the RTI panel, then click `Save ROI` or press `s`. Click
 arrow keys or the `Previous`/`Next` buttons to move between stations. The JSON
 stores the time/range box plus Doppler and SNR summary statistics from the
 selected bins.
+
+## Orbit Determination
+
+The event-specific orbit sampler uses the fitted head-echo trajectory JSON,
+samples its linearized ENU position/velocity covariance, converts samples to
+ECEF/ITRS, and propagates pre-encounter orbits with `dasst`/`rebound`.
+
+The default command expects the trajectory fit at
+`products/head_echo_trajectory_roi_fit/head_echo_trajectory.json` and a JPL
+ephemeris kernel at `/Users/j/src/rebound_examples/data/de440s.bsp`:
+
+```bash
+python orbit_det_sample.py \
+  --samples 200 \
+  --plot \
+  --out products/orbit_determination/head_echo_orbit_samples.h5
+```
+
+Use a different ephemeris kernel with:
+
+```bash
+python orbit_det_sample.py --kernel /path/to/de440s.bsp
+```
+
+The output HDF5 stores sampled ENU states, ECEF states, final propagated HCRS
+states, final Keplerian elements in ICRS and heliocentric mean ecliptic frames,
+radiant estimates, and sample means/standard deviations. Add
+`--save-propagation` to also store full propagation histories.
