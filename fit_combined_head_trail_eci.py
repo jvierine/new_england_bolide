@@ -146,19 +146,24 @@ def normalize_trail_row(row: dict) -> dict:
     unc = row.get("uncertainty") or {}
     sigma = float(unc.get("position_sigma_3d_m", 3000.0))
     sigma = float(np.clip(sigma, 1200.0, 12000.0))
-    return {
-        "station": row["station"],
-        "unix_time": float(row["unix_time"]),
-        "snr_db": float(row.get("snr_db", np.nan)),
-        "aod_prior_offset_deg": float(row.get("aod_prior_offset_deg", 0.0)),
-        "aod_score": float(row.get("aod_score", np.nan)),
-        "position_ecef_m": np.asarray(row["position_ecef_m"], dtype=float),
-        "position_enu_m": np.asarray(row["position_enu_m"], dtype=float),
-        "lat_deg": float(row["lat_deg"]),
-        "lon_deg": float(row["lon_deg"]),
-        "alt_m": float(row["alt_m"]),
-        "sigma_m": sigma,
-    }
+    out = dict(row)
+    out.update(
+        {
+            "station": row["station"],
+            "unix_time": float(row["unix_time"]),
+            "snr_db": float(row.get("snr_db", np.nan)),
+            "aod_prior_offset_deg": float(row.get("aod_prior_offset_deg", 0.0)),
+            "aod_score": float(row.get("aod_score", np.nan)),
+            "position_ecef_m": np.asarray(row["position_ecef_m"], dtype=float),
+            "position_enu_m": np.asarray(row["position_enu_m"], dtype=float),
+            "lat_deg": float(row["lat_deg"]),
+            "lon_deg": float(row["lon_deg"]),
+            "alt_m": float(row["alt_m"]),
+            "uncertainty": unc,
+            "sigma_m": sigma,
+        }
+    )
+    return out
 
 
 def trail_row_key(row: dict) -> tuple:

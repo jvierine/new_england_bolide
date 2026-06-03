@@ -633,13 +633,15 @@ def plot_altitude_enu(
             scat,
             yerr=sigma,
             fmt="o",
-            ms=3.4,
+            ms=4.2,
             color="0.25",
-            ecolor="0.25",
-            elinewidth=0.45,
-            capsize=0.0,
-            alpha=0.45,
-            label="trail positions",
+            ecolor="0.05",
+            elinewidth=0.95,
+            capsize=2.2,
+            capthick=0.9,
+            alpha=0.82,
+            label="trail positions with 1$\\sigma$ errors",
+            zorder=6,
         )
         ax.set_ylabel(ylabel)
         ax.grid(True, color="0.9", lw=0.6)
@@ -655,6 +657,134 @@ def plot_altitude_enu(
             ax.scatter(head_tr, y, s=54, color="C0", marker="x", linewidths=1.5, alpha=0.95, label="head-echo positions")
     axes[2].set_xlabel(f"Seconds relative to {iso_utc(t_ref)}")
     axes[0].legend(loc="best")
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+
+
+def robust_std(x: np.ndarray, floor: float = 0.0) -> float:
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    if x.size == 0:
+        return float(floor)
+    med = float(np.median(x))
+    mad = float(np.median(np.abs(x - med)))
+    sigma = 1.4826 * mad if mad > 0.0 else float(np.std(x))
+    return float(max(sigma, floor))
+
+
+def snr_binned_scatter(snr_db: np.ndarray, values: np.ndarray, n_bins: int = 4) -> list[dict]:
+    snr_db = np.asarray(snr_db, dtype=float)
+    values = np.asarray(values, dtype=float)
+    good = np.isfinite(snr_db) & np.isfinite(values)
+    snr_db = snr_db[good]
+    values = values[good]
+    if snr_db.size < 8:
+        return []
+    edges = np.unique(np.quantile(snr_db, np.linspace(0.0, 1.0, min(n_bins, max(2, snr_db.size // 5)) + 1)))
+    if edges.size < 3:
+        return []
+    rows = []
+    for i in range(edges.size - 1):
+        if i == edges.size - 2:
+            keep = (snr_db >= edges[i]) & (snr_db <= edges[i + 1])
+        else:
+            keep = (snr_db >= edges[i]) & (snr_db < edges[i + 1])
+        if np.sum(keep) < 3:
+            continue
+        rows.append(
+            {
+                "snr_db": float(np.median(snr_db[keep])),
+                "std": robust_std(values[keep]),
+                "n": int(np.sum(keep)),
+            }
+        )
+    return rows
+
+
+def plot_trail_position_error_debug(
+    out: Path,
+    payload: dict,
+    trail_rows: list[dict],
+    t_ref: float,
+    tx0: np.ndarray,
+    rot: np.ndarray,
+):
+    model = payload["model"]
+    t = np.array(model["time_unix"], dtype=float)
+    pos = np.array(model["position_gcrs_m"], dtype=float)
+    trail_points = np.array([r["gcrs_ref_m"] for r in trail_rows], dtype=float)
+    residual_gcrs, idx = closest_curve_vectors(trail_points, pos)
+    residual_enu = np.array([(gcrs_to_ecef(v, t[int(ii)]) - gcrs_to_ecef(np.zeros(3), t[int(ii)])) @ rot for v, ii in zip(residual_gcrs, idx, strict=True)])
+    residual_norm_km = np.linalg.norm(residual_enu, axis=1) / 1000.0
+    snr_db = np.array([r.get("snr_db", np.nan) for r in trail_rows], dtype=float)
+    formal_sigma_3d_km = np.array(
+        [
+            (r.get("uncertainty") or {}).get("position_sigma_3d_m", np.nan)
+            for r in trail_rows
+        ],
+        dtype=float,
+    ) / 1000.0
+    ls_sigma_deg = np.array([r.get("aod_lstsq_sigma_angular_deg", np.nan) for r in trail_rows], dtype=float)
+    grid_to_fit_deg = np.array([r.get("aod_lstsq_grid_to_fit_offset_deg", np.nan) for r in trail_rows], dtype=float)
+    ls_success = np.array([bool(r.get("aod_lstsq_success", False)) for r in trail_rows], dtype=bool)
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.5, 8.2), constrained_layout=True)
+    ax = axes[0, 0]
+    sc = ax.scatter(snr_db, residual_norm_km, c=ls_success, cmap="coolwarm", s=28, alpha=0.78, edgecolor="0.2", linewidth=0.25)
+    bins = snr_binned_scatter(snr_db, residual_norm_km * 1000.0)
+    if bins:
+        ax.plot([b["snr_db"] for b in bins], [b["std"] / 1000.0 for b in bins], "o-", color="C1", lw=2.0, ms=7, label="binned robust std")
+    ax.set_ylabel("3-D position residual (km)")
+    ax.set_title("Trail position residual vs SNR")
+    ax.legend(loc="best", fontsize=8)
+
+    ax = axes[0, 1]
+    ax.scatter(snr_db, formal_sigma_3d_km, s=28, color="C2", alpha=0.72, edgecolor="0.2", linewidth=0.25)
+    bins = snr_binned_scatter(snr_db, formal_sigma_3d_km * 1000.0)
+    if bins:
+        ax.plot([b["snr_db"] for b in bins], [b["std"] / 1000.0 for b in bins], "o-", color="C1", lw=2.0, ms=7, label="binned robust std")
+    ax.set_ylabel("Formal 3-D position $1\\sigma$ (km)")
+    ax.set_title("Propagated AoD/range uncertainty")
+    ax.legend(loc="best", fontsize=8)
+
+    ax = axes[1, 0]
+    labels = ["East", "North", "Up"]
+    colors = ["C0", "C1", "C3"]
+    for ci, (label, color) in enumerate(zip(labels, colors, strict=True)):
+        vals = residual_enu[:, ci] / 1000.0
+        ax.scatter(snr_db, vals, s=18, color=color, alpha=0.42, label=label)
+        bins = snr_binned_scatter(snr_db, vals * 1000.0)
+        if bins:
+            ax.plot([b["snr_db"] for b in bins], [b["std"] / 1000.0 for b in bins], color=color, lw=1.8)
+    ax.axhline(0.0, color="0.35", lw=0.8)
+    ax.set_ylabel("Component residual / binned std (km)")
+    ax.set_title("ENU residual components")
+    ax.legend(ncol=3, fontsize=8)
+
+    ax = axes[1, 1]
+    ax.scatter(snr_db, ls_sigma_deg, s=28, color="C4", alpha=0.72, edgecolor="0.2", linewidth=0.25, label="LS angular sigma")
+    ax.scatter(snr_db, grid_to_fit_deg, s=20, color="0.35", alpha=0.55, label="beam grid to LS fit offset")
+    ax.set_ylabel("Angle (deg)")
+    ax.set_title("Beamforming seed and LS refinement")
+    ax.legend(loc="best", fontsize=8)
+
+    n_lsq = int(np.sum(ls_success))
+    for ax in axes.ravel():
+        ax.set_xlabel("Matched-filter SNR (dB)")
+        ax.grid(True, color="0.9", lw=0.6)
+    axes[0, 0].text(
+        0.02,
+        0.96,
+        f"LS AoD refinement succeeded for {n_lsq}/{len(trail_rows)} trail positions",
+        transform=axes[0, 0].transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.86},
+    )
+    cbar = fig.colorbar(sc, ax=axes[0, 0], shrink=0.82, pad=0.01)
+    cbar.set_ticks([0, 1])
+    cbar.set_ticklabels(["beam only", "LS refined"])
     fig.savefig(out, dpi=240, bbox_inches="tight")
     plt.close(fig)
 
@@ -1249,6 +1379,9 @@ def main():
         args=args,
     )
     shutil.copy2(plot_path, Path(args.report_fig_dir) / plot_path.name)
+    trail_error_plot = args.out_dir / "trail_position_error_vs_snr.png"
+    plot_trail_position_error_debug(trail_error_plot, payload, trail_rows, t_ref, tx0, rot)
+    shutil.copy2(trail_error_plot, Path(args.report_fig_dir) / trail_error_plot.name)
     lonlat_plot = args.out_dir / "ballistic_head_trail_lonlat_height.png"
     plot_lonlat_height(lonlat_plot, payload, xhat, cov_params, obs, trail_rows, t_ref, t_model, density_profile, args)
     shutil.copy2(lonlat_plot, Path(args.report_fig_dir) / lonlat_plot.name)

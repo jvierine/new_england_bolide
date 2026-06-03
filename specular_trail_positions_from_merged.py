@@ -500,10 +500,27 @@ def main():
                 pos_ecef, tx_range_m, delay_residual_m = solved
                 pos_enu = rot.T @ (pos_ecef - tx_ecef)
                 lat, lon, alt_m = ecef_to_geodetic_wgs84(pos_ecef)
-                angle_sigma_rad = tx_angle_sigma_rad(sites[station], args.aod_phase_error_deg)
-                unc = position_uncertainty_mc(tx_ecef, rx_ecef, rot, aod["best_unit_enu"], pick["range_km"] * 1000.0, rdmf["range_gate_width_m"], angle_sigma_rad, args.position_uncertainty_mc, rng)
+                ls_sigma_deg = float(aod.get("ls_sigma_angular_deg", np.nan))
+                if aod.get("ls_success") and np.isfinite(ls_sigma_deg) and ls_sigma_deg > 0.0:
+                    angle_sigma_rad = np.deg2rad(ls_sigma_deg)
+                    angle_sigma_source = "matched_filter_lstsq"
+                else:
+                    angle_sigma_rad = tx_angle_sigma_rad(sites[station], args.aod_phase_error_deg)
+                    angle_sigma_source = "phase_error_proxy"
+                unc = position_uncertainty_mc(
+                    tx_ecef,
+                    rx_ecef,
+                    rot,
+                    aod["best_unit_enu"],
+                    pick["range_km"] * 1000.0,
+                    rdmf["range_gate_width_m"],
+                    angle_sigma_rad,
+                    args.position_uncertainty_mc,
+                    rng,
+                )
                 if unc is not None:
                     unc["aod_phase_error_deg"] = float(args.aod_phase_error_deg)
+                    unc["aod_angle_sigma_source"] = angle_sigma_source
                 rows.append(
                     {
                         "station": station,
@@ -525,6 +542,23 @@ def main():
                         "aod_prior_el_deg": aod["prior_el_deg"],
                         "aod_prior_offset_deg": aod["prior_offset_deg"],
                         "aod_score": aod["score"],
+                        "aod_grid_az_deg": aod["grid_az_deg"],
+                        "aod_grid_el_deg": aod["grid_el_deg"],
+                        "aod_grid_unit_enu": aod["grid_unit_enu"],
+                        "aod_grid_score": aod["grid_score"],
+                        "aod_lstsq_success": aod["ls_success"],
+                        "aod_lstsq_message": aod["ls_message"],
+                        "aod_lstsq_iterations": aod["ls_iterations"],
+                        "aod_lstsq_residual_norm": aod["ls_residual_norm"],
+                        "aod_lstsq_residual_variance": aod["ls_residual_variance"],
+                        "aod_lstsq_dof": aod["ls_dof"],
+                        "aod_lstsq_channel_indices": aod["ls_channel_indices"],
+                        "aod_lstsq_channel_scales": aod["ls_channel_scales"],
+                        "aod_lstsq_direction_cov_tangent_rad2": aod["ls_direction_cov_tangent_rad2"],
+                        "aod_lstsq_sigma_major_deg": aod["ls_sigma_major_deg"],
+                        "aod_lstsq_sigma_minor_deg": aod["ls_sigma_minor_deg"],
+                        "aod_lstsq_sigma_angular_deg": aod["ls_sigma_angular_deg"],
+                        "aod_lstsq_grid_to_fit_offset_deg": aod["ls_grid_to_fit_offset_deg"],
                         "tx_range_m": float(tx_range_m),
                         "delay_residual_m": delay_residual_m,
                         "position_ecef_m": pos_ecef.tolist(),
