@@ -308,7 +308,7 @@ def main():
 
     if args.plot:
         png = str(Path(args.out).with_suffix("")) + "_score.png"
-        title = f"{short_station_name(site['station'])} AOD score, t={args.time_second:.3f}s r={response_info['range_km']:.1f}km"
+        title = f"{short_station_name(site['station'])} AoD score, t={args.time_second:.3f}s r={response_info['range_km']:.1f}km"
         plot_score(png, az_grid, el_grid, estimate["score"], title)
         print(f"Wrote {png}")
 

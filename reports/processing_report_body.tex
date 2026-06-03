@@ -124,7 +124,7 @@ used to identify non-specular trail echoes.
 
 \subsection{Transmit Interferometric Angle of Departure}
 
-Classical specular meteor radars estimate an angle of arrival (AOA) with a
+Classical specular meteor radars estimate an angle of arrival (AoA) with a
 single transmitter and a receive interferometer, most commonly a five-antenna
 Jones-type configuration \cite{jones_1998_interferometer,hocking_2001_realtime,
 holdsworth_2004_buckland,holdsworth_2005_allsky}.  The Haystack
@@ -136,8 +136,8 @@ so each receiver forms a multiple-input/single-output coded-CW meteor radar
 (MISO-CW).  Considering the two receiver polarizations and all receiving sites
 together gives a multiple-input/multiple-output (MIMO) data set.  This is the
 same architecture described by \textcite{chau_2019_mimo}, in which transmit
-interferometry gives the angle of departure (AOD) of an echo with respect to
-the transmitter, while a conventional receive interferometer gives AOA with
+interferometry gives the angle of departure (AoD) of an echo with respect to
+the transmitter, while a conventional receive interferometer gives AoA with
 respect to the receiver.  The waveform-diversity idea is standard in MIMO radar
 \cite{fishler_2004_mimo,li_stoica_2007_mimo,haimovich_2008_mimo}, and coded-CW
 meteor radars exploit the same separation of simultaneous transmitters using
@@ -159,16 +159,16 @@ array, the phase difference between transmitters \(p\) and \(q\) is
              + i\Delta\phi_{pq}\right],
 \]
 where \({\bf k}_T=(2\pi/\lambda){\bf \hat u}\) points along the transmitter
-AOD, \({\bf r}_p-{\bf r}_q\) is the transmitter baseline, and
+AoD, \({\bf r}_p-{\bf r}_q\) is the transmitter baseline, and
 \(\Delta\phi_{pq}\) is the instrumental phase offset for the pair.  This is
-the transmit-side analogue of the receive-interferometer AOA equation.  The
+the transmit-side analogue of the receive-interferometer AoA equation.  The
 far-field approximation is excellent here because the Haystack transmit
 baselines are much smaller than the approximately 200--500 km echo ranges.
 Instrumental phase calibration is nevertheless part of the general problem;
 meteor-radar phase calibration and complex-plane angle estimation are discussed
 by \textcite{holdsworth_2004_phase,chau_clahsen_2019_phase,
 vaudrin_2018_complex,younger_reid_2017_precalculated}.  In this first bolide
-analysis, AOD is used as a diagnostic and consistency constraint rather than as
+analysis, AoD is used as a diagnostic and consistency constraint rather than as
 the primary trajectory observable.
 
 For a trial departure unit vector \({\bf \hat u}\) in the transmitter ENU
@@ -194,7 +194,7 @@ interpreted together with the bistatic range constraint, the head-echo
 trajectory, and station-to-station consistency.  The point-spread function in
 Fig.~\ref{fig:tx-aod-match} therefore shows the deterministic angular ambiguity
 structure of the transmitting array.  It is not itself the complete
-measurement covariance: as emphasized for meteor-radar AOA/AOD estimation by
+measurement covariance: as emphasized for meteor-radar AoA/AoD estimation by
 \textcite{chau_2019_mimo} and \textcite{vaudrin_2018_complex}, the statistical
 uncertainty also depends on SNR, echo duration, zenith angle/elevation
 geometry, and calibration errors.
