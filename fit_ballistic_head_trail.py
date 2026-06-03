@@ -1401,7 +1401,17 @@ def plot_lonlat_height(
             label="trail positions with 1$\\sigma$ errors",
             zorder=6,
         )
-        ax.scatter(head_x, head_llh[:, 2] / 1000.0, s=58, color="C0", marker="x", linewidths=1.6, alpha=0.95, label="head-echo positions")
+        ax.scatter(
+            head_x,
+            head_llh[:, 2] / 1000.0,
+            s=58,
+            color="C0",
+            marker="x",
+            linewidths=1.6,
+            alpha=0.95,
+            label="head-echo positions",
+            zorder=30,
+        )
         ax.set_xlabel(xlabel)
         ax.grid(True, color="0.9", lw=0.6)
     axes[0].set_ylabel("Height (km)")
