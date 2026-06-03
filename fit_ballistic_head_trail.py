@@ -924,6 +924,52 @@ def plot_station_measurement_ballistic_overview(
         zorder=6,
         label="ballistic fit, 300 km to 30 km",
     )
+    alt_label_offsets = {
+        300: (-0.13, 0.08),
+        200: (-0.12, 0.055),
+        100: (-0.10, 0.035),
+        60: (0.065, -0.02),
+        30: (0.085, -0.055),
+    }
+    alt_km = ballistic_llh[:, 2] / 1000.0
+    order = np.argsort(alt_km)
+    for label_km, (dlon, dlat) in alt_label_offsets.items():
+        if label_km < np.nanmin(alt_km) or label_km > np.nanmax(alt_km):
+            continue
+        lat_at_alt = float(np.interp(label_km, alt_km[order], ballistic_llh[order, 0]))
+        lon_at_alt = float(np.interp(label_km, alt_km[order], ballistic_llh[order, 1]))
+        label_lon = lon_at_alt + dlon
+        label_lat = lat_at_alt + dlat
+        ax.plot(
+            [lon_at_alt, label_lon],
+            [lat_at_alt, label_lat],
+            color="0.08",
+            lw=1.15,
+            transform=data_crs,
+            zorder=8,
+        )
+        ax.scatter(
+            lon_at_alt,
+            lat_at_alt,
+            s=34,
+            color="white",
+            edgecolor="0.08",
+            linewidth=0.7,
+            transform=data_crs,
+            zorder=9,
+        )
+        ax.text(
+            label_lon,
+            label_lat,
+            f"{label_km} km",
+            fontsize=11,
+            weight="bold",
+            ha="center",
+            va="center",
+            bbox={"boxstyle": "round,pad=0.16", "facecolor": "white", "edgecolor": "0.75", "alpha": 0.88},
+            transform=data_crs,
+            zorder=10,
+        )
     ax.plot(
         fragment_llh[:, 1],
         fragment_llh[:, 0],
