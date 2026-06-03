@@ -925,11 +925,11 @@ def plot_station_measurement_ballistic_overview(
         label="ballistic fit, 300 km to 30 km",
     )
     alt_label_offsets = {
-        300: (-0.13, 0.08),
-        200: (-0.12, 0.055),
-        100: (-0.10, 0.035),
-        60: (0.065, -0.02),
-        30: (0.085, -0.055),
+        300: (-0.10, -0.09),
+        200: (-0.07, -0.075),
+        100: (-0.03, -0.065),
+        60: (0.055, -0.075),
+        30: (0.095, -0.09),
     }
     alt_km = ballistic_llh[:, 2] / 1000.0
     order = np.argsort(alt_km)
