@@ -437,6 +437,8 @@ def write_report_summary(summary, out_tex):
         f"\\newcommand{{\\AodTriFigOutlierCutoffKm}}{{{fig_filter['cutoff_m']/1000.0:.1f}}}",
         f"\\newcommand{{\\AodTriFigMedianPointKm}}{{{fig_filter['median_position_error_vs_tristatic_m']/1000.0:.1f}}}",
         f"\\newcommand{{\\AodTriFigRmsPointKm}}{{{fig_filter['rms_position_error_vs_tristatic_m']/1000.0:.1f}}}",
+        f"\\newcommand{{\\AodTriFigMedianCrossTrackKm}}{{{fig_filter['median_signed_cross_track_km']:.1f}}}",
+        f"\\newcommand{{\\AodTriFigRmsCrossTrackKm}}{{{fig_filter['rms_signed_cross_track_km']:.1f}}}",
     ]
     out_tex = Path(out_tex)
     out_tex.parent.mkdir(parents=True, exist_ok=True)
@@ -467,11 +469,18 @@ def summarize(rows, line_fit, fit):
     pos = np.array([r["position_enu_m"] for r in rows])
     tri = np.array([model_fit_enu(fit, r["unix_time"]) for r in rows])
     err = np.linalg.norm(pos - tri, axis=1)
-    med_err = float(np.median(err))
-    scaled_mad = float(1.4826 * np.median(np.abs(err - med_err)))
-    cutoff_m = med_err + 6.0 * scaled_mad if scaled_mad > 0.0 else float(np.inf)
-    keep = err <= cutoff_m
+    tri_velocity = np.asarray(fit["fit_parameters_enu_at_tx"]["velocity_mps"], dtype=float)
+    ground_track = tri_velocity[:2]
+    ground_track_norm = np.linalg.norm(ground_track)
+    if ground_track_norm > 0.0:
+        cross_track_unit = np.array([-ground_track[1], ground_track[0], 0.0]) / ground_track_norm
+    else:
+        cross_track_unit = np.array([1.0, 0.0, 0.0])
+    signed_cross_track_km = ((pos - tri) @ cross_track_unit) / 1000.0
+    cutoff_m = 4000.0
+    keep = np.abs(signed_cross_track_km) <= cutoff_m / 1000.0
     filtered_err = err[keep]
+    filtered_signed_cross_track_km = signed_cross_track_km[keep]
     fit_pred = line_fit["predicted_enu_m"]
     tri_at_fit = np.array([model_fit_enu(fit, r["unix_time"]) for r in rows])
     fit_err = np.linalg.norm(fit_pred - tri_at_fit, axis=1)
@@ -495,13 +504,15 @@ def summarize(rows, line_fit, fit):
             "tristatic_speed_mps": float(np.linalg.norm(fit["fit_parameters_enu_at_tx"]["velocity_mps"])),
         },
         "figure_outlier_filter": {
-            "method": "3d_position_error_le_median_plus_6_scaled_mad",
+            "method": "abs_signed_cross_track_residual_le_4_km",
             "cutoff_m": float(cutoff_m),
             "n_used": int(np.sum(keep)),
             "n_rejected": int(np.sum(~keep)),
             "keep_mask": keep.astype(bool).tolist(),
             "median_position_error_vs_tristatic_m": float(np.median(filtered_err)),
             "rms_position_error_vs_tristatic_m": float(np.sqrt(np.mean(filtered_err**2))),
+            "median_signed_cross_track_km": float(np.median(filtered_signed_cross_track_km)),
+            "rms_signed_cross_track_km": float(np.sqrt(np.mean(filtered_signed_cross_track_km**2))),
         },
     }
 

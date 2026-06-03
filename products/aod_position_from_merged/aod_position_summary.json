@@ -60,10 +60,10 @@
       "tristatic_speed_mps": 25768.896893650028
     },
     "figure_outlier_filter": {
-      "method": "3d_position_error_le_median_plus_6_scaled_mad",
-      "cutoff_m": 20349.23950219867,
-      "n_used": 121,
-      "n_rejected": 3,
+      "method": "abs_signed_cross_track_residual_le_4_km",
+      "cutoff_m": 4000.0,
+      "n_used": 120,
+      "n_rejected": 4,
       "keep_mask": [
         true,
         true,
@@ -127,7 +127,7 @@
         true,
         true,
         true,
-        true,
+        false,
         true,
         true,
         true,
@@ -190,8 +190,10 @@
         true,
         true
       ],
-      "median_position_error_vs_tristatic_m": 5608.7813621396945,
-      "rms_position_error_vs_tristatic_m": 5880.6722860480395
+      "median_position_error_vs_tristatic_m": 5496.373924158166,
+      "rms_position_error_vs_tristatic_m": 5829.667963905254,
+      "median_signed_cross_track_km": 0.09810230414249713,
+      "rms_signed_cross_track_km": 1.294596491749849
     }
   },
   "aod_position_fit": {
