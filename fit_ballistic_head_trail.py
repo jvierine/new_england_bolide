@@ -941,7 +941,7 @@ def plot_station_measurement_ballistic_overview(
         shading="auto",
         alpha=0.82,
         transform=data_crs,
-        zorder=4,
+        zorder=20,
     )
     cbar = fig.colorbar(mesh, ax=ax, shrink=0.76, pad=0.02)
     cbar.set_label("head/trail measurement count per bin")
@@ -962,7 +962,7 @@ def plot_station_measurement_ballistic_overview(
         200: (-0.21, -0.225),
         100: (-0.09, -0.195),
         60: (0.165, -0.225),
-        30: (0.285, -0.27),
+        30: (0.285, -0.30),
     }
     alt_km = ballistic_llh[:, 2] / 1000.0
     order = np.argsort(alt_km)
