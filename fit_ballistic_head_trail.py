@@ -877,9 +877,9 @@ def plot_station_measurement_ballistic_overview(
     all_lat = np.r_[station_lats, ballistic_llh[:, 0], fragment_llh[:, 0], impact_llh[0], measurement_lat]
     extent = [
         float(np.nanmin(all_lon) - 0.28),
-        float(np.nanmax(all_lon) + 0.28),
-        float(np.nanmin(all_lat) - 0.22),
-        float(np.nanmax(all_lat) + 0.22),
+        float(np.nanmax(all_lon) + 0.38),
+        float(np.nanmin(all_lat) - 0.35),
+        float(np.nanmax(all_lat) + 0.25),
     ]
 
     data_crs = ccrs.PlateCarree() if ccrs is not None else None
@@ -893,13 +893,13 @@ def plot_station_measurement_ballistic_overview(
         gl = ax.gridlines(draw_labels=True, color="0.72", linewidth=0.4)
         gl.top_labels = False
         gl.right_labels = False
-        gl.xlabel_style = {"size": 12}
-        gl.ylabel_style = {"size": 12}
+        gl.xlabel_style = {"size": 18}
+        gl.ylabel_style = {"size": 18}
     else:
         ax.set_xlim(extent[0], extent[1])
         ax.set_ylim(extent[2], extent[3])
         ax.grid(True, color="0.72", linewidth=0.4)
-        ax.tick_params(labelsize=12)
+        ax.tick_params(labelsize=18)
 
     if tx_ref_lat is not None and tx_ref_lon is not None:
         contour_lon = np.linspace(extent[0], extent[1], 260)
@@ -924,7 +924,7 @@ def plot_station_measurement_ballistic_overview(
             transform=data_crs,
             zorder=1.5,
         )
-        contour_labels = ax.clabel(range_contours, fmt=lambda value: f"{int(value)} km", fontsize=8, inline=True)
+        contour_labels = ax.clabel(range_contours, fmt=lambda value: f"{int(value)} km", fontsize=12, inline=True)
         for text in contour_labels:
             text.set_alpha(0.45)
             text.set_zorder(1.6)
@@ -945,8 +945,8 @@ def plot_station_measurement_ballistic_overview(
     )
     cbar = fig.colorbar(mesh, ax=ax, shrink=0.76, pad=0.02)
     cbar.set_label("head/trail measurement count per bin")
-    cbar.ax.tick_params(labelsize=12)
-    cbar.ax.yaxis.label.set_size(13)
+    cbar.ax.tick_params(labelsize=18)
+    cbar.ax.yaxis.label.set_size(20)
 
     ax.plot(
         ballistic_llh[:, 1],
@@ -985,7 +985,7 @@ def plot_station_measurement_ballistic_overview(
             label_lon,
             label_lat,
             f"{label_km} km",
-            fontsize=11,
+            fontsize=17,
             weight="bold",
             ha="center",
             va="center",
@@ -1031,15 +1031,15 @@ def plot_station_measurement_ballistic_overview(
             label=None if receiver_labeled else "receivers",
         )
         receiver_labeled = True
-        ax.text(rx_lon + 0.035, rx_lat + 0.02, short_station_name(station), fontsize=11, transform=data_crs, zorder=9, clip_on=True)
+        ax.text(rx_lon + 0.035, rx_lat + 0.02, short_station_name(station), fontsize=17, transform=data_crs, zorder=9, clip_on=True)
         tx_key = (round(float(tx_lat), 5), round(float(tx_lon), 5))
         if tx_key not in tx_seen:
             ax.scatter(tx_lon, tx_lat, marker="*", s=215, color="gold", edgecolor="0.2", transform=data_crs, zorder=9, label="Haystack transmitter")
-            ax.text(tx_lon + 0.035, tx_lat + 0.02, "TX", fontsize=11, weight="bold", transform=data_crs, zorder=9, clip_on=True)
+            ax.text(tx_lon + 0.035, tx_lat + 0.02, "TX", fontsize=17, weight="bold", transform=data_crs, zorder=9, clip_on=True)
             tx_seen.add(tx_key)
 
-    ax.set_title("Radar station geometry and bolide trajectory overview", fontsize=15)
-    ax.legend(loc="lower left", fontsize=11, framealpha=0.92)
+    ax.set_title("Radar station geometry and bolide trajectory overview", fontsize=23)
+    ax.legend(loc="lower left", fontsize=17, framealpha=0.92)
     fig.savefig(out, dpi=420, bbox_inches="tight")
     plt.close(fig)
 
