@@ -48,6 +48,10 @@ def steering_grid(site, directions, phase_sign):
     return np.exp(1j * phase).astype(np.complex64)
 
 
+def steering_vector(site, direction, phase_sign):
+    return steering_grid(site, np.asarray(direction, dtype=float)[None, :], phase_sign)[0].astype(np.complex128)
+
+
 def score_voltage(voltage, steering):
     y = np.asarray(voltage, dtype=np.complex64).copy()
     norms = np.sqrt(np.sum(np.abs(y) ** 2, axis=1))
@@ -59,6 +63,157 @@ def score_voltage(voltage, steering):
     score = np.sum(np.abs(coh[good, :]) ** 2, axis=0)
     score /= float(np.sum(good) * y.shape[1] ** 2)
     return score.astype(np.float32)
+
+
+def tangent_basis(unit):
+    unit = np.asarray(unit, dtype=float)
+    unit = unit / np.linalg.norm(unit)
+    ref = np.array([0.0, 0.0, 1.0])
+    if abs(float(np.dot(unit, ref))) > 0.9:
+        ref = np.array([1.0, 0.0, 0.0])
+    e1 = np.cross(ref, unit)
+    e1 /= np.linalg.norm(e1)
+    e2 = np.cross(unit, e1)
+    e2 /= np.linalg.norm(e2)
+    return e1, e2
+
+
+def unit_from_tangent(unit0, basis, delta):
+    e1, e2 = basis
+    unit = np.asarray(unit0, dtype=float) + float(delta[0]) * e1 + float(delta[1]) * e2
+    return unit / np.linalg.norm(unit)
+
+
+def initial_channel_scales(voltage, steering):
+    denom = np.vdot(steering, steering)
+    return np.array([np.vdot(steering, row) / denom for row in voltage], dtype=np.complex128)
+
+
+def pack_params(delta, gamma):
+    params = np.empty(2 + 2 * len(gamma), dtype=float)
+    params[:2] = delta
+    params[2::2] = gamma.real
+    params[3::2] = gamma.imag
+    return params
+
+
+def unpack_params(params):
+    params = np.asarray(params, dtype=float)
+    gamma = params[2::2] + 1j * params[3::2]
+    return params[:2], gamma
+
+
+def aod_lstsq_refine(voltage, site, initial_unit, phase_sign, max_iter=30):
+    y = np.asarray(voltage, dtype=np.complex128)
+    norms = np.sqrt(np.sum(np.abs(y) ** 2, axis=1))
+    good = norms > 0
+    y = y[good, :]
+    n_chan, n_tx = y.shape
+    if n_chan == 0:
+        return {
+            "success": False,
+            "message": "no nonzero receiver channels",
+            "unit_enu": np.asarray(initial_unit, dtype=float).tolist(),
+            "gamma": [],
+            "channel_indices": [],
+            "n_channels_used": 0,
+            "n_tx": int(np.asarray(voltage).shape[-1]),
+            "iterations": 0,
+            "residual_norm": float("nan"),
+            "residual_variance": float("nan"),
+            "dof": 0,
+            "direction_cov_tangent_rad2": [[float("nan"), float("nan")], [float("nan"), float("nan")]],
+            "sigma_major_deg": float("nan"),
+            "sigma_minor_deg": float("nan"),
+            "sigma_angular_deg": float("nan"),
+        }
+
+    unit0 = np.asarray(initial_unit, dtype=float)
+    unit0 /= np.linalg.norm(unit0)
+    basis = tangent_basis(unit0)
+    a0 = steering_vector(site, unit0, phase_sign)
+    params = pack_params(np.zeros(2, dtype=float), initial_channel_scales(y, a0))
+
+    def residual_for(p):
+        delta, gamma = unpack_params(p)
+        unit = unit_from_tangent(unit0, basis, delta)
+        a = steering_vector(site, unit, phase_sign)
+        err = gamma[:, None] * a[None, :] - y
+        return np.r_[err.real.ravel(), err.imag.ravel()]
+
+    def jacobian_for(p, r0):
+        jac = np.empty((len(r0), len(p)), dtype=float)
+        for i in range(len(p)):
+            step = 1e-5 if i < 2 else 1e-6 * max(1.0, abs(float(p[i])))
+            pp = p.copy()
+            pp[i] += step
+            jac[:, i] = (residual_for(pp) - r0) / step
+        return jac
+
+    damping = 1e-3
+    success = False
+    message = "maximum iterations reached"
+    r = residual_for(params)
+    sse = float(np.dot(r, r))
+    initial_sse = sse
+    iterations = 0
+    for iterations in range(1, max_iter + 1):
+        jac = jacobian_for(params, r)
+        normal = jac.T @ jac
+        rhs = -(jac.T @ r)
+        scale = np.maximum(np.diag(normal), 1.0)
+        accepted = False
+        for _ in range(8):
+            try:
+                step = np.linalg.solve(normal + damping * np.diag(scale), rhs)
+            except np.linalg.LinAlgError:
+                step = np.linalg.pinv(normal + damping * np.diag(scale)) @ rhs
+            trial = params + step
+            trial_r = residual_for(trial)
+            trial_sse = float(np.dot(trial_r, trial_r))
+            if np.isfinite(trial_sse) and trial_sse < sse:
+                params = trial
+                r = trial_r
+                sse = trial_sse
+                damping = max(damping / 3.0, 1e-9)
+                accepted = True
+                break
+            damping *= 10.0
+        if not accepted:
+            message = "no improving Levenberg-Marquardt step"
+            break
+        if np.linalg.norm(step[:2]) < 1e-8 and np.linalg.norm(step[2:]) < 1e-8 * max(1.0, np.linalg.norm(params[2:])):
+            success = True
+            message = "converged"
+            break
+
+    delta, gamma = unpack_params(params)
+    unit = unit_from_tangent(unit0, basis, delta)
+    final_r = residual_for(params)
+    final_jac = jacobian_for(params, final_r)
+    dof = max(1, len(final_r) - len(params))
+    sigma2 = float(np.dot(final_r, final_r) / dof)
+    cov = sigma2 * np.linalg.pinv(final_jac.T @ final_jac)
+    direction_cov = cov[:2, :2]
+    eig = np.maximum(np.linalg.eigvalsh(direction_cov), 0.0)
+    sigma_minor, sigma_major = np.sqrt(eig)
+    return {
+        "success": bool(success or message == "converged" or sse < initial_sse),
+        "message": message,
+        "unit_enu": unit.tolist(),
+        "gamma": [[float(g.real), float(g.imag)] for g in gamma],
+        "channel_indices": np.flatnonzero(good).astype(int).tolist(),
+        "n_channels_used": int(n_chan),
+        "n_tx": int(n_tx),
+        "iterations": int(iterations),
+        "residual_norm": float(np.linalg.norm(final_r)),
+        "residual_variance": sigma2,
+        "dof": int(dof),
+        "direction_cov_tangent_rad2": direction_cov.tolist(),
+        "sigma_major_deg": float(np.rad2deg(sigma_major)),
+        "sigma_minor_deg": float(np.rad2deg(sigma_minor)),
+        "sigma_angular_deg": float(np.rad2deg(np.sqrt(np.trace(direction_cov)))),
+    }
 
 
 def load_rdmf_station(path):
@@ -92,17 +247,37 @@ def estimate_one(voltage, site, dir_unit, dir_az, dir_el, prior_unit, cone_deg, 
     steering = steering_grid(site, dirs, phase_sign)
     score = score_voltage(voltage, steering)
     imax = int(np.argmax(score))
-    best_unit = dirs[imax]
+    grid_unit = dirs[imax]
+    refined = aod_lstsq_refine(voltage, site, grid_unit, phase_sign)
+    best_unit = np.array(refined["unit_enu"], dtype=float) if refined["success"] else grid_unit
     best_az, best_el = unit_to_az_el(best_unit)
+    grid_az, grid_el = unit_to_az_el(grid_unit)
     prior_az, prior_el = unit_to_az_el(prior_unit)
     return {
         "best_unit_enu": best_unit.tolist(),
         "best_az_deg": float(best_az),
         "best_el_deg": float(best_el),
+        "grid_unit_enu": grid_unit.tolist(),
+        "grid_az_deg": float(grid_az),
+        "grid_el_deg": float(grid_el),
         "prior_az_deg": float(prior_az),
         "prior_el_deg": float(prior_el),
         "prior_offset_deg": float(angular_distance_deg(best_unit, prior_unit)),
         "score": float(score[imax]),
+        "grid_score": float(score[imax]),
+        "ls_success": bool(refined["success"]),
+        "ls_message": refined["message"],
+        "ls_iterations": refined["iterations"],
+        "ls_residual_norm": refined["residual_norm"],
+        "ls_residual_variance": refined["residual_variance"],
+        "ls_dof": refined["dof"],
+        "ls_channel_indices": refined["channel_indices"],
+        "ls_channel_scales": refined["gamma"],
+        "ls_direction_cov_tangent_rad2": refined["direction_cov_tangent_rad2"],
+        "ls_sigma_major_deg": refined["sigma_major_deg"],
+        "ls_sigma_minor_deg": refined["sigma_minor_deg"],
+        "ls_sigma_angular_deg": refined["sigma_angular_deg"],
+        "ls_grid_to_fit_offset_deg": float(angular_distance_deg(best_unit, grid_unit)),
         "n_search_directions": int(np.sum(keep)),
     }
 
