@@ -316,7 +316,14 @@ def plot_appendix_comparison(rows, fit, tx_ecef, rot, line_fit, summary, out_png
     t_rel = times - t0
     pos = np.array([r["position_enu_m"] for r in rows], dtype=float)
     tri = np.array([model_fit_enu(fit, t) for t in times])
-    err_km = np.linalg.norm(pos - tri, axis=1) / 1000.0
+    tri_velocity = np.asarray(fit["fit_parameters_enu_at_tx"]["velocity_mps"], dtype=float)
+    ground_track = tri_velocity[:2]
+    ground_track_norm = np.linalg.norm(ground_track)
+    if ground_track_norm > 0.0:
+        cross_track_unit = np.array([-ground_track[1], ground_track[0], 0.0]) / ground_track_norm
+    else:
+        cross_track_unit = np.array([1.0, 0.0, 0.0])
+    signed_cross_track_km = ((pos - tri) @ cross_track_unit) / 1000.0
 
     t_grid = np.linspace(times.min(), times.max(), 250)
     tri_grid = np.array([model_fit_enu(fit, t) for t in t_grid])
@@ -355,28 +362,38 @@ def plot_appendix_comparison(rows, fit, tx_ecef, rot, line_fit, summary, out_png
     ax = axes[1]
     for station in stations:
         mask = np.array([r["station"] == station for r in rows])
-        ax.scatter(t_rel[mask], err_km[mask], s=24, alpha=0.75, color=colors[station], label=station_label(station))
-    ax.axhline(summary["all"]["median_position_error_vs_tristatic_m"] / 1000.0, color="0.25", lw=1.6, ls=":", label="Median point error")
-    ax.axhline(summary["all"]["aod_fit_rms_error_vs_tristatic_m"] / 1000.0, color="C1", lw=1.8, ls="--", label="Fit RMS separation")
+        ax.scatter(
+            t_rel[mask],
+            signed_cross_track_km[mask],
+            s=24,
+            alpha=0.75,
+            color=colors[station],
+            label=station_label(station),
+        )
+    ax.axhline(0.0, color="0.15", lw=1.2, label="Tri-static trajectory")
+    ax.axhline(np.median(signed_cross_track_km), color="0.25", lw=1.6, ls=":", label="Median signed residual")
     ax.set_xlabel("Time from trajectory reference (s)")
-    ax.set_ylabel("AoD+delay point separation (km)")
-    ax.set_title("Pointwise separation")
+    ax.set_ylabel("Signed cross-track residual (km)")
+    ax.set_title("Signed residuals")
     ax.grid(alpha=0.25)
     ax.legend(loc="best", fontsize=8)
 
     ax = axes[2]
-    bins = np.linspace(0.0, max(1.0, np.nanpercentile(err_km, 97.0)), 18)
-    ax.hist(err_km, bins=bins, color="0.45", alpha=0.82, edgecolor="white")
-    ax.axvline(summary["all"]["median_position_error_vs_tristatic_m"] / 1000.0, color="k", lw=2.0, label="Median")
-    ax.axvline(summary["all"]["rms_position_error_vs_tristatic_m"] / 1000.0, color="C3", lw=2.0, ls="--", label="RMS")
+    lim = max(1.0, np.nanpercentile(np.abs(signed_cross_track_km), 97.0))
+    bins = np.linspace(-lim, lim, 19)
+    ax.hist(signed_cross_track_km, bins=bins, color="0.45", alpha=0.82, edgecolor="white")
+    ax.axvline(0.0, color="0.15", lw=1.5, label="Zero")
+    ax.axvline(np.median(signed_cross_track_km), color="k", lw=2.0, label="Median")
+    ax.axvline(np.sqrt(np.mean(signed_cross_track_km**2)), color="C3", lw=2.0, ls="--", label="Signed RMS")
+    ax.axvline(-np.sqrt(np.mean(signed_cross_track_km**2)), color="C3", lw=2.0, ls="--")
     ax.text(
         0.98,
         0.96,
         (
             f"n = {summary['all']['n']}\n"
-            f"median = {summary['all']['median_position_error_vs_tristatic_m']/1000.0:.1f} km\n"
-            f"point RMS = {summary['all']['rms_position_error_vs_tristatic_m']/1000.0:.1f} km\n"
-            f"fit RMS = {summary['all']['aod_fit_rms_error_vs_tristatic_m']/1000.0:.1f} km"
+            f"signed median = {np.median(signed_cross_track_km):.1f} km\n"
+            f"signed RMS = {np.sqrt(np.mean(signed_cross_track_km**2)):.1f} km\n"
+            f"3D median = {summary['all']['median_position_error_vs_tristatic_m']/1000.0:.1f} km"
         ),
         transform=ax.transAxes,
         ha="right",
@@ -384,9 +401,9 @@ def plot_appendix_comparison(rows, fit, tx_ecef, rot, line_fit, summary, out_png
         fontsize=9,
         bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.92},
     )
-    ax.set_xlabel("Separation (km)")
+    ax.set_xlabel("Signed cross-track residual (km)")
     ax.set_ylabel("Count")
-    ax.set_title("Error distribution")
+    ax.set_title("Signed residual distribution")
     ax.grid(alpha=0.2)
     ax.legend(loc="upper left", fontsize=8)
 
