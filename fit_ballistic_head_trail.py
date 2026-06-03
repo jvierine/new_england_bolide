@@ -585,6 +585,13 @@ def plot_altitude_enu(
     tau = np.asarray(tau)
     trail_enu = np.array([r["position_enu_m"] for r in trail_rows], dtype=float) / 1000.0
     trail_alt = np.array([r["alt_m"] for r in trail_rows], dtype=float) / 1000.0
+    trail_sigma_enu = np.array(
+        [
+            (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
+            for r in trail_rows
+        ],
+        dtype=float,
+    ) / 1000.0
     fig, axes = plt.subplots(3, 1, figsize=(12, 10.4), sharex=True, constrained_layout=True)
     tr = t - t_ref
     if params is not None and cov is not None and density_profile is not None and args is not None:
@@ -615,13 +622,25 @@ def plot_altitude_enu(
                 )
                 for vals in sample_values[:30, ai, :]:
                     ax.plot(tr, vals, color="C2", alpha=0.04, lw=0.8)
-    for ax, y, scat, ylabel in [
-        (axes[0], alt, trail_alt, "Altitude (km)"),
-        (axes[1], enu[:, 0], trail_enu[:, 0], "East offset (km)"),
-        (axes[2], enu[:, 1], trail_enu[:, 1], "North offset (km)"),
+    for ax, y, scat, sigma, ylabel in [
+        (axes[0], alt, trail_alt, trail_sigma_enu[:, 2], "Altitude (km)"),
+        (axes[1], enu[:, 0], trail_enu[:, 0], trail_sigma_enu[:, 0], "East offset (km)"),
+        (axes[2], enu[:, 1], trail_enu[:, 1], trail_sigma_enu[:, 1], "North offset (km)"),
     ]:
         ax.plot(tr, y, color="C2", lw=2.2, label="ballistic fit")
-        ax.scatter(tau, scat, s=18, color="0.25", alpha=0.45, label="trail positions")
+        ax.errorbar(
+            tau,
+            scat,
+            yerr=sigma,
+            fmt="o",
+            ms=3.4,
+            color="0.25",
+            ecolor="0.25",
+            elinewidth=0.45,
+            capsize=0.0,
+            alpha=0.45,
+            label="trail positions",
+        )
         ax.set_ylabel(ylabel)
         ax.grid(True, color="0.9", lw=0.6)
     axes[0].axhline(30.0, color="0.35", lw=0.9, ls="--", alpha=0.7)
