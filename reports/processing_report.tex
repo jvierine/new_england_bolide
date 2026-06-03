@@ -1,3 +1,5 @@
+% !TEX TS-program = pdflatexmk
+% !BIB TS-program = bibtex
 %% Planetary and Space Science submission draft using the Elsevier CAS template.
 %% Build from this directory with:
 %%   pdflatex processing_report
@@ -11,11 +13,11 @@
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{tabularx}
-\usepackage{xurl}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{}
 
 \ExplSyntaxOn
 \cs_if_exist:NF \vbox_unpack_clear:N
-  { \cs_new_eq:NN \vbox_unpack_clear:N \vbox_unpack_drop:N }
+  { \cs_new_eq:NN \vbox_unpack_clear:N \tex_unvbox:D }
 \ExplSyntaxOff
 
 \graphicspath{{./}}
@@ -36,51 +38,48 @@
 
 \title[mode=title]{Radar Analysis of the 2026 May 30 Cape Cod Bay Bolide}
 
-\author[1]{J. Vierinen}
+\author[1]{Juha Vierinen}
 \cormark[1]
 \author[1]{Ryan Volz}
 \author[1]{Philip J. Erickson}
 \author[2]{Jorge L. Chau}
-\author[1]{Fronk D. Lind}
+\author[1]{Frank D. Lind}
 \author[1]{John Swoboda}
 \author[3]{Meers Oppenheim}
 \author[4]{Kenneth Obenberger}
-\author[5]{Allan Weatherwax}
-\author[6]{Simon Shepard}
+\author[1]{Allan Weatherwax}
+\author[5]{Simon Shepard}
 
 \affiliation[1]{
-  organization={Massachusetts Institute of Technology Haystack Observatory},
+  organization={Haystack Observatory, Massachusetts Institute of Technology},
+  addressline={99 Millstone Road},
   city={Westford},
+  postcode={01886},
   state={MA},
   country={USA}}
 
 \affiliation[2]{
-  organization={Leibniz Institute of Atmospheric Physics},
+  organization={Leibniz Institute of Atmospheric Physics at the University of Rostock},
   city={Kuehlungsborn},
+  postcode={18225},
   country={Germany}}
 
 \affiliation[3]{
-  organization={Boston University},
+  organization={Department of Astronomy and Center for Space Physics, Boston University},
   city={Boston},
   state={MA},
   country={USA}}
 
 \affiliation[4]{
-  organization={Air Force Research Laboratory},
-  city={Albuquerque},
-  state={NM},
+  organization={Space Warfare Directorate, Air Force Research Laboratory},
+  city={Kirtland Air Force Base},
+  state={New Mexico},
   country={USA}}
 
 \affiliation[5]{
-  organization={Siena College},
-  city={Loudonville},
-  state={NY},
-  country={USA}}
-
-\affiliation[6]{
-  organization={Pomfret School},
-  city={Pomfret},
-  state={CT},
+  organization={Thayer School of Engineering, Dartmouth College},
+  city={Hanover},
+  state={NH},
   country={USA}}
 
 \cortext[1]{Corresponding author. Email address to be added before submission.}
