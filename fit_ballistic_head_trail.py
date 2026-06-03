@@ -16,6 +16,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import numpy as np
 from astropy import units as u
 from astropy.coordinates import CartesianRepresentation, EarthLocation, GCRS, ITRS
@@ -42,6 +43,7 @@ from fit_combined_head_trail_eci import (
     transmitter_local_frame,
 )
 from estimate_head_echo_trajectory import ecef_to_geodetic_wgs84, geodetic_to_ecef
+from station_config import load_all_station_configs, short_station_name
 
 
 ROOT = Path(__file__).resolve().parent
@@ -794,6 +796,185 @@ def plot_impact_map(
     }
 
 
+def ballistic_llh_from_altitude(
+    params: np.ndarray,
+    t_ref: float,
+    density_profile: dict,
+    args,
+    start_alt_km: float = 300.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    search_t = np.arange(t_ref - 40.0, t_ref + args.fragment_breakup_search_s + 0.1, 0.1)
+    search_pos, _search_vel = propagate_state(params, search_t, t_ref, density_profile, use_drag=not args.no_drag, integration_dt_s=0.05)
+    search_llh = geodetic_path_from_states(search_pos, search_t)
+    t_start = interpolate_crossing_time(search_t, search_llh[:, 2], start_alt_km * 1000.0)
+    t_break = interpolate_crossing_time(search_t, search_llh[:, 2], args.fragment_breakup_alt_km * 1000.0)
+    if t_start is None:
+        above = np.where(search_llh[:, 2] >= start_alt_km * 1000.0)[0]
+        t_start = float(search_t[above[-1]]) if above.size else float(search_t[0])
+    if t_break is None:
+        t_break = float(search_t[-1])
+    t_path = np.linspace(float(t_start), float(t_break), 500)
+    pos_path, _vel_path = propagate_state(params, t_path, t_ref, density_profile, use_drag=not args.no_drag, integration_dt_s=0.05)
+    return t_path, geodetic_path_from_states(pos_path, t_path)
+
+
+def plot_station_measurement_ballistic_overview(
+    out: Path,
+    params: np.ndarray,
+    obs: list[dict],
+    trail_rows: list[dict],
+    geom: dict,
+    t_ref: float,
+    density_profile: dict,
+    impact_payload: dict,
+    args,
+) -> None:
+    try:
+        if "readline" not in sys.modules:
+            readline_stub = types.ModuleType("readline")
+            readline_stub.get_completer = lambda: None
+            readline_stub.set_completer = lambda func: None
+            readline_stub.parse_and_bind = lambda spec: None
+            sys.modules["readline"] = readline_stub
+        import cartopy.crs as ccrs
+        import cartopy.feature as cfeature
+    except Exception:
+        ccrs = None
+        cfeature = None
+
+    t_head = np.array([o["unix_time"] for o in obs], dtype=float)
+    head_pos, _head_vel = propagate_state(params, t_head, t_ref, density_profile, use_drag=not args.no_drag)
+    head_llh = geodetic_path_from_states(head_pos, t_head)
+    trail_llh = np.column_stack(
+        [
+            np.array([r["lat_deg"] for r in trail_rows], dtype=float),
+            np.array([r["lon_deg"] for r in trail_rows], dtype=float),
+            np.array([r["alt_m"] for r in trail_rows], dtype=float),
+        ]
+    )
+    _t_ballistic, ballistic_llh = ballistic_llh_from_altitude(params, t_ref, density_profile, args, start_alt_km=300.0)
+    nominal = impact_payload["nominal"]
+    fragment_llh = np.asarray(nominal["fragment_llh"], dtype=float)
+    impact_llh = np.asarray(nominal["impact_llh"], dtype=float)
+
+    station_configs = load_all_station_configs(args.data_dir)
+    station_lons = []
+    station_lats = []
+    for cfg in station_configs.values():
+        rx_lat, rx_lon, _rx_alt = cfg.gps_rx
+        tx_lat, tx_lon, _tx_alt = cfg.gps_tx
+        station_lons.extend([rx_lon, tx_lon])
+        station_lats.extend([rx_lat, tx_lat])
+
+    measurement_lon = np.r_[trail_llh[:, 1], head_llh[:, 1]]
+    measurement_lat = np.r_[trail_llh[:, 0], head_llh[:, 0]]
+    all_lon = np.r_[station_lons, ballistic_llh[:, 1], fragment_llh[:, 1], impact_llh[1], measurement_lon]
+    all_lat = np.r_[station_lats, ballistic_llh[:, 0], fragment_llh[:, 0], impact_llh[0], measurement_lat]
+    extent = [
+        float(np.nanmin(all_lon) - 0.28),
+        float(np.nanmax(all_lon) + 0.28),
+        float(np.nanmin(all_lat) - 0.22),
+        float(np.nanmax(all_lat) + 0.22),
+    ]
+
+    data_crs = ccrs.PlateCarree() if ccrs is not None else None
+    fig = plt.figure(figsize=(12.4, 8.3), constrained_layout=True)
+    ax = fig.add_subplot(1, 1, 1, projection=data_crs) if data_crs else fig.add_subplot(1, 1, 1)
+    if data_crs:
+        ax.set_extent(extent, crs=data_crs)
+        ax.add_feature(cfeature.LAND.with_scale("10m"), facecolor="0.94", edgecolor="none", zorder=0)
+        ax.add_feature(cfeature.OCEAN.with_scale("10m"), facecolor="0.86", edgecolor="none", zorder=0)
+        ax.coastlines(resolution="10m", color="0.15", linewidth=0.85, zorder=3)
+        gl = ax.gridlines(draw_labels=True, color="0.72", linewidth=0.4)
+        gl.top_labels = False
+        gl.right_labels = False
+        gl.xlabel_style = {"size": 12}
+        gl.ylabel_style = {"size": 12}
+    else:
+        ax.set_xlim(extent[0], extent[1])
+        ax.set_ylim(extent[2], extent[3])
+        ax.grid(True, color="0.72", linewidth=0.4)
+        ax.tick_params(labelsize=12)
+
+    h, lon_edges, lat_edges = np.histogram2d(measurement_lon, measurement_lat, bins=(220, 170), range=[extent[:2], extent[2:]])
+    h = h.T
+    h[h <= 0] = np.nan
+    mesh = ax.pcolormesh(
+        lon_edges,
+        lat_edges,
+        h,
+        cmap="magma",
+        norm=LogNorm(vmin=1, vmax=max(2.0, float(np.nanmax(h)))),
+        shading="auto",
+        alpha=0.82,
+        transform=data_crs,
+        zorder=4,
+    )
+    cbar = fig.colorbar(mesh, ax=ax, shrink=0.76, pad=0.02)
+    cbar.set_label("head/trail measurement count per bin")
+    cbar.ax.tick_params(labelsize=12)
+    cbar.ax.yaxis.label.set_size(13)
+
+    ax.plot(
+        ballistic_llh[:, 1],
+        ballistic_llh[:, 0],
+        color="C2",
+        lw=3.2,
+        transform=data_crs,
+        zorder=6,
+        label="ballistic fit, 300 km to 30 km",
+    )
+    ax.plot(
+        fragment_llh[:, 1],
+        fragment_llh[:, 0],
+        color="C1",
+        lw=3.2,
+        transform=data_crs,
+        zorder=6,
+        label="nominal 10 cm ground fall",
+    )
+    ax.scatter(
+        impact_llh[1],
+        impact_llh[0],
+        s=210,
+        color="C3",
+        marker="*",
+        edgecolors="k",
+        linewidths=0.7,
+        transform=data_crs,
+        zorder=8,
+        label="nominal sea-level impact",
+    )
+
+    receiver_labeled = False
+    tx_seen = set()
+    for station, cfg in station_configs.items():
+        rx_lat, rx_lon, _rx_alt = cfg.gps_rx
+        tx_lat, tx_lon, _tx_alt = cfg.gps_tx
+        ax.scatter(
+            rx_lon,
+            rx_lat,
+            marker="^",
+            s=100,
+            color="0.1",
+            transform=data_crs,
+            zorder=8,
+            label=None if receiver_labeled else "receivers",
+        )
+        receiver_labeled = True
+        ax.text(rx_lon + 0.035, rx_lat + 0.02, short_station_name(station), fontsize=11, transform=data_crs, zorder=9, clip_on=True)
+        tx_key = (round(float(tx_lat), 5), round(float(tx_lon), 5))
+        if tx_key not in tx_seen:
+            ax.scatter(tx_lon, tx_lat, marker="*", s=215, color="gold", edgecolor="0.2", transform=data_crs, zorder=9, label="Haystack transmitter")
+            ax.text(tx_lon + 0.035, tx_lat + 0.02, "TX", fontsize=11, weight="bold", transform=data_crs, zorder=9, clip_on=True)
+            tx_seen.add(tx_key)
+
+    ax.set_title("Radar station geometry and bolide trajectory overview", fontsize=15)
+    ax.legend(loc="lower left", fontsize=11, framealpha=0.92)
+    fig.savefig(out, dpi=420, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_lonlat_height(
     out: Path,
     payload: dict,
@@ -961,6 +1142,9 @@ def main():
     payload["fragment_impact"] = impact_payload
     (args.out_dir / "ballistic_head_trail_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     shutil.copy2(impact_plot, Path(args.report_fig_dir) / impact_plot.name)
+    overview_plot = args.out_dir / "station_measurement_ballistic_overview.png"
+    plot_station_measurement_ballistic_overview(overview_plot, xhat, obs, trail_rows, geom, t_ref, density_profile, impact_payload, args)
+    shutil.copy2(overview_plot, Path(args.report_fig_dir) / overview_plot.name)
     plot_path = args.out_dir / "ballistic_head_trail_altitude_enu.png"
     plot_altitude_enu(
         plot_path,
