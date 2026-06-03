@@ -341,14 +341,19 @@ post-fit residual variance.  The adopted covariance used for all uncertainty
 propagation is then recomputed with the physical range/Doppler Jacobian and
 station-specific effective measurement scales
 \[
-  \sigma_{\mathrm{eff}}^2 =
-  \sigma_{\mathrm{nominal}}^2+\sigma_{\mathrm{residual}}^2 ,
+  \sigma_{R,s,\mathrm{eff}}^2 =
+  \sigma_{R,\mathrm{nominal}}^2+\sigma_{R,s,\mathrm{residual}}^2,
+  \qquad
+  \sigma_{f,s,\mathrm{eff}}^2 =
+  \sigma_{f,\mathrm{nominal}}^2+\sigma_{f,s,\mathrm{residual}}^2 ,
 \]
-where \(\sigma_{\mathrm{residual}}\) is the robust post-fit residual scatter
-for the corresponding station and observable.  This folds the empirical
-residual width back into the parameter covariance rather than using it only as
-a plotting adjustment.  The same residual-derived scales are also applied to a
-second trajectory-fit iteration.  In that second pass, the range/Doppler
+where \(s\) denotes the receiver station, and
+\(\sigma_{R,s,\mathrm{residual}}\) and
+\(\sigma_{f,s,\mathrm{residual}}\) are the robust post-fit residual scatters
+for bistatic range and Doppler, respectively.  This folds the empirical
+residual widths back into the parameter covariance rather than using them only
+as plotting adjustments.  The same residual-derived scales are also applied to
+a second trajectory-fit iteration.  In that second pass, the range/Doppler
 residuals are divided by effective standard deviations of
 982.6 m/502.6 Hz for Beverly, 945.1 m/515.4 Hz for Clinton, and
 820.9 m/501.8 Hz for Pomfret.  These values define the relative weighting in
