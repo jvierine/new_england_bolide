@@ -789,6 +789,108 @@ def plot_trail_position_error_debug(
     plt.close(fig)
 
 
+def unit_angle_deg(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    an = np.linalg.norm(a, axis=-1)
+    bn = np.linalg.norm(b, axis=-1)
+    dot = np.sum(a * b, axis=-1) / np.maximum(an * bn, 1e-30)
+    return np.rad2deg(np.arccos(np.clip(dot, -1.0, 1.0)))
+
+
+def plot_trail_aod_angle_error_debug(
+    out: Path,
+    payload: dict,
+    trail_rows: list[dict],
+    t_ref: float,
+    tx0: np.ndarray,
+    rot: np.ndarray,
+):
+    model = payload["model"]
+    t = np.array(model["time_unix"], dtype=float)
+    pos = np.array(model["position_gcrs_m"], dtype=float)
+    trail_points = np.array([r["gcrs_ref_m"] for r in trail_rows], dtype=float)
+    _residual_gcrs, idx = closest_curve_vectors(trail_points, pos)
+
+    model_enu = np.array(
+        [
+            (gcrs_to_ecef(pos[int(ii)], t[int(ii)]) - tx0) @ rot
+            for ii in idx
+        ],
+        dtype=float,
+    )
+    model_unit = model_enu / np.linalg.norm(model_enu, axis=1)[:, None]
+    measured_unit = np.array([r["aod_unit_enu"] for r in trail_rows], dtype=float)
+    residual_angle_deg = unit_angle_deg(measured_unit, model_unit)
+    linearized_sigma_deg = np.array([r.get("aod_lstsq_sigma_angular_deg", np.nan) for r in trail_rows], dtype=float)
+    sigma_major_deg = np.array([r.get("aod_lstsq_sigma_major_deg", np.nan) for r in trail_rows], dtype=float)
+    sigma_minor_deg = np.array([r.get("aod_lstsq_sigma_minor_deg", np.nan) for r in trail_rows], dtype=float)
+    grid_to_fit_deg = np.array([r.get("aod_lstsq_grid_to_fit_offset_deg", np.nan) for r in trail_rows], dtype=float)
+    snr_db = np.array([r.get("snr_db", np.nan) for r in trail_rows], dtype=float)
+
+    fig, axes = plt.subplots(2, 2, figsize=(12.5, 8.2), constrained_layout=True)
+
+    ax = axes[0, 0]
+    sc = ax.scatter(linearized_sigma_deg, residual_angle_deg, c=snr_db, cmap="viridis", s=30, alpha=0.78, edgecolor="0.2", linewidth=0.25)
+    lim = max(1.0, float(np.nanpercentile(np.r_[linearized_sigma_deg, residual_angle_deg], 98.0)))
+    ax.plot([0.0, lim], [0.0, lim], color="0.3", lw=1.1, ls="--", label="1:1")
+    ax.set_xlim(0.0, lim)
+    ax.set_ylim(0.0, lim)
+    ax.set_xlabel("Linearized AoD $1\\sigma$ (deg)")
+    ax.set_ylabel("Fit-residual AoD error (deg)")
+    ax.set_title("Formal versus residual AoD angle error")
+    ax.legend(loc="best", fontsize=8)
+    cb = fig.colorbar(sc, ax=ax, shrink=0.85, pad=0.01)
+    cb.set_label("SNR (dB)")
+
+    ax = axes[0, 1]
+    ax.scatter(snr_db, residual_angle_deg, s=24, color="0.35", alpha=0.58, label="residual angle")
+    bins = snr_binned_scatter(snr_db, residual_angle_deg)
+    if bins:
+        ax.plot([b["snr_db"] for b in bins], [b["std"] for b in bins], "o-", color="C1", lw=2.0, ms=7, label="binned robust scatter")
+    ax.set_xlabel("Matched-filter SNR (dB)")
+    ax.set_ylabel("AoD residual angle (deg)")
+    ax.set_title("Residual angle versus SNR")
+    ax.legend(loc="best", fontsize=8)
+
+    ax = axes[1, 0]
+    ax.scatter(snr_db, linearized_sigma_deg, s=24, color="C4", alpha=0.68, label="combined tangent-plane $1\\sigma$")
+    ax.scatter(snr_db, sigma_major_deg, s=18, color="C3", alpha=0.45, label="major-axis $1\\sigma$")
+    ax.scatter(snr_db, sigma_minor_deg, s=18, color="C0", alpha=0.45, label="minor-axis $1\\sigma$")
+    ax.set_xlabel("Matched-filter SNR (dB)")
+    ax.set_ylabel("Linearized AoD uncertainty (deg)")
+    ax.set_title("Formal AoD uncertainty versus SNR")
+    ax.legend(loc="best", fontsize=8)
+
+    ax = axes[1, 1]
+    ratio = residual_angle_deg / np.maximum(linearized_sigma_deg, 1e-12)
+    ax.scatter(snr_db, ratio, s=24, color="C5", alpha=0.62, label="residual / formal")
+    med_ratio = float(np.nanmedian(ratio))
+    ax.axhline(1.0, color="0.35", lw=1.0, ls="--", label="1$\\sigma$")
+    ax.axhline(med_ratio, color="C1", lw=1.5, label=f"median={med_ratio:.2f}")
+    ax.scatter(snr_db, grid_to_fit_deg / np.maximum(linearized_sigma_deg, 1e-12), s=18, color="0.35", alpha=0.45, label="grid-to-LS / formal")
+    ax.set_xlabel("Matched-filter SNR (dB)")
+    ax.set_ylabel("Dimensionless ratio")
+    ax.set_title("Residual-to-formal uncertainty ratio")
+    ax.legend(loc="best", fontsize=8)
+
+    for ax in axes.ravel():
+        ax.grid(True, color="0.9", lw=0.6)
+    axes[0, 0].text(
+        0.02,
+        0.96,
+        f"Median residual angle {np.nanmedian(residual_angle_deg):.2f} deg; "
+        f"median formal {np.nanmedian(linearized_sigma_deg):.2f} deg",
+        transform=axes[0, 0].transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.86},
+    )
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+
+
 def plot_impact_map(
     out: Path,
     payload: dict,
@@ -1382,6 +1484,9 @@ def main():
     trail_error_plot = args.out_dir / "trail_position_error_vs_snr.png"
     plot_trail_position_error_debug(trail_error_plot, payload, trail_rows, t_ref, tx0, rot)
     shutil.copy2(trail_error_plot, Path(args.report_fig_dir) / trail_error_plot.name)
+    trail_angle_error_plot = args.out_dir / "trail_aod_angle_error_vs_snr.png"
+    plot_trail_aod_angle_error_debug(trail_angle_error_plot, payload, trail_rows, t_ref, tx0, rot)
+    shutil.copy2(trail_angle_error_plot, Path(args.report_fig_dir) / trail_angle_error_plot.name)
     lonlat_plot = args.out_dir / "ballistic_head_trail_lonlat_height.png"
     plot_lonlat_height(lonlat_plot, payload, xhat, cov_params, obs, trail_rows, t_ref, t_model, density_profile, args)
     shutil.copy2(lonlat_plot, Path(args.report_fig_dir) / lonlat_plot.name)
