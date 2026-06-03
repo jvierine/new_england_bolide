@@ -348,6 +348,16 @@ weight matrix with entries \(1/\sigma_R^{2}\) for range rows and
 range and Doppler residuals in their native units.  No empirical residual
 scale factor is applied to broaden the parameter covariance or the plotted
 uncertainty bands.
+The long pseudorandom phase code separates delay and Doppler in the matched
+filter, removing the range--Doppler ambiguity that would otherwise couple the
+two observables.  We therefore treat range and Doppler estimation errors as
+independent to first order and use a diagonal empirical residual covariance in
+the sandwich middle term.  Inspection of the post-fit residuals does not show a
+large station-dependent range bias, although the Doppler residuals retain some
+time-correlated structure.  The diagonal
+\(\widehat{\boldsymbol{\Omega}}\) approximation should therefore be interpreted
+as a first-order covariance model rather than a complete stochastic description
+of the residual process.
 The shaded bands in
 Figure~\ref{fig:trajectory-observables} show the trajectory-parameter
 uncertainty: Monte Carlo draws from

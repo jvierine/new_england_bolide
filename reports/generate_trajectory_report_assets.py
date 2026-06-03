@@ -225,6 +225,56 @@ def apparent_summary(fit, tx0, rot, params, samples):
     return out
 
 
+def plot_residual_diagnostics(fit, geom, tx0, rot, params):
+    obs = fit["observations"]
+    stations = fit["used_stations"]
+    t_ref = fit["t_ref_unix"]
+    t_obs = np.array([o["unix_time"] for o in obs], dtype=float)
+    tr = t_obs - t_ref
+    range_obs_km = np.array([o["range_m"] for o in obs], dtype=float) / 1000.0
+    dop_obs_hz = np.array([o["doppler_hz"] for o in obs], dtype=float)
+    range_resid_km = predict_ranges(params, obs, geom, t_ref, tx0, rot) / 1000.0 - range_obs_km
+    dop_resid_hz = predict_dopplers(params, obs, geom, t_ref, tx0, rot) - dop_obs_hz
+    station_names = np.array([o["station"] for o in obs])
+
+    fig, axes = plt.subplots(2, 2, figsize=(13.0, 8.6), constrained_layout=True)
+    for si, station in enumerate(stations):
+        idx = station_names == station
+        label = short_station_name(station)
+        color = f"C{si}"
+        axes[0, 0].scatter(tr[idx], range_resid_km[idx], s=28, alpha=0.78, color=color, label=label)
+        axes[1, 0].scatter(tr[idx], dop_resid_hz[idx], s=28, alpha=0.78, color=color, label=label)
+
+    axes[0, 0].axhline(0.0, color="0.2", lw=1.0)
+    axes[1, 0].axhline(0.0, color="0.2", lw=1.0)
+    axes[0, 0].set_ylabel("Range residual (km)")
+    axes[1, 0].set_ylabel("Doppler residual (Hz)")
+    axes[1, 0].set_xlabel("Seconds relative to fit reference time")
+    axes[0, 0].set_title("Post-fit range residuals")
+    axes[1, 0].set_title("Post-fit Doppler residuals")
+    axes[0, 0].legend(ncol=3, fontsize=11)
+
+    station_labels = [short_station_name(station) for station in stations]
+    range_by_station = [range_resid_km[station_names == station] for station in stations]
+    doppler_by_station = [dop_resid_hz[station_names == station] for station in stations]
+    axes[0, 1].boxplot(range_by_station, tick_labels=station_labels, showmeans=True)
+    axes[1, 1].boxplot(doppler_by_station, tick_labels=station_labels, showmeans=True)
+    axes[0, 1].axhline(0.0, color="0.2", lw=1.0)
+    axes[1, 1].axhline(0.0, color="0.2", lw=1.0)
+    axes[0, 1].set_ylabel("Range residual (km)")
+    axes[1, 1].set_ylabel("Doppler residual (Hz)")
+    axes[0, 1].set_title("Station-wise range residuals")
+    axes[1, 1].set_title("Station-wise Doppler residuals")
+
+    for ax in axes.ravel():
+        ax.grid(True, color="0.9", linewidth=0.6)
+
+    out = FIG_DIR / "head_echo_residual_diagnostics.png"
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
 def plot_altitude_summary(fit, tx0, rot, params, samples):
     obs = fit["observations"]
     t_ref = fit["t_ref_unix"]
@@ -478,10 +528,12 @@ def main():
     fit, geom, tx0, rot, params = load_fit()
     samples = covariance_samples(fit)
     measurement_fig = plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples)
+    residual_fig = plot_residual_diagnostics(fit, geom, tx0, rot, params)
     altitude_fig = plot_altitude_summary(fit, tx0, rot, params, samples)
     cartopy_fig = plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples)
     stats = write_trajectory_stats(fit, tx0, rot, params, samples)
     print(measurement_fig)
+    print(residual_fig)
     print(altitude_fig)
     print(cartopy_fig)
     print(stats)
