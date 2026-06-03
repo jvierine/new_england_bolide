@@ -965,6 +965,17 @@ def plot_impact_map(
 
     trail_lon = np.array([r["lon_deg"] for r in trail_rows], dtype=float)
     trail_lat = np.array([r["lat_deg"] for r in trail_rows], dtype=float)
+    trail_sigma_enu_m = np.array(
+        [
+            (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
+            for r in trail_rows
+        ],
+        dtype=float,
+    )
+    meters_per_deg_lat = 111_320.0
+    meters_per_deg_lon = meters_per_deg_lat * np.cos(np.deg2rad(trail_lat))
+    trail_lon_sigma_deg = trail_sigma_enu_m[:, 0] / meters_per_deg_lon
+    trail_lat_sigma_deg = trail_sigma_enu_m[:, 1] / meters_per_deg_lat
     all_lon = np.r_[
         model_llh[:, 1],
         nominal["fragment_llh"][:, 1],
@@ -997,13 +1008,31 @@ def plot_impact_map(
         ax.scatter(
             impact_points[:, 1],
             impact_points[:, 0],
-            s=12,
+            s=26,
             color="C1",
-            alpha=0.22,
+            marker="x",
+            linewidths=0.9,
+            alpha=0.55,
             transform=data_crs,
             label="1-100 cm sampled impact points",
+            zorder=5,
         )
-    ax.scatter(trail_lon, trail_lat, s=18, color="0.25", alpha=0.45, transform=data_crs, label="trail positions")
+    ax.errorbar(
+        trail_lon,
+        trail_lat,
+        xerr=trail_lon_sigma_deg,
+        yerr=trail_lat_sigma_deg,
+        fmt="o",
+        ms=3.4,
+        color="0.25",
+        ecolor="0.25",
+        elinewidth=0.45,
+        capsize=0.0,
+        alpha=0.45,
+        transform=data_crs,
+        label="trail positions",
+        zorder=6,
+    )
     ax.scatter(head_llh[:, 1], head_llh[:, 0], s=50, color="C0", marker="x", linewidths=1.4, alpha=0.9, transform=data_crs, label="head-echo positions")
     ax.plot(
         model_llh[fit_to_lowest, 1],

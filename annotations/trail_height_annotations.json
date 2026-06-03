@@ -1,0 +1,204 @@
+{
+  "description": "Manual text positions for height labels in reports/figures/trail_echo_roi.png.",
+  "height_labels_km": [
+    90.0,
+    72.0,
+    35.0,
+    10.0
+  ],
+  "schema": "new_england_bolide.trail_height_annotations.v1",
+  "stations": {
+    "amherstnh": [
+      {
+        "anchor_range_km": 284.6659264459473,
+        "anchor_t_rel": 5.243514917493938,
+        "ha": "center",
+        "height_km": 90.0,
+        "text_range_km": 265.8788570865586,
+        "text_t_rel": 4.508097788450887,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 272.48688114979166,
+        "anchor_t_rel": 6.014056814580757,
+        "ha": "center",
+        "height_km": 72.0,
+        "text_range_km": 233.47795466765228,
+        "text_t_rel": 5.601651784030027,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 263.51346475506375,
+        "anchor_t_rel": 7.59875858037386,
+        "ha": "center",
+        "height_km": 35.0,
+        "text_range_km": 216.67748674673794,
+        "text_t_rel": 7.7562779733394205,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 270.518716555492,
+        "anchor_t_rel": 8.670128700987963,
+        "ha": "center",
+        "height_km": 10.0,
+        "text_range_km": 229.8778543988849,
+        "text_t_rel": 9.050136413653354,
+        "va": "center"
+      }
+    ],
+    "beverly": [
+      {
+        "anchor_range_km": 245.71663165904954,
+        "anchor_t_rel": 5.243514917493938,
+        "ha": "center",
+        "height_km": 90.0,
+        "text_range_km": 232.2114575657008,
+        "text_t_rel": 4.957429380693801,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 227.91982309899976,
+        "anchor_t_rel": 6.014056814580757,
+        "ha": "center",
+        "height_km": 72.0,
+        "text_range_km": 213.38906837915513,
+        "text_t_rel": 5.801956228764819,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 208.96331240424317,
+        "anchor_t_rel": 7.59875858037386,
+        "ha": "center",
+        "height_km": 35.0,
+        "text_range_km": 202.93218549774085,
+        "text_t_rel": 7.08498740179579,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 212.39020905739667,
+        "anchor_t_rel": 8.670128700987963,
+        "ha": "center",
+        "height_km": 10.0,
+        "text_range_km": 206.06925036216512,
+        "text_t_rel": 9.050136413653354,
+        "va": "center"
+      }
+    ],
+    "clinton": [
+      {
+        "anchor_range_km": 266.5428676926025,
+        "anchor_t_rel": 5.243514917493938,
+        "ha": "center",
+        "height_km": 90.0,
+        "text_range_km": 254.17885273685158,
+        "text_t_rel": 4.973670281618244,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 253.17076245485774,
+        "anchor_t_rel": 6.014056814580757,
+        "ha": "center",
+        "height_km": 72.0,
+        "text_range_km": 239.1494952375495,
+        "text_t_rel": 5.785715327840377,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 242.7360556760097,
+        "anchor_t_rel": 7.59875858037386,
+        "ha": "center",
+        "height_km": 35.0,
+        "text_range_km": 235.1944011587858,
+        "text_t_rel": 7.832068844320153,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 249.7483837677846,
+        "anchor_t_rel": 8.670128700987963,
+        "ha": "center",
+        "height_km": 10.0,
+        "text_range_km": 240.73153286905497,
+        "text_t_rel": 8.811936533428195,
+        "va": "center"
+      }
+    ],
+    "pomfret": [
+      {
+        "anchor_range_km": 392.8000901098123,
+        "anchor_t_rel": 5.243514917493938,
+        "ha": "center",
+        "height_km": 90.0,
+        "text_range_km": 386.4638025483912,
+        "text_t_rel": 4.713815866827161,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 385.13991903947175,
+        "anchor_t_rel": 6.014056814580757,
+        "ha": "center",
+        "height_km": 72.0,
+        "text_range_km": 377.32657056935466,
+        "text_t_rel": 5.699097189576683,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 382.28049399379086,
+        "anchor_t_rel": 7.59875858037386,
+        "ha": "center",
+        "height_km": 35.0,
+        "text_range_km": 375.3278010739404,
+        "text_t_rel": 7.664246201434246,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 390.6623783053499,
+        "anchor_t_rel": 8.670128700987963,
+        "ha": "center",
+        "height_km": 10.0,
+        "text_range_km": 376.1844165719751,
+        "text_t_rel": 8.822763800711156,
+        "va": "center"
+      }
+    ],
+    "siena": [
+      {
+        "anchor_range_km": 417.84002133707975,
+        "anchor_t_rel": 5.243514917493938,
+        "ha": "center",
+        "height_km": 90.0,
+        "text_range_km": 420.66002133707974,
+        "text_t_rel": 5.693514917493938,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 411.42584262345446,
+        "anchor_t_rel": 6.014056814580757,
+        "ha": "center",
+        "height_km": 72.0,
+        "text_range_km": 414.24584262345445,
+        "text_t_rel": 6.464056814580757,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 410.6973871726309,
+        "anchor_t_rel": 7.59875858037386,
+        "ha": "center",
+        "height_km": 35.0,
+        "text_range_km": 408.5173871726309,
+        "text_t_rel": 8.04875858037386,
+        "va": "center"
+      },
+      {
+        "anchor_range_km": 420.1596620247338,
+        "anchor_t_rel": 8.670128700987963,
+        "ha": "center",
+        "height_km": 10.0,
+        "text_range_km": 422.9796620247338,
+        "text_t_rel": 9.120128700987962,
+        "va": "center"
+      }
+    ]
+  },
+  "t_ref_unix": 1780164375.0,
+  "t_ref_utc": "2026-05-30T18:06:15Z"
+}

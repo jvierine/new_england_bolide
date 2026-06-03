@@ -260,13 +260,13 @@ geometry, and calibration errors.
   \centering
   \includegraphics[width=\linewidth]{figures/trail_echo_roi.png}
   \caption{Near-zero-Doppler trail echo ROI for Amherst, Siena, Pomfret,
-  Clinton, and Beverly.  The cyan contours mark cells with SNR at least 6 dB
-  and \(|f_D| < 100\) Hz; all qualifying range gates are retained, so multiple
-  range gates can contribute at one time step.  The faint dashed white curves
-  show the bistatic range predicted by the head-echo trajectory fit for each
-  station.  The right-side manual labels mark the meteor altitude inferred from
-  the fitted head-echo trajectory at the corresponding bistatic range for each
-  station.}
+  Clinton, and Beverly.  The plotted intensity is the all-Doppler range--time
+  SNR product used to select near-zero-Doppler trail cells with SNR at least
+  6 dB and \(|f_D| < 100\) Hz.  The faint dashed white curves show the
+  bistatic range predicted by the head-echo trajectory fit for each station;
+  the trajectory is not drawn after the fitted height drops below sea level.
+  Height annotations in the top panel mark selected altitudes along the fitted
+  trajectory.}
   \figsource{trail_echo_roi.py}
   \label{fig:trail-echo-roi}
 \end{figure}

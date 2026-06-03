@@ -25,7 +25,9 @@ DEFAULT_PLOT = "reports/figures/trail_echo_roi.png"
 DEFAULT_ALTITUDE_OVERLAY_PLOT = "reports/figures/trail_echo_roi_trail_altitude.png"
 DEFAULT_POINTS = "products/trail_echo_roi/trail_echo_roi_points.json"
 DEFAULT_TRAIL_SUMMARY = "products/specular_trail_positions/specular_trail_position_summary.json"
+DEFAULT_HEIGHT_LABELS = "annotations/trail_height_annotations.json"
 ALTITUDE_TICKS_KM = np.array([85.0, 80.0, 75.0])
+HEIGHT_LABELS_KM = (90.0, 72.0, 35.0, 10.0)
 REPORT_RANGE_WINDOWS_KM = {
     "beverly": (180.0, 275.0),
     "clinton": (220.0, 280.0),
@@ -33,6 +35,8 @@ REPORT_RANGE_WINDOWS_KM = {
     "siena": (400.0, 500.0),
     "amherstnh": (200.0, 350.0),
 }
+REPORT_PLOT_START_REL_S = 4.0
+REPORT_FONT_SCALE = 1.5
 
 
 def iso_utc(t):
@@ -179,51 +183,160 @@ def load_trajectory_altitude_ticks(stations, trajectory_json):
     return ticks_by_station
 
 
-def add_manual_altitude_axis(ax, station, ticks_by_station):
-    r0, r1 = ax.get_ylim()
-    ticks = [
-        (range_km, alt_km)
-        for range_km, alt_km in ticks_by_station.get(station, [])
-        if min(r0, r1) <= range_km <= max(r0, r1)
-    ]
-    if not ticks:
-        return
-    alt_ax = ax.twinx()
-    alt_ax.set_ylim(ax.get_ylim())
-    alt_ax.set_yticks([range_km for range_km, _ in ticks])
-    alt_ax.set_yticklabels([])
-    alt_ax.tick_params(axis="y", colors="0.25", labelsize=10, length=3, width=0.8, pad=3)
-    alt_ax.spines["right"].set_color("0.45")
-    alt_ax.grid(False)
+def load_head_echo_range_tracks(datasets, trajectory_json):
+    trajectory_json = Path(trajectory_json)
+    if not trajectory_json.is_absolute():
+        trajectory_json = ROOT / trajectory_json
+    if not trajectory_json.exists():
+        return {}
+    fit = json.loads(trajectory_json.read_text(encoding="utf-8"))
+    if not fit.get("observations"):
+        return {}
 
-    fig = ax.figure
-    fig.canvas.draw()
-    ticks_sorted = sorted(ticks)
-    y_pixels = [ax.transData.transform((0.0, range_km))[1] for range_km, _ in ticks_sorted]
-    adjusted = []
-    min_sep_px = 15.0
-    for y in y_pixels:
-        adjusted.append(max(y, adjusted[-1] + min_sep_px) if adjusted else y)
-    overflow = adjusted[-1] - ax.bbox.y1
-    if overflow > 0:
-        adjusted = [y - overflow for y in adjusted]
-    underflow = ax.bbox.y0 - adjusted[0]
-    if underflow > 0:
-        adjusted = [y + underflow for y in adjusted]
-    for (range_km, alt_km), y0, y1 in zip(ticks_sorted, y_pixels, adjusted, strict=True):
-        dy_points = (y1 - y0) * 72.0 / fig.dpi
+    stations = [data["station"] for data in datasets]
+    geom = station_geometry(DATA_DIR, stations)
+    tx_site = load_station_yaml(DATA_DIR, fit["used_stations"][0])
+    tx0 = geodetic_to_ecef(*tx_site["gps_tx"])
+    rot = enu_to_ecef_matrix(tx_site["gps_tx"][0], tx_site["gps_tx"][1])
+    params = np.r_[
+        fit["fit_parameters_enu_at_tx"]["position_ref_m"],
+        fit["fit_parameters_enu_at_tx"]["velocity_mps"],
+    ]
+
+    t_all = np.unique(np.concatenate([data["t_unix"] for data in datasets]))
+    state = model_state_series(params, t_all, fit["t_ref_unix"], tx0, rot)
+    alt_all_km = state["lat_lon_alt"][:, 2] / 1000.0
+
+    tracks = {}
+    for data in datasets:
+        station = data["station"]
+        model_obs = [{"station": station, "unix_time": float(t)} for t in data["t_unix"]]
+        range_km = predict_ranges(params, model_obs, geom, fit["t_ref_unix"], tx0, rot) / 1000.0
+        tracks[station] = {
+            "range_km": range_km,
+            "alt_km": np.interp(data["t_unix"], t_all, alt_all_km),
+        }
+    return tracks
+
+
+def height_label_positions(t_rel, track):
+    alt_km = np.asarray(track["alt_km"], dtype=float)
+    range_km = np.asarray(track["range_km"], dtype=float)
+    order = np.argsort(alt_km)
+    alt_sorted = alt_km[order]
+    unique_alt, unique_idx = np.unique(np.round(alt_sorted, 6), return_index=True)
+    unique_order = order[np.sort(unique_idx)]
+    alt_unique = alt_km[unique_order]
+    t_unique = np.asarray(t_rel, dtype=float)[unique_order]
+    range_unique = range_km[unique_order]
+
+    positions = []
+    for height_km in HEIGHT_LABELS_KM:
+        if height_km < np.nanmin(alt_unique) or height_km > np.nanmax(alt_unique):
+            continue
+        positions.append(
+            {
+                "height_km": height_km,
+                "t_rel": float(np.interp(height_km, alt_unique, t_unique)),
+                "range_km": float(np.interp(height_km, alt_unique, range_unique)),
+            }
+        )
+    return positions
+
+
+def local_snr_score(snr_db, t_rel, range_km, x, y, dx, dy, text_dx=0.0, text_dy=0.0):
+    t_center = x + text_dx
+    r_center = y + text_dy
+    keep_t = (t_rel >= t_center - dx) & (t_rel <= t_center + dx)
+    keep_r = (range_km >= r_center - dy) & (range_km <= r_center + dy)
+    if not np.any(keep_t) or not np.any(keep_r):
+        return 0.0
+    return float(np.nanmax(snr_db[np.ix_(keep_t, keep_r)]))
+
+
+def annotate_height_labels(ax, t_rel, range_km, snr_db, track, label_size):
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+    y_span = y_max - y_min
+    x_span = x_max - x_min
+    x_margin = 0.55
+    y_margin = 0.08 * y_span
+    offsets = [
+        (0.08 * x_span, 0.12 * y_span, "left"),
+        (0.08 * x_span, -0.12 * y_span, "left"),
+        (-0.08 * x_span, 0.12 * y_span, "right"),
+        (-0.08 * x_span, -0.12 * y_span, "right"),
+        (0.12 * x_span, 0.0, "left"),
+        (-0.12 * x_span, 0.0, "right"),
+    ]
+    for label in height_label_positions(t_rel, track):
+        x = label["t_rel"]
+        y = label["range_km"]
+        if not (x_min <= x <= x_max and y_min <= y <= y_max):
+            continue
+        best = None
+        for dx_text, dy_text, ha in offsets:
+            text_x = x + dx_text
+            text_y = y + dy_text
+            if not (x_min + x_margin <= text_x <= x_max - x_margin):
+                continue
+            if not (y_min + y_margin <= text_y <= y_max - y_margin):
+                continue
+            score = local_snr_score(snr_db, t_rel, range_km, x, y, 0.12, 4.0, dx_text, dy_text)
+            candidate = (score, dx_text, dy_text, ha)
+            if best is None or candidate[0] < best[0]:
+                best = candidate
+        if best is None:
+            continue
+        _, dx_text, dy_text, ha = best
+        height_km = label["height_km"]
+        label_text = f"{height_km:.0f} km height"
         ax.annotate(
-            f"{alt_km:.0f}",
-            xy=(1.0, range_km),
-            xycoords=ax.get_yaxis_transform(),
-            xytext=(10, dy_points),
-            textcoords="offset points",
-            ha="left",
+            label_text,
+            xy=(x, y),
+            xytext=(x + dx_text, y + dy_text),
+            textcoords="data",
+            ha=ha,
             va="center",
-            fontsize=9,
-            color="0.25",
-            annotation_clip=False,
-            arrowprops=dict(arrowstyle="-", color="0.45", lw=0.6, shrinkA=0, shrinkB=0),
+            fontsize=label_size,
+            color="white",
+            bbox=dict(boxstyle="round,pad=0.18", facecolor="black", edgecolor="none", alpha=0.35),
+            arrowprops=dict(arrowstyle="-", color="white", lw=0.8, alpha=0.45, shrinkA=0, shrinkB=0),
+            zorder=7,
+        )
+
+
+def load_height_label_annotations(path):
+    path = Path(path)
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    labels = {}
+    for station, rows in payload.get("stations", {}).items():
+        labels[station] = {float(row["height_km"]): row for row in rows}
+    return labels
+
+
+def annotate_manual_height_labels(ax, track, station_labels, label_size):
+    for label in height_label_positions(np.asarray(track["t_rel"], dtype=float), track):
+        height_km = label["height_km"]
+        placement = station_labels.get(height_km)
+        if placement is None:
+            continue
+        text_x = float(placement["text_t_rel"])
+        text_y = float(placement["text_range_km"])
+        ax.annotate(
+            f"{height_km:.0f} km height",
+            xy=(label["t_rel"], label["range_km"]),
+            xytext=(text_x, text_y),
+            textcoords="data",
+            ha=placement.get("ha", "center"),
+            va=placement.get("va", "center"),
+            fontsize=label_size,
+            color="white",
+            bbox=dict(boxstyle="round,pad=0.18", facecolor="black", edgecolor="none", alpha=0.35),
+            arrowprops=dict(arrowstyle="-", color="white", lw=0.8, alpha=0.45, shrinkA=0, shrinkB=0),
+            zorder=7,
         )
 
 
@@ -247,12 +360,20 @@ def draw_roi_figure(
     max_abs_doppler_hz,
     trajectory_json,
     altitude_points=None,
+    height_labels=None,
 ):
+    axis_label_size = 10 * REPORT_FONT_SCALE
+    tick_label_size = 10 * REPORT_FONT_SCALE
     fig, axes = plt.subplots(len(datasets), 1, figsize=(12.0, max(2.15 * len(datasets), 8.5)), sharex=True, constrained_layout=True)
     if len(datasets) == 1:
         axes = np.array([axes])
-    ticks_by_station = load_trajectory_altitude_ticks([data["station"] for data in datasets], trajectory_json)
     t_ref = min(float(data["t_unix"][0]) for data in datasets)
+    head_echo_range_tracks = load_head_echo_range_tracks(datasets, trajectory_json)
+    for data in datasets:
+        station = data["station"]
+        if station in head_echo_range_tracks:
+            head_echo_range_tracks[station]["t_rel"] = data["t_unix"] - t_ref
+    height_labels = height_labels or {}
     t_max = max(float(data["t_unix"][-1]) for data in datasets) - t_ref
     snr_all = []
     for data in datasets:
@@ -265,6 +386,7 @@ def draw_roi_figure(
     altitude_km = np.array([row["alt_m"] / 1000.0 for row in altitude_points], dtype=float)
     altitude_vmin = float(np.nanpercentile(altitude_km, 2.0)) if altitude_km.size else 0.0
     altitude_vmax = float(np.nanpercentile(altitude_km, 98.0)) if altitude_km.size else 1.0
+    mesh = None
     scatter = None
 
     for row, data in enumerate(datasets):
@@ -273,12 +395,24 @@ def draw_roi_figure(
         r = data["range_km"]
         snr = data["P_rti"] / np.maximum(data["N"], 1e-12)
         snr_db = 10.0 * np.log10(np.maximum(snr, 1e-12))
-        mask, _ = trail_mask(data, snr_threshold_db, max_abs_doppler_hz, REPORT_RANGE_WINDOWS_KM[station])
 
         ax = axes[row]
-        ax.pcolormesh(t_rel, r, snr_db.T, shading="auto", cmap="inferno", vmin=vmin, vmax=vmax)
-        ax.contour(t_rel, r, mask.T.astype(float), levels=[0.5], colors="cyan", linewidths=1.0)
-        ax.set_ylabel(f"{short_station_name(station)}\nrange (km)")
+        mesh = ax.pcolormesh(t_rel, r, snr_db.T, shading="auto", cmap="inferno", vmin=vmin, vmax=vmax)
+        if station in head_echo_range_tracks:
+            track = head_echo_range_tracks[station]
+            plotted_range = np.asarray(track["range_km"], dtype=float).copy()
+            plotted_range[np.asarray(track["alt_km"], dtype=float) < 0.0] = np.nan
+            ax.plot(
+                t_rel,
+                plotted_range,
+                color="white",
+                linestyle="--",
+                linewidth=1.2,
+                alpha=0.3,
+                zorder=5,
+            )
+        ax.set_ylabel(f"{short_station_name(station)}\nrange (km)", fontsize=axis_label_size)
+        ax.tick_params(axis="both", labelsize=tick_label_size)
 
         roi = rois.get(station)
         if roi:
@@ -305,14 +439,28 @@ def draw_roi_figure(
                 linewidths=0.45,
                 zorder=6,
             )
-        add_manual_altitude_axis(ax, station, ticks_by_station)
         ax.grid(True, color="0.85", lw=0.4)
-        ax.set_xlim(0.0, t_max)
-    axes[-1].set_xlabel(f"Seconds after {iso_utc(t_ref)}")
+        ax.set_xlim(REPORT_PLOT_START_REL_S, t_max)
+        if station in head_echo_range_tracks:
+            if station in height_labels:
+                annotate_manual_height_labels(
+                    ax,
+                    head_echo_range_tracks[station],
+                    height_labels[station],
+                    8.0 * REPORT_FONT_SCALE,
+                )
+            else:
+                annotate_height_labels(ax, t_rel, r, snr_db, head_echo_range_tracks[station], 8.0 * REPORT_FONT_SCALE)
+    axes[-1].set_xlabel(f"Seconds after {iso_utc(t_ref)}", fontsize=axis_label_size)
 
-    fig.suptitle(f"Trail Echo ROI: SNR >= {snr_threshold_db:g} dB And |Doppler| < {max_abs_doppler_hz:g} Hz")
+    if mesh is not None:
+        cbar = fig.colorbar(mesh, ax=axes, label="SNR (dB)", shrink=0.93)
+        cbar.ax.tick_params(labelsize=tick_label_size)
+        cbar.set_label("SNR (dB)", fontsize=axis_label_size)
     if scatter is not None:
-        fig.colorbar(scatter, ax=axes, label="Trail echo altitude (km)", shrink=0.93)
+        cbar = fig.colorbar(scatter, ax=axes, label="Trail echo altitude (km)", shrink=0.93)
+        cbar.ax.tick_params(labelsize=tick_label_size)
+        cbar.set_label("Trail echo altitude (km)", fontsize=axis_label_size)
     out_png = Path(out_png)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=220, bbox_inches="tight")
@@ -330,6 +478,7 @@ def main():
     p.add_argument("--plot", default=DEFAULT_PLOT)
     p.add_argument("--altitude-overlay-plot", default=None)
     p.add_argument("--trail-summary", default=DEFAULT_TRAIL_SUMMARY)
+    p.add_argument("--height-labels", default=DEFAULT_HEIGHT_LABELS)
     p.add_argument("--overlay-only", action="store_true")
     p.add_argument("--trajectory-json", default=DEFAULT_TRAJECTORY_JSON)
     args = p.parse_args()
@@ -347,6 +496,7 @@ def main():
             args.max_abs_doppler_hz,
             args.trajectory_json,
             altitude_points=load_trail_altitude_points(args.trail_summary),
+            height_labels=load_height_label_annotations(args.height_labels),
         )
         print(f"Wrote {args.altitude_overlay_plot}")
         return
@@ -407,6 +557,7 @@ def main():
         args.snr_threshold_db,
         args.max_abs_doppler_hz,
         args.trajectory_json,
+        height_labels=load_height_label_annotations(args.height_labels),
     )
     if args.altitude_overlay_plot:
         draw_roi_figure(
@@ -417,6 +568,7 @@ def main():
             args.max_abs_doppler_hz,
             args.trajectory_json,
             altitude_points=load_trail_altitude_points(args.trail_summary),
+            height_labels=load_height_label_annotations(args.height_labels),
         )
     print(f"Wrote {out}")
     print(f"Wrote {points_out}")
