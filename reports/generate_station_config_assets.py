@@ -134,7 +134,7 @@ def plot_tx_antennas(tx) -> Path:
 
         ax = axes[1]
         east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(tx)
-        mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
+        mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="plasma", vmin=-10.0, vmax=0.0)
         ax.scatter([ref[0]], [ref[1]], marker="+", s=160, color="white", linewidth=2.4, label="head echo reference")
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlabel("East direction cosine")
@@ -203,7 +203,7 @@ def plot_aod_match_function(tx, grid_size: int = 421) -> Path:
     }
     with plt.rc_context(font):
         fig, ax = plt.subplots(figsize=(7.4, 6.8), constrained_layout=True)
-        mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
+        mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="plasma", vmin=-10.0, vmax=0.0)
         ax.scatter([ref[0]], [ref[1]], marker="+", s=160, color="white", linewidth=2.4, label="head echo reference")
         ax.set_aspect("equal", adjustable="box")
         ax.set_xlabel("East direction cosine")
