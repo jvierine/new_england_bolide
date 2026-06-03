@@ -59,6 +59,63 @@ After a remote run, `rsync` generated products and figures back to the local
 checkout before committing. HDF5 products under `products/` are normally ignored
 and should not be committed unless explicitly needed.
 
+## Current Analysis State
+
+As of 2026-06-03, the head-echo trajectory products use the 4x zero-padded
+Doppler RDMF products in:
+
+```text
+products/rdmf_zeropad4_head_merged/
+```
+
+Those products contain the station-specific head-echo windows used after the
+remote avaruus run: Beverly, Clinton, and Pomfret. The current head-echo fit is:
+
+```text
+products/head_echo_trajectory_roi_fit/head_echo_trajectory.json
+```
+
+Important current trajectory state:
+
+- The first Beverly point was removed from the fit as an outlier by trimming the
+  first 0.06 s of Beverly retained ROI picks.
+- The current head-only trajectory fit has 177 observations.
+- The current head-only fit residuals are about 468 m RMS in bistatic range and
+  90 Hz RMS in Doppler.
+- Figure 5 in the manuscript is generated from
+  `reports/generate_trajectory_report_assets.py` as
+  `reports/figures/head_echo_range_doppler_fit.png`.
+- The transmit AoD ambiguity figures were regenerated after the Beverly trim, so
+  they use the updated 82.0 km head-echo reference height.
+
+Recent processing commits that capture this state:
+
+```text
+c2a7fb0 Use zero-padded Doppler FFT for head echo fit
+626dd93 Remove Beverly head echo outlier from trajectory fit
+a8be605 Regenerate AoD ambiguity figure after trajectory trim
+eed62a6 Update trajectory uncertainty product image
+```
+
+Recent Overleaf commits that synced manuscript state:
+
+```text
+4ce8c16 Remove Beverly outlier from head trajectory figure
+bd47fbf Clarify ballistic head trail fit equations
+57a4bf3 Lower Siena trail height label
+```
+
+Do not confuse the old straight-line ECI helper fit with the manuscript's
+reported combined head/trail solution. Section 3.4 now describes a ballistic
+inertial fit: trail positions are closest-point constraints to the propagated
+ballistic curve, and the drag parameter \(C_D A/m\) is included in the fitted
+parameter vector.
+
+The local working tree may intentionally contain uncommitted trail-ROI and
+micro-Doppler work, including regenerated `trail_echo_roi.png`, altitude-label
+annotation files, and `reports/generate_head_microdoppler.py`. Preserve those
+unless explicitly asked to clean or commit them.
+
 ## Copying Report Assets To Overleaf
 
 Any code in this repository that regenerates manuscript figures, tables,
