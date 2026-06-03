@@ -303,14 +303,13 @@ def empirical_residual_scales(obs, fit, nominal_range_sigma_m=750.0, nominal_dop
     return range_sigma, doppler_sigma, station_scales
 
 
-def empirical_parameter_covariance(obs, fit, use_doppler, nominal_range_sigma_m=750.0, nominal_doppler_sigma_hz=500.0):
-    range_sigma, doppler_sigma, station_scales = empirical_residual_scales(
-        obs,
-        fit,
-        nominal_range_sigma_m=nominal_range_sigma_m,
-        nominal_doppler_sigma_hz=nominal_doppler_sigma_hz,
-    )
+def sandwich_parameter_covariance(obs, fit, use_doppler):
+    range_sigma = np.asarray(fit["fit_weighting"]["range_sigma_m"], dtype=float)
+    doppler_sigma = np.asarray(fit["fit_weighting"]["doppler_sigma_hz"], dtype=float)
     sigma = range_sigma if not use_doppler else np.r_[range_sigma, doppler_sigma]
+    residual = np.asarray(fit["range_residual_m"], dtype=float)
+    if use_doppler:
+        residual = np.r_[residual, np.asarray(fit["doppler_residual_hz"], dtype=float)]
     jac = finite_difference_physical_jacobian(
         fit["result"].x,
         obs,
@@ -320,10 +319,24 @@ def empirical_parameter_covariance(obs, fit, use_doppler, nominal_range_sigma_m=
         fit["rot"],
         use_doppler,
     )
-    whitened_jac = jac / sigma[:, None]
-    normal = whitened_jac.T @ whitened_jac
-    covariance = np.linalg.pinv(normal)
-    return covariance, station_scales
+    w = 1.0 / np.maximum(sigma, 1e-12) ** 2
+    normal = jac.T @ (w[:, None] * jac)
+    bread = np.linalg.pinv(normal)
+    meat = (jac * w[:, None]).T @ ((residual * residual)[:, None] * (jac * w[:, None]))
+    n_meas, n_par = jac.shape
+    hc1 = n_meas / max(1, n_meas - n_par)
+    covariance = bread @ (hc1 * meat) @ bread
+    covariance = 0.5 * (covariance + covariance.T)
+    details = {
+        "covariance_model": "heteroskedasticity-robust HC1 sandwich covariance using finite-difference physical Jacobian, final range/Doppler residuals, and final range/Doppler weights",
+        "hc1_scale": float(hc1),
+        "n_measurements": int(n_meas),
+        "n_parameters": int(n_par),
+        "range_sigma_m": range_sigma.tolist(),
+        "doppler_sigma_hz": doppler_sigma.tolist() if use_doppler else [],
+        "station_scales_from_first_pass": fit["fit_weighting"].get("station_scales_from_first_pass", {}),
+    }
+    return covariance, details
 
 
 def sample_fit_parameters(params, covariance, n_samples=800, seed=20260530):
@@ -650,7 +663,7 @@ def write_outputs(
     res = fit["result"]
     speed = float(np.linalg.norm(res.x[3:6]))
     formal_covariance, residual_variance = fit_parameter_covariance(res)
-    covariance, empirical_scales = empirical_parameter_covariance(obs, fit, use_doppler)
+    covariance, covariance_details = sandwich_parameter_covariance(obs, fit, use_doppler)
     t_obs = np.array([o["unix_time"] for o in obs])
     model_time = np.linspace(float(np.min(t_obs)), float(np.max(t_obs)), 200)
     model = model_state_series(res.x, model_time, fit["t_ref"], fit["tx0"], fit["rot"])
@@ -688,10 +701,11 @@ def write_outputs(
             "formal_covariance_from_solver_jacobian": formal_covariance.tolist(),
             "formal_one_sigma_from_solver_jacobian": np.sqrt(np.maximum(np.diag(formal_covariance), 0.0)).tolist(),
             "residual_variance": residual_variance,
-            "covariance_model": "finite-difference physical Jacobian with station-specific residual scatter added in quadrature to nominal measurement scales",
+            "covariance_model": covariance_details["covariance_model"],
             "nominal_range_sigma_m": 750.0,
             "nominal_doppler_sigma_hz": 500.0,
-            "empirical_residual_scales_by_station": empirical_scales,
+            "sandwich_covariance_details": covariance_details,
+            "empirical_residual_scales_by_station": covariance_details["station_scales_from_first_pass"],
             "covariance_samples_for_map": covariance_samples,
         },
         "cartopy_trajectory_uncertainty_plot": str(cartopy_file) if cartopy_file is not None else None,

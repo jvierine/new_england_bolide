@@ -329,31 +329,25 @@ With this sign convention, positive Doppler corresponds to an increasing total
 bistatic propagation path.
 The residual RMS values for the current fit are \TrajectoryRangeRmsM{} m in
 bistatic range and \TrajectoryDopplerRmsHz{} Hz in Doppler.
-The uncertainty calculation uses the Jacobian from the nonlinear
-least-squares fit.  If \({\bf p}\) is the six-component ENU state vector at
-the reference time, consisting of position and velocity, the formal
-least-squares parameter covariance is
+The uncertainty calculation uses the physical range--Doppler Jacobian from the
+nonlinear least-squares fit.  Because the post-fit residuals are not expected
+to be identically distributed across stations or between range and Doppler, the
+trajectory covariance is estimated with a heteroskedasticity-robust sandwich
+estimator,
 \[
-  {\bf C}_{p,\mathrm{formal}}=s^2\left({\bf J}^{T}{\bf J}\right)^{-1},
+  \widehat{\bf C}_{p} =
+  \left({\bf J}^{T}{\bf W}{\bf J}\right)^{-1}
+  {\bf J}^{T}{\bf W}\widehat{\boldsymbol{\Omega}}{\bf W}{\bf J}
+  \left({\bf J}^{T}{\bf W}{\bf J}\right)^{-1},
 \]
-with the inverse evaluated as a pseudo-inverse and \(s^2\) estimated from the
-post-fit residual variance.  The adopted covariance used for all uncertainty
-propagation is then recomputed with the physical range/Doppler Jacobian and
-station-specific effective measurement scales
-\[
-  \sigma_{R,s,\mathrm{eff}}^2 =
-  \sigma_{R,\mathrm{nominal}}^2+\sigma_{R,s,\mathrm{residual}}^2,
-  \qquad
-  \sigma_{f,s,\mathrm{eff}}^2 =
-  \sigma_{f,\mathrm{nominal}}^2+\sigma_{f,s,\mathrm{residual}}^2 ,
-\]
-where \(s\) denotes the receiver station, and
-\(\sigma_{R,s,\mathrm{residual}}\) and
-\(\sigma_{f,s,\mathrm{residual}}\) are the robust post-fit residual scatters
-for bistatic range and Doppler, respectively.  This folds the empirical
-residual widths back into the parameter covariance rather than using them only
-as plotting adjustments.  The same residual-derived scales are also applied to
-a second trajectory-fit iteration.  In that second pass, the range/Doppler
+where \({\bf J}\) is the finite-difference Jacobian of the native range and
+Doppler predictions with respect to \({\bf p}\), \({\bf W}\) is the diagonal
+weight matrix with entries \(1/\sigma_{R,s_i}^{2}\) and
+\(1/\sigma_{f,s_i}^{2}\), and
+\(\widehat{\boldsymbol{\Omega}}\) is the diagonal matrix of squared post-fit
+range and Doppler residuals in their native units.  An HC1 finite-sample factor
+\(N/(N-n_p)\), where \(n_p=6\), is applied to the sandwich middle term.  The
+fit itself uses a second trajectory-fit iteration in which the range/Doppler
 residuals are divided by effective standard deviations of
 982.6 m/502.6 Hz for Beverly, 945.1 m/515.4 Hz for Clinton, and
 820.9 m/501.8 Hz for Pomfret.  These values define the relative weighting in
@@ -363,9 +357,9 @@ from 475 m and 90 Hz to \TrajectoryRangeRmsM{} m and
 \TrajectoryDopplerRmsHz{} Hz for range and Doppler, respectively.
 The shaded bands in
 Figure~\ref{fig:trajectory-observables} are prediction intervals: Monte Carlo
-draws from the inflated \(\mathcal{N}({\bf p},{\bf C}_{p})\) are propagated
-through the range and Doppler equations and then broadened by the empirical
-95\% residual scatter for each station.
+draws from \(\mathcal{N}({\bf p},\widehat{\bf C}_{p})\) are propagated through
+the range and Doppler equations and then broadened by the empirical 95\%
+residual scatter for each station.
 
 \begin{figure}
   \centering
@@ -374,8 +368,8 @@ through the range and Doppler equations and then broadened by the empirical
   fit.  Points show the ROI-derived measurements after SNR thresholding and
   outlier rejection; lines show the fitted straight-line trajectory model for
   each bistatic path.  Shaded bands show 95\% prediction intervals formed by
-  combining the sampled linearized parameter covariance with the empirical
-  post-fit range and Doppler residual scatter.}
+  combining samples from the heteroskedasticity-robust trajectory covariance
+  with the empirical post-fit range and Doppler residual scatter.}
   \figsource{reports/generate_trajectory_report_assets.py}
   \label{fig:trajectory-observables}
 \end{figure}
