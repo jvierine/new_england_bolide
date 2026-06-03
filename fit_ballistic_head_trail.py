@@ -1314,6 +1314,18 @@ def plot_lonlat_height(
     trail_lon = np.array([r["lon_deg"] for r in trail_rows], dtype=float)
     trail_lat = np.array([r["lat_deg"] for r in trail_rows], dtype=float)
     trail_alt = np.array([r["alt_m"] for r in trail_rows], dtype=float) / 1000.0
+    trail_sigma_enu_m = np.array(
+        [
+            (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
+            for r in trail_rows
+        ],
+        dtype=float,
+    )
+    meters_per_deg_lat = 111_320.0
+    meters_per_deg_lon = meters_per_deg_lat * np.cos(np.deg2rad(trail_lat))
+    trail_lon_sigma_deg = trail_sigma_enu_m[:, 0] / meters_per_deg_lon
+    trail_lat_sigma_deg = trail_sigma_enu_m[:, 1] / meters_per_deg_lat
+    trail_alt_sigma_km = trail_sigma_enu_m[:, 2] / 1000.0
     t_head = np.array([o["unix_time"] for o in obs], dtype=float)
     head_pos, _head_vel = propagate_state(params, t_head, t_ref, density_profile, use_drag=not args.no_drag)
     head_llh = np.array([gcrs_to_geodetic(p, tt) for p, tt in zip(head_pos, t_head, strict=True)])
@@ -1331,15 +1343,30 @@ def plot_lonlat_height(
 
     fig, axes = plt.subplots(1, 2, figsize=(12.2, 5.4), sharey=True, constrained_layout=True)
     panels = [
-        (axes[0], lon, trail_lon, head_llh[:, 1], "Longitude (deg)"),
-        (axes[1], lat, trail_lat, head_llh[:, 0], "Latitude (deg)"),
+        (axes[0], lon, trail_lon, trail_lon_sigma_deg, head_llh[:, 1], "Longitude (deg)"),
+        (axes[1], lat, trail_lat, trail_lat_sigma_deg, head_llh[:, 0], "Latitude (deg)"),
     ]
-    for pi, (ax, x, trail_x, head_x, xlabel) in enumerate(panels):
+    for pi, (ax, x, trail_x, trail_x_sigma, head_x, xlabel) in enumerate(panels):
         for llh_s in sample_llh:
             sx = llh_s[:, 1] if pi == 0 else llh_s[:, 0]
             ax.plot(sx, llh_s[:, 2] / 1000.0, color="C2", alpha=0.045, lw=0.8)
         ax.plot(x, alt, color="C2", lw=2.4, label="ballistic fit")
-        ax.scatter(trail_x, trail_alt, s=22, color="0.25", alpha=0.48, label="trail positions")
+        ax.errorbar(
+            trail_x,
+            trail_alt,
+            xerr=trail_x_sigma,
+            yerr=trail_alt_sigma_km,
+            fmt="o",
+            ms=4.2,
+            color="0.25",
+            ecolor="0.05",
+            elinewidth=0.85,
+            capsize=2.0,
+            capthick=0.8,
+            alpha=0.78,
+            label="trail positions with 1$\\sigma$ errors",
+            zorder=6,
+        )
         ax.scatter(head_x, head_llh[:, 2] / 1000.0, s=58, color="C0", marker="x", linewidths=1.6, alpha=0.95, label="head-echo positions")
         ax.set_xlabel(xlabel)
         ax.grid(True, color="0.9", lw=0.6)
