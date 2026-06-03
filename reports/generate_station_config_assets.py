@@ -75,9 +75,35 @@ def write_tx_antenna_table(tx) -> Path:
     return out
 
 
+def aod_match_grid(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421):
+    ant = tx.antenna_pos_tx
+    wavelength = C / tx.frequency_hz
+    k = 2.0 * np.pi / wavelength
+    ref, ref_meta = trajectory_reference_direction_enu(tx)
+
+    u = np.linspace(-1.0, 1.0, grid_size)
+    east, north = np.meshgrid(u, u)
+    h2 = east * east + north * north
+    min_up = np.sin(np.deg2rad(elevation_floor_deg))
+    keep = h2 <= 1.0 - min_up * min_up
+    up = np.sqrt(np.maximum(0.0, 1.0 - h2))
+
+    dirs = np.column_stack((east[keep], north[keep], up[keep]))
+    steering_ref = np.exp(1.0j * k * (ant @ ref))
+    steering = np.exp(1.0j * k * (dirs @ ant.T))
+    match = np.abs(steering @ steering_ref.conj()) ** 2 / float(len(ant) ** 2)
+
+    z = np.full_like(east, np.nan, dtype=float)
+    z[keep] = 10.0 * np.log10(np.maximum(match, 1e-6))
+    peak_mask = np.isclose(match, np.nanmax(match), rtol=0.0, atol=1e-8)
+    sidelobe = float(np.nanmax(match[~peak_mask])) if np.any(~peak_mask) else float("nan")
+    return east, north, z, ref, ref_meta, wavelength, sidelobe
+
+
 def plot_tx_antennas(tx) -> Path:
     ant = tx.antenna_pos_tx
-    fig, ax = plt.subplots(figsize=(6.6, 6.2), constrained_layout=True)
+    fig, axes = plt.subplots(1, 2, figsize=(13.2, 6.0), constrained_layout=True)
+    ax = axes[0]
     ax.scatter(ant[:, 0], ant[:, 1], s=95, color="#1f77b4", edgecolor="white", linewidth=0.8, zorder=3)
     for idx, (enu, seed) in enumerate(zip(ant, tx.seeds)):
         ax.annotate(
@@ -95,8 +121,40 @@ def plot_tx_antennas(tx) -> Path:
     ax.set_ylim(float(np.min(ant[:, 1]) - pad), float(np.max(ant[:, 1]) + pad))
     ax.set_xlabel("East offset from TX reference (m)")
     ax.set_ylabel("North offset from TX reference (m)")
-    ax.set_title("Haystack transmit antenna offsets and code seeds")
+    ax.set_title("(a) Pentagon transmit aperture")
     ax.grid(True, color="0.9", linewidth=0.5)
+
+    ax = axes[1]
+    elevation_floor_deg = 5.0
+    east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(tx, elevation_floor_deg=elevation_floor_deg)
+    mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
+    circle = plt.Circle((0, 0), np.cos(np.deg2rad(elevation_floor_deg)), color="white", fill=False, lw=1.1)
+    ax.add_patch(circle)
+    ax.scatter([ref[0]], [ref[1]], marker="+", s=120, color="white", linewidth=2.0, label="tri-static t0 look direction")
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_xlabel("East direction cosine")
+    ax.set_ylabel("North direction cosine")
+    ax.set_title("(b) Transmit AoD ambiguity function")
+    ax.grid(True, color="white", alpha=0.22, linewidth=0.5)
+    cb = fig.colorbar(mesh, ax=ax)
+    cb.set_label("Normalized match (dB)")
+    txt = (
+        f"wavelength {wavelength:.2f} m\n"
+        f"look az {ref_meta['az_deg']:.1f} deg, el {ref_meta['el_deg']:.1f} deg\n"
+        f"max off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
+    )
+    ax.text(
+        0.03,
+        0.03,
+        txt,
+        transform=ax.transAxes,
+        va="bottom",
+        ha="left",
+        fontsize=10,
+        bbox=dict(fc="white", ec="0.6", alpha=0.88),
+    )
+    ax.legend(loc="upper right")
+
     out = FIG_DIR / "tx_antenna_coordinates.png"
     fig.savefig(out, dpi=220, bbox_inches="tight")
     plt.close(fig)
@@ -120,27 +178,9 @@ def trajectory_reference_direction_enu(tx) -> tuple[np.ndarray, dict]:
 
 
 def plot_aod_match_function(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421) -> Path:
-    ant = tx.antenna_pos_tx
-    wavelength = C / tx.frequency_hz
-    k = 2.0 * np.pi / wavelength
-    ref, ref_meta = trajectory_reference_direction_enu(tx)
-
-    u = np.linspace(-1.0, 1.0, grid_size)
-    east, north = np.meshgrid(u, u)
-    h2 = east * east + north * north
-    min_up = np.sin(np.deg2rad(elevation_floor_deg))
-    keep = h2 <= 1.0 - min_up * min_up
-    up = np.sqrt(np.maximum(0.0, 1.0 - h2))
-
-    dirs = np.column_stack((east[keep], north[keep], up[keep]))
-    steering_ref = np.exp(1.0j * k * (ant @ ref))
-    steering = np.exp(1.0j * k * (dirs @ ant.T))
-    match = np.abs(steering @ steering_ref.conj()) ** 2 / float(len(ant) ** 2)
-
-    z = np.full_like(east, np.nan, dtype=float)
-    z[keep] = 10.0 * np.log10(np.maximum(match, 1e-6))
-    peak_mask = np.isclose(match, np.nanmax(match), rtol=0.0, atol=1e-8)
-    sidelobe = float(np.nanmax(match[~peak_mask])) if np.any(~peak_mask) else float("nan")
+    east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(
+        tx, elevation_floor_deg=elevation_floor_deg, grid_size=grid_size
+    )
 
     fig, ax = plt.subplots(figsize=(7.4, 6.8), constrained_layout=True)
     mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
