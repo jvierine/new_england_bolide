@@ -75,7 +75,7 @@ def write_tx_antenna_table(tx) -> Path:
     return out
 
 
-def aod_match_grid(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421):
+def aod_match_grid(tx, grid_size: int = 421):
     ant = tx.antenna_pos_tx
     wavelength = C / tx.frequency_hz
     k = 2.0 * np.pi / wavelength
@@ -84,8 +84,7 @@ def aod_match_grid(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421):
     u = np.linspace(-1.0, 1.0, grid_size)
     east, north = np.meshgrid(u, u)
     h2 = east * east + north * north
-    min_up = np.sin(np.deg2rad(elevation_floor_deg))
-    keep = h2 <= 1.0 - min_up * min_up
+    keep = h2 <= 1.0
     up = np.sqrt(np.maximum(0.0, 1.0 - h2))
 
     dirs = np.column_stack((east[keep], north[keep], up[keep]))
@@ -102,62 +101,70 @@ def aod_match_grid(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421):
 
 def plot_tx_antennas(tx) -> Path:
     ant = tx.antenna_pos_tx
-    fig, axes = plt.subplots(1, 2, figsize=(13.2, 6.0), constrained_layout=True)
-    ax = axes[0]
-    ax.scatter(ant[:, 0], ant[:, 1], s=95, color="#1f77b4", edgecolor="white", linewidth=0.8, zorder=3)
-    for idx, (enu, seed) in enumerate(zip(ant, tx.seeds)):
-        ax.annotate(
-            f"TX{idx}\nseed {seed}",
-            (enu[0], enu[1]),
-            xytext=(7, 7),
-            textcoords="offset points",
-            fontsize=9,
+    font_scale = 1.5
+    font = {
+        "axes.titlesize": 11 * font_scale,
+        "axes.labelsize": 10 * font_scale,
+        "xtick.labelsize": 9 * font_scale,
+        "ytick.labelsize": 9 * font_scale,
+        "legend.fontsize": 8 * font_scale,
+    }
+    with plt.rc_context(font):
+        fig, axes = plt.subplots(1, 2, figsize=(13.2, 6.0), constrained_layout=True)
+        ax = axes[0]
+        ax.scatter(ant[:, 0], ant[:, 1], s=120, color="#1f77b4", edgecolor="white", linewidth=0.8, zorder=3)
+        for idx, (enu, seed) in enumerate(zip(ant, tx.seeds)):
+            ax.annotate(
+                f"TX{idx}\nseed {seed}",
+                (enu[0], enu[1]),
+                xytext=(7, 7),
+                textcoords="offset points",
+                fontsize=9 * font_scale,
+            )
+        ax.axhline(0, color="0.78", lw=0.8)
+        ax.axvline(0, color="0.78", lw=0.8)
+        ax.set_aspect("equal", adjustable="box")
+        pad = 8.0
+        ax.set_xlim(float(np.min(ant[:, 0]) - pad), float(np.max(ant[:, 0]) + pad))
+        ax.set_ylim(float(np.min(ant[:, 1]) - pad), float(np.max(ant[:, 1]) + pad))
+        ax.set_xlabel("East offset from TX reference (m)")
+        ax.set_ylabel("North offset from TX reference (m)")
+        ax.set_title("(a) Pentagon transmit aperture")
+        ax.grid(True, color="0.9", linewidth=0.5)
+
+        ax = axes[1]
+        east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(tx)
+        mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
+        ax.scatter([ref[0]], [ref[1]], marker="+", s=160, color="white", linewidth=2.4, label="head echo reference")
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("East direction cosine")
+        ax.set_ylabel("North direction cosine")
+        ax.set_title("(b) Transmit AoD ambiguity function")
+        ax.grid(True, color="white", alpha=0.22, linewidth=0.5)
+        cb = fig.colorbar(mesh, ax=ax)
+        cb.set_label("Normalized match (dB)", fontsize=10 * font_scale)
+        cb.ax.tick_params(labelsize=9 * font_scale)
+        txt = (
+            f"wavelength {wavelength:.2f} m\n"
+            f"head echo {ref_meta['height_km']:.1f} km\n"
+            f"az {ref_meta['az_deg']:.1f} deg, el {ref_meta['el_deg']:.1f} deg\n"
+            f"max off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
         )
-    ax.axhline(0, color="0.78", lw=0.8)
-    ax.axvline(0, color="0.78", lw=0.8)
-    ax.set_aspect("equal", adjustable="box")
-    pad = 8.0
-    ax.set_xlim(float(np.min(ant[:, 0]) - pad), float(np.max(ant[:, 0]) + pad))
-    ax.set_ylim(float(np.min(ant[:, 1]) - pad), float(np.max(ant[:, 1]) + pad))
-    ax.set_xlabel("East offset from TX reference (m)")
-    ax.set_ylabel("North offset from TX reference (m)")
-    ax.set_title("(a) Pentagon transmit aperture")
-    ax.grid(True, color="0.9", linewidth=0.5)
+        ax.text(
+            0.03,
+            0.03,
+            txt,
+            transform=ax.transAxes,
+            va="bottom",
+            ha="left",
+            fontsize=9 * font_scale,
+            bbox=dict(fc="white", ec="0.6", alpha=0.88),
+        )
+        ax.legend(loc="upper right")
 
-    ax = axes[1]
-    elevation_floor_deg = 5.0
-    east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(tx, elevation_floor_deg=elevation_floor_deg)
-    mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
-    circle = plt.Circle((0, 0), np.cos(np.deg2rad(elevation_floor_deg)), color="white", fill=False, lw=1.1)
-    ax.add_patch(circle)
-    ax.scatter([ref[0]], [ref[1]], marker="+", s=120, color="white", linewidth=2.0, label="tri-static t0 look direction")
-    ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel("East direction cosine")
-    ax.set_ylabel("North direction cosine")
-    ax.set_title("(b) Transmit AoD ambiguity function")
-    ax.grid(True, color="white", alpha=0.22, linewidth=0.5)
-    cb = fig.colorbar(mesh, ax=ax)
-    cb.set_label("Normalized match (dB)")
-    txt = (
-        f"wavelength {wavelength:.2f} m\n"
-        f"look az {ref_meta['az_deg']:.1f} deg, el {ref_meta['el_deg']:.1f} deg\n"
-        f"max off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
-    )
-    ax.text(
-        0.03,
-        0.03,
-        txt,
-        transform=ax.transAxes,
-        va="bottom",
-        ha="left",
-        fontsize=10,
-        bbox=dict(fc="white", ec="0.6", alpha=0.88),
-    )
-    ax.legend(loc="upper right")
-
-    out = FIG_DIR / "tx_antenna_coordinates.png"
-    fig.savefig(out, dpi=220, bbox_inches="tight")
-    plt.close(fig)
+        out = FIG_DIR / "tx_antenna_coordinates.png"
+        fig.savefig(out, dpi=220, bbox_inches="tight")
+        plt.close(fig)
     return out
 
 
@@ -171,48 +178,61 @@ def trajectory_reference_direction_enu(tx) -> tuple[np.ndarray, dict]:
     rot = enu_to_ecef_matrix(tx.gps_tx[0], tx.gps_tx[1])
     model = model_state_series(params, [fit["t_ref_unix"]], fit["t_ref_unix"], tx_ecef, rot)
     pos_enu = model["position_enu_m"][0]
+    height_km = float(model["lat_lon_alt"][0, 2] / 1000.0)
     direction = pos_enu / np.linalg.norm(pos_enu)
     az_deg = (np.rad2deg(np.arctan2(direction[0], direction[1])) + 360.0) % 360.0
     el_deg = np.rad2deg(np.arcsin(np.clip(direction[2], -1.0, 1.0)))
-    return direction, {"az_deg": float(az_deg), "el_deg": float(el_deg), "t_ref_utc": fit["t_ref_utc"]}
+    return direction, {
+        "az_deg": float(az_deg),
+        "el_deg": float(el_deg),
+        "height_km": height_km,
+        "t_ref_utc": fit["t_ref_utc"],
+    }
 
 
-def plot_aod_match_function(tx, elevation_floor_deg: float = 5.0, grid_size: int = 421) -> Path:
-    east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(
-        tx, elevation_floor_deg=elevation_floor_deg, grid_size=grid_size
-    )
+def plot_aod_match_function(tx, grid_size: int = 421) -> Path:
+    east, north, z, ref, ref_meta, wavelength, sidelobe = aod_match_grid(tx, grid_size=grid_size)
 
-    fig, ax = plt.subplots(figsize=(7.4, 6.8), constrained_layout=True)
-    mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
-    circle = plt.Circle((0, 0), np.cos(np.deg2rad(elevation_floor_deg)), color="white", fill=False, lw=1.1)
-    ax.add_patch(circle)
-    ax.scatter([ref[0]], [ref[1]], marker="+", s=120, color="white", linewidth=2.0, label="tri-static t0 look direction")
-    ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel("East direction cosine")
-    ax.set_ylabel("North direction cosine")
-    ax.set_title(f"Transmit AoD match function, elevation >= {elevation_floor_deg:g} deg")
-    ax.grid(True, color="white", alpha=0.22, linewidth=0.5)
-    cb = fig.colorbar(mesh, ax=ax)
-    cb.set_label("Normalized match (dB)")
-    txt = (
-        f"wavelength {wavelength:.2f} m\n"
-        f"look az {ref_meta['az_deg']:.1f} deg, el {ref_meta['el_deg']:.1f} deg\n"
-        f"max off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
-    )
-    ax.text(
-        0.03,
-        0.03,
-        txt,
-        transform=ax.transAxes,
-        va="bottom",
-        ha="left",
-        fontsize=10,
-        bbox=dict(fc="white", ec="0.6", alpha=0.88),
-    )
-    ax.legend(loc="upper right")
-    out = FIG_DIR / "tx_aod_match_function.png"
-    fig.savefig(out, dpi=240, bbox_inches="tight")
-    plt.close(fig)
+    font_scale = 1.5
+    font = {
+        "axes.titlesize": 11 * font_scale,
+        "axes.labelsize": 10 * font_scale,
+        "xtick.labelsize": 9 * font_scale,
+        "ytick.labelsize": 9 * font_scale,
+        "legend.fontsize": 8 * font_scale,
+    }
+    with plt.rc_context(font):
+        fig, ax = plt.subplots(figsize=(7.4, 6.8), constrained_layout=True)
+        mesh = ax.pcolormesh(east, north, z, shading="auto", cmap="viridis", vmin=-30.0, vmax=0.0)
+        ax.scatter([ref[0]], [ref[1]], marker="+", s=160, color="white", linewidth=2.4, label="head echo reference")
+        ax.set_aspect("equal", adjustable="box")
+        ax.set_xlabel("East direction cosine")
+        ax.set_ylabel("North direction cosine")
+        ax.set_title("Transmit AoD match function")
+        ax.grid(True, color="white", alpha=0.22, linewidth=0.5)
+        cb = fig.colorbar(mesh, ax=ax)
+        cb.set_label("Normalized match (dB)", fontsize=10 * font_scale)
+        cb.ax.tick_params(labelsize=9 * font_scale)
+        txt = (
+            f"wavelength {wavelength:.2f} m\n"
+            f"head echo {ref_meta['height_km']:.1f} km\n"
+            f"az {ref_meta['az_deg']:.1f} deg, el {ref_meta['el_deg']:.1f} deg\n"
+            f"max off-peak {10*np.log10(max(sidelobe, 1e-12)):.1f} dB"
+        )
+        ax.text(
+            0.03,
+            0.03,
+            txt,
+            transform=ax.transAxes,
+            va="bottom",
+            ha="left",
+            fontsize=9 * font_scale,
+            bbox=dict(fc="white", ec="0.6", alpha=0.88),
+        )
+        ax.legend(loc="upper right")
+        out = FIG_DIR / "tx_aod_match_function.png"
+        fig.savefig(out, dpi=240, bbox_inches="tight")
+        plt.close(fig)
     return out
 
 
