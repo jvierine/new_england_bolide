@@ -303,6 +303,28 @@ and the bistatic Doppler model is
          {|{\bf x}(t)-{\bf x}_{\mathrm{rx}}|}
   \right]\cdot{\bf v}(t).
 \]
+The trajectory parameters were estimated by minimizing the weighted
+range--Doppler cost function
+\[
+  \chi^2({\bf p}) =
+  \sum_{i=1}^{N}
+  \left\{
+  \left[
+    \frac{R_i^{\mathrm{obs}}-R_b(t_i;{\bf p},s_i)}
+         {\sigma_{R,s_i}}
+  \right]^2
+  +
+  \left[
+    \frac{f_{D,i}^{\mathrm{obs}}-f_D(t_i;{\bf p},s_i)}
+         {\sigma_{f,s_i}}
+  \right]^2
+  \right\},
+\]
+where \({\bf p}=({\bf x}_0,{\bf v})\), \(s_i\) denotes the receiver station
+for measurement \(i\), and \(\sigma_{R,s_i}\) and \(\sigma_{f,s_i}\) are the
+range and Doppler standard deviations used for that station.  The two
+uncertainty scales are kept distinct because the range measurements are in
+metres whereas the Doppler measurements are in hertz.
 With this sign convention, positive Doppler corresponds to an increasing total
 bistatic propagation path.
 The residual RMS values for the current fit are \TrajectoryRangeRmsM{} m in
