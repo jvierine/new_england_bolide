@@ -639,8 +639,9 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref, head_error_models=Non
             capsize=1.8,
             alpha=0.75,
             label=f"{label} measured",
+            zorder=20,
         )
-        axes[0].plot(tr, pr / 1000.0, color=color, lw=2.0, label=f"{label} fit")
+        axes[0].plot(tr, pr / 1000.0, color=color, lw=2.0, label=f"{label} fit", zorder=8)
         axes[0].fill_between(
             tr,
             rlo,
@@ -649,6 +650,7 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref, head_error_models=Non
             alpha=0.20,
             linewidth=0,
             label="95% fit uncertainty" if si == 0 else None,
+            zorder=2,
         )
         axes[1].errorbar(
             tr,
@@ -662,8 +664,9 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref, head_error_models=Non
             capsize=1.8,
             alpha=0.75,
             label=f"{label} measured",
+            zorder=20,
         )
-        axes[1].plot(tr, pd / 1000.0, color=color, lw=2.0, label=f"{label} fit")
+        axes[1].plot(tr, pd / 1000.0, color=color, lw=2.0, label=f"{label} fit", zorder=8)
         axes[1].fill_between(
             tr,
             dlo,
@@ -672,6 +675,7 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref, head_error_models=Non
             alpha=0.20,
             linewidth=0,
             label="95% fit uncertainty" if si == 0 else None,
+            zorder=2,
         )
     axes[0].set_title("Combined head/trail ECI trajectory fit observables")
     axes[0].set_ylabel("Bistatic range (km)")
@@ -798,7 +802,7 @@ def scatter_head_position_panels(axes, params: np.ndarray, obs: list[dict], t_re
             marker="x",
             linewidths=1.6,
             label="head-echo derived positions" if ai == 0 else None,
-            zorder=7,
+            zorder=30,
         )
 
 
