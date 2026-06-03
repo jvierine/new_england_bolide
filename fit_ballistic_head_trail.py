@@ -860,11 +860,16 @@ def plot_station_measurement_ballistic_overview(
     station_configs = load_all_station_configs(args.data_dir)
     station_lons = []
     station_lats = []
+    tx_ref_lat = None
+    tx_ref_lon = None
     for cfg in station_configs.values():
         rx_lat, rx_lon, _rx_alt = cfg.gps_rx
         tx_lat, tx_lon, _tx_alt = cfg.gps_tx
         station_lons.extend([rx_lon, tx_lon])
         station_lats.extend([rx_lat, tx_lat])
+        if tx_ref_lat is None:
+            tx_ref_lat = float(tx_lat)
+            tx_ref_lon = float(tx_lon)
 
     measurement_lon = np.r_[trail_llh[:, 1], head_llh[:, 1]]
     measurement_lat = np.r_[trail_llh[:, 0], head_llh[:, 0]]
@@ -896,6 +901,34 @@ def plot_station_measurement_ballistic_overview(
         ax.grid(True, color="0.72", linewidth=0.4)
         ax.tick_params(labelsize=12)
 
+    if tx_ref_lat is not None and tx_ref_lon is not None:
+        contour_lon = np.linspace(extent[0], extent[1], 260)
+        contour_lat = np.linspace(extent[2], extent[3], 220)
+        lon_grid, lat_grid = np.meshgrid(contour_lon, contour_lat)
+        tx_lat_rad = np.deg2rad(tx_ref_lat)
+        tx_lon_rad = np.deg2rad(tx_ref_lon)
+        lat_rad = np.deg2rad(lat_grid)
+        lon_rad = np.deg2rad(lon_grid)
+        dlat = lat_rad - tx_lat_rad
+        dlon = lon_rad - tx_lon_rad
+        a = np.sin(0.5 * dlat) ** 2 + np.cos(tx_lat_rad) * np.cos(lat_rad) * np.sin(0.5 * dlon) ** 2
+        dist_km = 2.0 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+        range_contours = ax.contour(
+            lon_grid,
+            lat_grid,
+            dist_km,
+            levels=[50, 100, 150, 200, 250, 300, 350],
+            colors="0.25",
+            linewidths=0.55,
+            alpha=0.30,
+            transform=data_crs,
+            zorder=1.5,
+        )
+        contour_labels = ax.clabel(range_contours, fmt=lambda value: f"{int(value)} km", fontsize=8, inline=True)
+        for text in contour_labels:
+            text.set_alpha(0.45)
+            text.set_zorder(1.6)
+
     h, lon_edges, lat_edges = np.histogram2d(measurement_lon, measurement_lat, bins=(220, 170), range=[extent[:2], extent[2:]])
     h = h.T
     h[h <= 0] = np.nan
@@ -925,11 +958,11 @@ def plot_station_measurement_ballistic_overview(
         label="ballistic fit, 300 km to 30 km",
     )
     alt_label_offsets = {
-        300: (-0.10, -0.09),
-        200: (-0.07, -0.075),
-        100: (-0.03, -0.065),
-        60: (0.055, -0.075),
-        30: (0.095, -0.09),
+        300: (-0.30, -0.27),
+        200: (-0.21, -0.225),
+        100: (-0.09, -0.195),
+        60: (0.165, -0.225),
+        30: (0.285, -0.27),
     }
     alt_km = ballistic_llh[:, 2] / 1000.0
     order = np.argsort(alt_km)
@@ -947,16 +980,6 @@ def plot_station_measurement_ballistic_overview(
             lw=1.15,
             transform=data_crs,
             zorder=8,
-        )
-        ax.scatter(
-            lon_at_alt,
-            lat_at_alt,
-            s=34,
-            color="white",
-            edgecolor="0.08",
-            linewidth=0.7,
-            transform=data_crs,
-            zorder=9,
         )
         ax.text(
             label_lon,
