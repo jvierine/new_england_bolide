@@ -311,20 +311,20 @@ range--Doppler cost function
   \left\{
   \left[
     \frac{R_i^{\mathrm{obs}}-R_b(t_i;{\bf p},s_i)}
-         {\sigma_{R,s_i}}
+         {\sigma_R}
   \right]^2
   +
   \left[
     \frac{f_{D,i}^{\mathrm{obs}}-f_D(t_i;{\bf p},s_i)}
-         {\sigma_{f,s_i}}
+         {\sigma_f}
   \right]^2
   \right\},
 \]
 where \({\bf p}=({\bf x}_0,{\bf v})\), \(s_i\) denotes the receiver station
-for measurement \(i\), and \(\sigma_{R,s_i}\) and \(\sigma_{f,s_i}\) are the
-range and Doppler standard deviations used for that station.  The two
-uncertainty scales are kept distinct because the range measurements are in
-metres whereas the Doppler measurements are in hertz.
+for measurement \(i\).  The fixed weights use \(\sigma_R=750\) m for bistatic
+range and \(\sigma_f=500\) Hz for Doppler.  The two uncertainty scales are
+kept distinct because the range measurements are in metres whereas the Doppler
+measurements are in hertz.
 With this sign convention, positive Doppler corresponds to an increasing total
 bistatic propagation path.
 The residual RMS values for the current fit are \TrajectoryRangeRmsM{} m in
@@ -342,19 +342,12 @@ estimator,
 \]
 where \({\bf J}\) is the finite-difference Jacobian of the native range and
 Doppler predictions with respect to \({\bf p}\), \({\bf W}\) is the diagonal
-weight matrix with entries \(1/\sigma_{R,s_i}^{2}\) and
-\(1/\sigma_{f,s_i}^{2}\), and
+weight matrix with entries \(1/\sigma_R^{2}\) for range rows and
+\(1/\sigma_f^{2}\) for Doppler rows, and
 \(\widehat{\boldsymbol{\Omega}}\) is the diagonal matrix of squared post-fit
-range and Doppler residuals in their native units.  An HC1 finite-sample factor
-\(N/(N-n_p)\), where \(n_p=6\), is applied to the sandwich middle term.  The
-fit itself uses a second trajectory-fit iteration in which the range/Doppler
-residuals are divided by effective standard deviations of
-982.6 m/502.6 Hz for Beverly, 945.1 m/515.4 Hz for Clinton, and
-820.9 m/501.8 Hz for Pomfret.  These values define the relative weighting in
-the whitened least-squares objective; the weights are the inverse variances in
-the native units of each observable.  The second pass changes the residual RMS
-from 475 m and 90 Hz to \TrajectoryRangeRmsM{} m and
-\TrajectoryDopplerRmsHz{} Hz for range and Doppler, respectively.
+range and Doppler residuals in their native units.  No empirical residual
+scale factor is applied to broaden the parameter covariance or the plotted
+uncertainty bands.
 The shaded bands in
 Figure~\ref{fig:trajectory-observables} show the trajectory-parameter
 uncertainty: Monte Carlo draws from

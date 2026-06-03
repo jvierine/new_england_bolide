@@ -244,18 +244,6 @@ def fit_parameter_covariance(result):
     return cov, residual_variance
 
 
-def robust_sigma(values):
-    values = np.asarray(values, dtype=float)
-    values = values[np.isfinite(values)]
-    if values.size < 2:
-        return 0.0
-    med = np.median(values)
-    mad = np.median(np.abs(values - med))
-    if mad > 0.0:
-        return float(1.4826 * mad)
-    return float(np.std(values, ddof=1))
-
-
 def physical_prediction_vector(params, obs, geom, t_ref, tx0, rot, use_doppler):
     pred_range = predict_ranges(params, obs, geom, t_ref, tx0, rot)
     if not use_doppler:
@@ -280,29 +268,6 @@ def finite_difference_physical_jacobian(params, obs, geom, t_ref, tx0, rot, use_
     return jac
 
 
-def empirical_residual_scales(obs, fit, nominal_range_sigma_m=750.0, nominal_doppler_sigma_hz=500.0):
-    range_resid = np.asarray(fit["range_residual_m"], dtype=float)
-    doppler_resid = np.asarray(fit["doppler_residual_hz"], dtype=float)
-    station_scales = {}
-    range_sigma = np.empty(len(obs), dtype=float)
-    doppler_sigma = np.empty(len(obs), dtype=float)
-    for station in sorted(set(o["station"] for o in obs)):
-        idx = np.array([i for i, ob in enumerate(obs) if ob["station"] == station], dtype=int)
-        r_emp = robust_sigma(range_resid[idx])
-        d_emp = robust_sigma(doppler_resid[idx])
-        r_eff = float(np.hypot(nominal_range_sigma_m, r_emp))
-        d_eff = float(np.hypot(nominal_doppler_sigma_hz, d_emp))
-        range_sigma[idx] = r_eff
-        doppler_sigma[idx] = d_eff
-        station_scales[station] = {
-            "range_residual_sigma_m": r_emp,
-            "doppler_residual_sigma_hz": d_emp,
-            "effective_range_sigma_m": r_eff,
-            "effective_doppler_sigma_hz": d_eff,
-        }
-    return range_sigma, doppler_sigma, station_scales
-
-
 def sandwich_parameter_covariance(obs, fit, use_doppler):
     range_sigma = np.asarray(fit["fit_weighting"]["range_sigma_m"], dtype=float)
     doppler_sigma = np.asarray(fit["fit_weighting"]["doppler_sigma_hz"], dtype=float)
@@ -324,17 +289,14 @@ def sandwich_parameter_covariance(obs, fit, use_doppler):
     bread = np.linalg.pinv(normal)
     meat = (jac * w[:, None]).T @ ((residual * residual)[:, None] * (jac * w[:, None]))
     n_meas, n_par = jac.shape
-    hc1 = n_meas / max(1, n_meas - n_par)
-    covariance = bread @ (hc1 * meat) @ bread
+    covariance = bread @ meat @ bread
     covariance = 0.5 * (covariance + covariance.T)
     details = {
-        "covariance_model": "heteroskedasticity-robust HC1 sandwich covariance using finite-difference physical Jacobian, final range/Doppler residuals, and final range/Doppler weights",
-        "hc1_scale": float(hc1),
+        "covariance_model": "heteroskedasticity-robust sandwich covariance using finite-difference physical Jacobian, final range/Doppler residuals, and fixed nominal range/Doppler weights",
         "n_measurements": int(n_meas),
         "n_parameters": int(n_par),
         "range_sigma_m": range_sigma.tolist(),
         "doppler_sigma_hz": doppler_sigma.tolist() if use_doppler else [],
-        "station_scales_from_first_pass": fit["fit_weighting"].get("station_scales_from_first_pass", {}),
     }
     return covariance, details
 
@@ -586,24 +548,11 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
 
     nominal_range_sigma_m = 750.0
     nominal_doppler_sigma_hz = 500.0
-    first_score, first_res = solve(guesses, nominal_range_sigma_m, nominal_doppler_sigma_hz, 1200)
-    first_pred = predict_ranges(first_res.x, obs, geom, t_ref, tx0, rot)
-    first_pred_doppler = predict_dopplers(first_res.x, obs, geom, t_ref, tx0, rot)
+    score, res = solve(guesses, nominal_range_sigma_m, nominal_doppler_sigma_hz, 1200)
     meas = np.array([o["range_m"] for o in obs])
     meas_doppler = np.array([o["doppler_hz"] for o in obs])
-    first_fit = {
-        "result": first_res,
-        "range_residual_m": first_pred - meas,
-        "doppler_residual_hz": first_pred_doppler - meas_doppler,
-    }
-    range_sigma, doppler_sigma, station_scales = empirical_residual_scales(
-        obs,
-        first_fit,
-        nominal_range_sigma_m=nominal_range_sigma_m,
-        nominal_doppler_sigma_hz=nominal_doppler_sigma_hz,
-    )
-
-    score, res = solve([first_res.x], range_sigma, doppler_sigma, 1200)
+    range_sigma = np.full(len(obs), nominal_range_sigma_m, dtype=float)
+    doppler_sigma = np.full(len(obs), nominal_doppler_sigma_hz, dtype=float)
     pred = predict_ranges(res.x, obs, geom, t_ref, tx0, rot)
     pred_doppler = predict_dopplers(res.x, obs, geom, t_ref, tx0, rot)
     range_resid = pred - meas
@@ -628,18 +577,10 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
         "lon_ref_deg_wgs84": lon,
         "alt_ref_m_wgs84": alt,
         "initial_station_picks": station_picks,
-        "first_pass": {
-            "score": float(first_score),
-            "range_residual_rms_m": float(np.sqrt(np.mean(first_fit["range_residual_m"] ** 2))),
-            "doppler_residual_rms_hz": float(np.sqrt(np.mean(first_fit["doppler_residual_hz"] ** 2))),
-            "fit_parameters": first_res.x.tolist(),
-        },
         "fit_weighting": {
-            "iteration": 2,
-            "description": "second-pass range/Doppler weighting estimated from first-pass robust residual scatter",
+            "description": "single-pass range/Doppler weighting using fixed nominal range and Doppler standard deviations",
             "nominal_range_sigma_m": nominal_range_sigma_m,
             "nominal_doppler_sigma_hz": nominal_doppler_sigma_hz,
-            "station_scales_from_first_pass": station_scales,
             "range_sigma_m": range_sigma.tolist(),
             "doppler_sigma_hz": doppler_sigma.tolist(),
         },
@@ -685,7 +626,6 @@ def write_outputs(
         "doppler_model": "f_D = (f0/c) * (u_tx + u_rx) dot v, positive for increasing bistatic path length",
         "initial_station_picks": fit["initial_station_picks"],
         "trajectory_fit_weighting": fit.get("fit_weighting", {}),
-        "first_pass_fit": fit.get("first_pass", {}),
         "t_ref_unix": fit["t_ref"],
         "t_ref_utc": iso_utc(fit["t_ref"]),
         "fit_parameters_enu_at_tx": {
@@ -705,7 +645,6 @@ def write_outputs(
             "nominal_range_sigma_m": 750.0,
             "nominal_doppler_sigma_hz": 500.0,
             "sandwich_covariance_details": covariance_details,
-            "empirical_residual_scales_by_station": covariance_details["station_scales_from_first_pass"],
             "covariance_samples_for_map": covariance_samples,
         },
         "cartopy_trajectory_uncertainty_plot": str(cartopy_file) if cartopy_file is not None else None,
