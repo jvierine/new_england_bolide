@@ -1,0 +1,113 @@
+# Repository Notes
+
+This repository is the processing and analysis workspace for the 2026 May 30
+Cape Cod Bay / New England bolide radar analysis. Keep data processing,
+scripts, generated products, figures, and regenerated report-support assets
+here.
+
+All analysis, processing, plotting, and asset-generation code for the paper
+belongs in this repository. Do not add such code to the Overleaf manuscript
+repository at `/home/j/src/cape_cod_bay`; copy only generated manuscript-facing
+assets there.
+
+The manuscript TeX entry point now lives in the sibling repository:
+
+```text
+/home/j/src/cape_cod_bay
+```
+
+That repository is linked to Overleaf. Use it for manuscript-level edits and
+pushes to Overleaf. Overleaf cannot follow local links or absolute paths, so
+the manuscript repository must contain its own copies of the report body,
+tables, bibliography, figure PNGs, and TeX support files under its local
+`reports/` directory.
+
+When report-support assets are regenerated here, copy the needed files into
+`../cape_cod_bay/reports/` before pushing the manuscript to Overleaf.
+
+## Remote Compute On avaruus
+
+Use `juha@avaruus.uit.no` for expensive matched-filter and RDMF jobs that are
+too large for the local workstation. The remote checkout is:
+
+```text
+/home/juha/src/new_england_bolide
+```
+
+The host has 256 CPU cores and about 1 TiB RAM. Raw data, products, and a local
+Python environment are available in the remote checkout. The remote working tree
+may contain local edits, so prefer syncing only the needed scripts, metadata,
+and generated assets with `rsync` instead of doing destructive git operations
+there.
+
+Typical remote command pattern:
+
+```bash
+ssh juha@avaruus.uit.no 'cd ~/src/new_england_bolide && \
+  source .venv/bin/activate 2>/dev/null || true; \
+  python rdmf_peak_batch.py ...'
+```
+
+For long jobs, run under `nohup` and log to `products/*.log`. Check progress
+with `pgrep -af "rdmf_peak_batch.py"` and `tail -f products/<log>.log`, and
+make sure no stale workers remain after completion.
+
+The full 0--600 km, all-station, 4x zero-padded Doppler job is very expensive.
+For head-echo trajectory updates, prefer station/range-window-specific products
+such as Beverly 210--265 km, Clinton 245--280 km, and Pomfret 370--405 km.
+After a remote run, `rsync` generated products and figures back to the local
+checkout before committing. HDF5 products under `products/` are normally ignored
+and should not be committed unless explicitly needed.
+
+## Copying Report Assets To Overleaf
+
+Any code in this repository that regenerates manuscript figures, tables,
+bibliography files, report body text, or TeX support files should leave the
+processing products here and then copy the manuscript-facing assets into the
+Overleaf repository:
+
+```text
+/home/j/src/cape_cod_bay/reports/
+```
+
+Use the same relative layout under `reports/` in both repositories. In
+particular, generated manuscript images from this repo's `reports/figures/`
+must be copied to:
+
+```text
+/home/j/src/cape_cod_bay/reports/figures/
+```
+
+The manuscript in `../cape_cod_bay/main.tex` uses only local paths such as
+`reports/processing_report_body.tex`, `reports/report_stats.tex`, and
+`reports/figures/*.png`; Overleaf cannot see files in this processing
+repository.
+
+A safe sync command for manuscript assets is:
+
+```bash
+rsync -a \
+  --exclude '__pycache__/' \
+  --exclude '*.aux' \
+  --exclude '*.bcf' \
+  --exclude '*.blg' \
+  --exclude '*.log' \
+  --exclude '*.out' \
+  --exclude '*.run.xml' \
+  --exclude 'texput.log' \
+  reports/ ../cape_cod_bay/reports/
+```
+
+If the CAS template files are updated, also copy these to the root of the
+Overleaf repo:
+
+```bash
+cp reports/cas-sc.cls reports/cas-common.sty reports/cas-model2-names.bst ../cape_cod_bay/
+```
+
+In short:
+
+- Processing, products, regenerated figure/table sources: this repo.
+- Manuscript driver, copied report assets, and Overleaf sync: `../cape_cod_bay/`.
+- Do not recreate `reports/processing_report.tex` here as the canonical
+  manuscript entry point; update `../cape_cod_bay/main.tex`.
