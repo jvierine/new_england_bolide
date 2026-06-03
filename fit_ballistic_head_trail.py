@@ -592,6 +592,10 @@ def plot_altitude_enu(
         ],
         dtype=float,
     ) / 1000.0
+    trail_time_sigma = np.zeros(len(trail_rows), dtype=float)
+    if args is not None and args.trail_timing_enable:
+        timed = np.isfinite(trail_alt) & (trail_alt <= args.trail_timing_max_alt_km)
+        trail_time_sigma[timed] = float(args.trail_timing_sigma_s)
     fig, axes = plt.subplots(3, 1, figsize=(12, 10.4), sharex=True, constrained_layout=True)
     tr = t - t_ref
     if params is not None and cov is not None and density_profile is not None and args is not None:
@@ -631,6 +635,7 @@ def plot_altitude_enu(
         ax.errorbar(
             tau,
             scat,
+            xerr=trail_time_sigma,
             yerr=sigma,
             fmt="o",
             ms=4.2,
