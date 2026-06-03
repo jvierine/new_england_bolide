@@ -22,7 +22,9 @@ DEFAULT_MERGED_DIR = "products/rdmf_exact_highres_180615_10s_merged_20260602_095
 DEFAULT_TRAJECTORY_JSON = "products/head_echo_trajectory_roi_fit/head_echo_trajectory.json"
 DEFAULT_OUT = "annotations/trail_echo_rois.json"
 DEFAULT_PLOT = "reports/figures/trail_echo_roi.png"
+DEFAULT_ALTITUDE_OVERLAY_PLOT = "reports/figures/trail_echo_roi_trail_altitude.png"
 DEFAULT_POINTS = "products/trail_echo_roi/trail_echo_roi_points.json"
+DEFAULT_TRAIL_SUMMARY = "products/specular_trail_positions/specular_trail_position_summary.json"
 ALTITUDE_TICKS_KM = np.array([85.0, 80.0, 75.0])
 REPORT_RANGE_WINDOWS_KM = {
     "beverly": (180.0, 275.0),
@@ -225,7 +227,27 @@ def add_manual_altitude_axis(ax, station, ticks_by_station):
         )
 
 
-def draw_roi_figure(datasets, rois, out_png, snr_threshold_db, max_abs_doppler_hz, trajectory_json):
+def load_trail_altitude_points(summary_json):
+    path = Path(summary_json)
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return [
+        row
+        for row in payload.get("positions", [])
+        if {"station", "unix_time", "range_km", "alt_m"}.issubset(row)
+    ]
+
+
+def draw_roi_figure(
+    datasets,
+    rois,
+    out_png,
+    snr_threshold_db,
+    max_abs_doppler_hz,
+    trajectory_json,
+    altitude_points=None,
+):
     fig, axes = plt.subplots(len(datasets), 1, figsize=(12.0, max(2.15 * len(datasets), 8.5)), sharex=True, constrained_layout=True)
     if len(datasets) == 1:
         axes = np.array([axes])
@@ -239,6 +261,11 @@ def draw_roi_figure(datasets, rois, out_png, snr_threshold_db, max_abs_doppler_h
     snr_all = np.concatenate(snr_all)
     vmin = max(-5.0, float(np.nanpercentile(snr_all, 5)))
     vmax = min(30.0, float(np.nanpercentile(snr_all, 99.7)))
+    altitude_points = altitude_points or []
+    altitude_km = np.array([row["alt_m"] / 1000.0 for row in altitude_points], dtype=float)
+    altitude_vmin = float(np.nanpercentile(altitude_km, 2.0)) if altitude_km.size else 0.0
+    altitude_vmax = float(np.nanpercentile(altitude_km, 98.0)) if altitude_km.size else 1.0
+    scatter = None
 
     for row, data in enumerate(datasets):
         station = data["station"]
@@ -258,12 +285,34 @@ def draw_roi_figure(datasets, rois, out_png, snr_threshold_db, max_abs_doppler_h
             y0 = roi["range_km"]["min"]
             y1 = roi["range_km"]["max"]
             ax.set_ylim(max(float(r[0]), y0 - 8.0), min(float(r[-1]), y1 + 8.0))
+        station_points = [
+            point
+            for point in altitude_points
+            if point["station"] == station
+            and float(data["t_unix"][0]) <= float(point["unix_time"]) <= float(data["t_unix"][-1])
+        ]
+        if station_points:
+            scatter = ax.scatter(
+                [float(point["unix_time"]) - t_ref for point in station_points],
+                [float(point["range_km"]) for point in station_points],
+                c=[float(point["alt_m"]) / 1000.0 for point in station_points],
+                cmap="turbo",
+                vmin=altitude_vmin,
+                vmax=altitude_vmax,
+                s=34,
+                marker="o",
+                edgecolors="black",
+                linewidths=0.45,
+                zorder=6,
+            )
         add_manual_altitude_axis(ax, station, ticks_by_station)
         ax.grid(True, color="0.85", lw=0.4)
         ax.set_xlim(0.0, t_max)
     axes[-1].set_xlabel(f"Seconds after {iso_utc(t_ref)}")
 
     fig.suptitle(f"Trail Echo ROI: SNR >= {snr_threshold_db:g} dB And |Doppler| < {max_abs_doppler_hz:g} Hz")
+    if scatter is not None:
+        fig.colorbar(scatter, ax=axes, label="Trail echo altitude (km)", shrink=0.93)
     out_png = Path(out_png)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=220, bbox_inches="tight")
@@ -279,8 +328,28 @@ def main():
     p.add_argument("--out", default=DEFAULT_OUT)
     p.add_argument("--points-out", default=DEFAULT_POINTS)
     p.add_argument("--plot", default=DEFAULT_PLOT)
+    p.add_argument("--altitude-overlay-plot", default=None)
+    p.add_argument("--trail-summary", default=DEFAULT_TRAIL_SUMMARY)
+    p.add_argument("--overlay-only", action="store_true")
     p.add_argument("--trajectory-json", default=DEFAULT_TRAJECTORY_JSON)
     args = p.parse_args()
+
+    if args.overlay_only:
+        if not args.altitude_overlay_plot:
+            raise SystemExit("--overlay-only requires --altitude-overlay-plot")
+        annotations = json.loads(Path(args.out).read_text(encoding="utf-8"))
+        datasets = [load_merged(args.merged_dir, station) for station in args.stations]
+        draw_roi_figure(
+            datasets,
+            annotations["stations"],
+            args.altitude_overlay_plot,
+            args.snr_threshold_db,
+            args.max_abs_doppler_hz,
+            args.trajectory_json,
+            altitude_points=load_trail_altitude_points(args.trail_summary),
+        )
+        print(f"Wrote {args.altitude_overlay_plot}")
+        return
 
     annotations = {
         "schema": "new_england_bolide.trail_echo_roi.v1",
@@ -339,9 +408,21 @@ def main():
         args.max_abs_doppler_hz,
         args.trajectory_json,
     )
+    if args.altitude_overlay_plot:
+        draw_roi_figure(
+            datasets,
+            annotations["stations"],
+            args.altitude_overlay_plot,
+            args.snr_threshold_db,
+            args.max_abs_doppler_hz,
+            args.trajectory_json,
+            altitude_points=load_trail_altitude_points(args.trail_summary),
+        )
     print(f"Wrote {out}")
     print(f"Wrote {points_out}")
     print(f"Wrote {args.plot}")
+    if args.altitude_overlay_plot:
+        print(f"Wrote {args.altitude_overlay_plot}")
 
 
 if __name__ == "__main__":

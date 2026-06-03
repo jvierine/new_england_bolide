@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Plot the New England bolide orbit in the heliocentric ecliptic x-y plane."""
+"""Plot the Cape Cod Bay bolide orbit in the heliocentric ecliptic x-y plane."""
 
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 import h5py
@@ -15,7 +16,7 @@ from astropy.time import Time
 
 AU = 1.495978707e11
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
-DEFAULT_SAMPLES = Path("products/orbit_determination/orbit_mc_40.h5")
+DEFAULT_SAMPLES = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_OUT = Path("plots/orbit_xy_bolide.png")
 
 J2000 = Time("2000-01-01T12:00:00", scale="tdb")
@@ -89,12 +90,80 @@ def planet_kepler(name: str, epoch: Time) -> np.ndarray:
     return np.array([a * AU, e, inc, argp, raan % 360.0, true_anomaly], dtype=float)
 
 
-def read_kepler(path: Path) -> tuple[np.ndarray, str, float]:
+def circular_mean_deg(values_deg: np.ndarray) -> float:
+    values = np.deg2rad(np.asarray(values_deg, dtype=float))
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return math.nan
+    return float(np.rad2deg(np.arctan2(np.mean(np.sin(values)), np.mean(np.cos(values)))) % 360.0)
+
+
+def angular_std_deg(values_deg: np.ndarray, mean_deg: float) -> float:
+    values = np.asarray(values_deg, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return math.nan
+    diff = (values - mean_deg + 180.0) % 360.0 - 180.0
+    return float(np.nanstd(diff, ddof=1))
+
+
+def decimals_for_sigma(sigma: float, min_decimals: int = 0) -> int:
+    if not np.isfinite(sigma) or sigma <= 0.0:
+        return min_decimals
+    exponent = int(math.floor(math.log10(abs(sigma))))
+    first_digit = abs(sigma) / (10.0**exponent)
+    sig_digits = 2 if first_digit < 3.0 else 1
+    return max(min_decimals, sig_digits - 1 - exponent)
+
+
+def format_pm(mean: float, sigma: float, min_decimals: int = 0) -> str:
+    if not np.isfinite(mean):
+        return "--"
+    if not np.isfinite(sigma):
+        return f"{mean:.{min_decimals}f}"
+    digits = decimals_for_sigma(sigma, min_decimals=min_decimals)
+    return f"{mean:.{digits}f} +/- {sigma:.{digits}f}"
+
+
+def read_kepler(path: Path) -> tuple[np.ndarray, np.ndarray, str, float]:
     with h5py.File(path, "r") as h:
         kepler = h["kepler_HeliocentricMeanEcliptic_final"][()]
+        if "kepler_HeliocentricMeanEcliptic_final_mean" in h:
+            mean = h["kepler_HeliocentricMeanEcliptic_final_mean"][()]
+        else:
+            mean = np.nanmean(kepler, axis=1)
         epoch_utc = h.attrs["t_ref_utc"]
         t_ref_unix = float(h.attrs["t_ref_unix"])
-    return kepler, epoch_utc, t_ref_unix
+    return kepler, mean, epoch_utc, t_ref_unix
+
+
+def kepler_annotation(sample_kepler: np.ndarray) -> str:
+    finite = np.all(np.isfinite(sample_kepler), axis=0)
+    kep = sample_kepler[:, finite]
+    a_au = kep[0] / AU
+    e = kep[1]
+    q_au = a_au * (1.0 - e)
+
+    rows = [
+        (r"$a$", "AU", a_au, False, 2),
+        (r"$q$", "AU", q_au, False, 3),
+        (r"$e$", "", e, False, 3),
+        (r"$i$", "deg", kep[2], True, 1),
+        (r"$\omega$", "deg", kep[3], True, 1),
+        (r"$\Omega$", "deg", kep[4], True, 2),
+        (r"$\nu$", "deg", kep[5], True, 1),
+    ]
+    lines = ["Keplerian elements"]
+    for symbol, unit, values, is_angle, min_decimals in rows:
+        if is_angle:
+            mean = circular_mean_deg(values)
+            sigma = angular_std_deg(values, mean)
+        else:
+            mean = float(np.nanmean(values))
+            sigma = float(np.nanstd(values, ddof=1))
+        suffix = f" {unit}" if unit else ""
+        lines.append(f"{symbol} = {format_pm(mean, sigma, min_decimals)}{suffix}")
+    return "\n".join(lines)
 
 
 def draw_orbits(
@@ -145,11 +214,11 @@ def draw_orbits(
         for pts in cloud_points:
             ax.plot(pts[:, 0], pts[:, 1], color="0.35", alpha=0.07, lw=0.8, zorder=3)
 
-    bx, by = kepler_to_xy(best[:, 0], n_points=1000)
+    bx, by = kepler_to_xy(best, n_points=1000)
     ax.plot(bx, by, color="#d62728", lw=2.5, label="Bolide best-fit orbit", zorder=8)
 
     orb_now = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
-    orb_now.kepler = best[:, 0:1]
+    orb_now.kepler = best[:, None]
     now = orb_now.cartesian[:2, 0] / AU
     ax.scatter(now[0], now[1], marker="*", s=145, color="#d62728", edgecolor="white", linewidth=0.8, zorder=9, label="Bolide at orbit epoch")
     ax.scatter(0.0, 0.0, s=140, color="gold", edgecolor="0.25", linewidth=0.8, zorder=10, label="Sun")
@@ -168,16 +237,32 @@ def style_axis(ax, limits: tuple[float, float], title: str) -> None:
     ax.grid(True, color="0.92", lw=0.8)
 
 
+def add_kepler_inset(ax, sample_kepler: np.ndarray) -> None:
+    ax.text(
+        0.035,
+        0.035,
+        kepler_annotation(sample_kepler),
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=10,
+        color="0.08",
+        bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.72, "pad": 5.0},
+        zorder=20,
+    )
+
+
 def plot(args: argparse.Namespace) -> None:
-    best, epoch_utc, t_ref_unix = read_kepler(args.orbit_h5)
-    sample_kepler, _, _ = read_kepler(args.samples_h5)
+    _, best, epoch_utc, t_ref_unix = read_kepler(args.orbit_h5)
+    sample_kepler, _, _, _ = read_kepler(args.samples_h5)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig, ax_inner = plt.subplots(1, 1, figsize=(8.6, 8.2))
     finite_samples = draw_orbits(ax_inner, best, sample_kepler, epoch, (-5.8, 5.8), {"Mercury", "Venus", "Earth", "Mars", "Jupiter"})
     style_axis(ax_inner, (-5.8, 5.8), "Inner solar system")
-    fig.suptitle(f"New England bolide orbit in the J2000 heliocentric ecliptic x-y plane\nNASA mean planet elements advanced to {epoch_utc}", fontsize=14)
+    add_kepler_inset(ax_inner, sample_kepler)
+    fig.suptitle(f"Cape Cod Bay bolide orbit in the J2000 heliocentric ecliptic x-y plane\nNASA mean planet elements advanced to {epoch_utc}", fontsize=14)
     ax_inner.fill_between([], [], [], color="0.55", alpha=0.34, label=f"MC uncertainty area (n={finite_samples})")
     ax_inner.legend(loc="upper right", frameon=True, framealpha=0.95)
     fig.subplots_adjust(left=0.12, right=0.97, bottom=0.09, top=0.88)

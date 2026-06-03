@@ -244,6 +244,88 @@ def fit_parameter_covariance(result):
     return cov, residual_variance
 
 
+def robust_sigma(values):
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return 0.0
+    med = np.median(values)
+    mad = np.median(np.abs(values - med))
+    if mad > 0.0:
+        return float(1.4826 * mad)
+    return float(np.std(values, ddof=1))
+
+
+def physical_prediction_vector(params, obs, geom, t_ref, tx0, rot, use_doppler):
+    pred_range = predict_ranges(params, obs, geom, t_ref, tx0, rot)
+    if not use_doppler:
+        return pred_range
+    pred_doppler = predict_dopplers(params, obs, geom, t_ref, tx0, rot)
+    return np.r_[pred_range, pred_doppler]
+
+
+def finite_difference_physical_jacobian(params, obs, geom, t_ref, tx0, rot, use_doppler):
+    params = np.asarray(params, dtype=float)
+    base = physical_prediction_vector(params, obs, geom, t_ref, tx0, rot, use_doppler)
+    jac = np.empty((base.size, params.size), dtype=float)
+    steps = np.array([10.0, 10.0, 10.0, 0.05, 0.05, 0.05], dtype=float)
+    for pi, step in enumerate(steps):
+        plus = params.copy()
+        minus = params.copy()
+        plus[pi] += step
+        minus[pi] -= step
+        pred_plus = physical_prediction_vector(plus, obs, geom, t_ref, tx0, rot, use_doppler)
+        pred_minus = physical_prediction_vector(minus, obs, geom, t_ref, tx0, rot, use_doppler)
+        jac[:, pi] = (pred_plus - pred_minus) / (2.0 * step)
+    return jac
+
+
+def empirical_residual_scales(obs, fit, nominal_range_sigma_m=750.0, nominal_doppler_sigma_hz=500.0):
+    range_resid = np.asarray(fit["range_residual_m"], dtype=float)
+    doppler_resid = np.asarray(fit["doppler_residual_hz"], dtype=float)
+    station_scales = {}
+    range_sigma = np.empty(len(obs), dtype=float)
+    doppler_sigma = np.empty(len(obs), dtype=float)
+    for station in sorted(set(o["station"] for o in obs)):
+        idx = np.array([i for i, ob in enumerate(obs) if ob["station"] == station], dtype=int)
+        r_emp = robust_sigma(range_resid[idx])
+        d_emp = robust_sigma(doppler_resid[idx])
+        r_eff = float(np.hypot(nominal_range_sigma_m, r_emp))
+        d_eff = float(np.hypot(nominal_doppler_sigma_hz, d_emp))
+        range_sigma[idx] = r_eff
+        doppler_sigma[idx] = d_eff
+        station_scales[station] = {
+            "range_residual_sigma_m": r_emp,
+            "doppler_residual_sigma_hz": d_emp,
+            "effective_range_sigma_m": r_eff,
+            "effective_doppler_sigma_hz": d_eff,
+        }
+    return range_sigma, doppler_sigma, station_scales
+
+
+def empirical_parameter_covariance(obs, fit, use_doppler, nominal_range_sigma_m=750.0, nominal_doppler_sigma_hz=500.0):
+    range_sigma, doppler_sigma, station_scales = empirical_residual_scales(
+        obs,
+        fit,
+        nominal_range_sigma_m=nominal_range_sigma_m,
+        nominal_doppler_sigma_hz=nominal_doppler_sigma_hz,
+    )
+    sigma = range_sigma if not use_doppler else np.r_[range_sigma, doppler_sigma]
+    jac = finite_difference_physical_jacobian(
+        fit["result"].x,
+        obs,
+        fit["station_geometry"],
+        fit["t_ref"],
+        fit["tx0"],
+        fit["rot"],
+        use_doppler,
+    )
+    whitened_jac = jac / sigma[:, None]
+    normal = whitened_jac.T @ whitened_jac
+    covariance = np.linalg.pinv(normal)
+    return covariance, station_scales
+
+
 def sample_fit_parameters(params, covariance, n_samples=800, seed=20260530):
     rng = np.random.default_rng(seed)
     covariance = np.asarray(covariance, dtype=float)
@@ -390,13 +472,13 @@ def plot_cartopy_trajectory_uncertainty(out_dir, obs, fit, covariance, n_samples
 def residuals(params, obs, geom, t_ref, tx0, rot, sigma_range_m):
     pred = predict_ranges(params, obs, geom, t_ref, tx0, rot)
     meas = np.array([o["range_m"] for o in obs])
-    return (pred - meas) / sigma_range_m
+    return (pred - meas) / np.asarray(sigma_range_m, dtype=float)
 
 
 def doppler_residuals(params, obs, geom, t_ref, tx0, rot, frequency_hz, sigma_doppler_hz):
     pred = predict_dopplers(params, obs, geom, t_ref, tx0, rot)
     meas = np.array([o["doppler_hz"] for o in obs])
-    return (pred - meas) / sigma_doppler_hz
+    return (pred - meas) / np.asarray(sigma_doppler_hz, dtype=float)
 
 
 def combined_residuals(params, obs, geom, t_ref, tx0, rot, sigma_range_m, use_doppler, sigma_doppler_hz):
@@ -467,31 +549,52 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
                 vn = vh * np.cos(az)
                 guesses.append(np.r_[p_init, [ve, vn, vz]])
 
-    best = None
     bounds = (
         np.array([-500e3, -500e3, 20e3, -50000.0, -50000.0, -50000.0]),
         np.array([500e3, 500e3, 160e3, 50000.0, 50000.0, 50000.0]),
     )
-    for x0 in guesses:
-        res = least_squares(
-            combined_residuals,
-            x0,
-            bounds=bounds,
-            args=(obs, geom, t_ref, tx0, rot, 750.0, use_doppler, 500.0),
-            loss="soft_l1",
-            f_scale=2.0,
-            max_nfev=1200,
-        )
-        score = np.sum(res.fun**2)
-        if best is None or score < best[0]:
-            best = (score, res)
 
-    score, res = best
+    def solve(initial_guesses, sigma_range_m, sigma_doppler_hz, max_nfev):
+        best_local = None
+        for x0 in initial_guesses:
+            res_local = least_squares(
+                combined_residuals,
+                x0,
+                bounds=bounds,
+                args=(obs, geom, t_ref, tx0, rot, sigma_range_m, use_doppler, sigma_doppler_hz),
+                loss="soft_l1",
+                f_scale=2.0,
+                max_nfev=max_nfev,
+            )
+            score_local = float(np.sum(res_local.fun**2))
+            if best_local is None or score_local < best_local[0]:
+                best_local = (score_local, res_local)
+        return best_local
+
+    nominal_range_sigma_m = 750.0
+    nominal_doppler_sigma_hz = 500.0
+    first_score, first_res = solve(guesses, nominal_range_sigma_m, nominal_doppler_sigma_hz, 1200)
+    first_pred = predict_ranges(first_res.x, obs, geom, t_ref, tx0, rot)
+    first_pred_doppler = predict_dopplers(first_res.x, obs, geom, t_ref, tx0, rot)
+    meas = np.array([o["range_m"] for o in obs])
+    meas_doppler = np.array([o["doppler_hz"] for o in obs])
+    first_fit = {
+        "result": first_res,
+        "range_residual_m": first_pred - meas,
+        "doppler_residual_hz": first_pred_doppler - meas_doppler,
+    }
+    range_sigma, doppler_sigma, station_scales = empirical_residual_scales(
+        obs,
+        first_fit,
+        nominal_range_sigma_m=nominal_range_sigma_m,
+        nominal_doppler_sigma_hz=nominal_doppler_sigma_hz,
+    )
+
+    score, res = solve([first_res.x], range_sigma, doppler_sigma, 1200)
     pred = predict_ranges(res.x, obs, geom, t_ref, tx0, rot)
     pred_doppler = predict_dopplers(res.x, obs, geom, t_ref, tx0, rot)
-    meas = np.array([o["range_m"] for o in obs])
     range_resid = pred - meas
-    doppler_resid = pred_doppler - np.array([o["doppler_hz"] for o in obs])
+    doppler_resid = pred_doppler - meas_doppler
     pos_ref = tx0 + rot @ res.x[:3]
     vel_ecef = rot @ res.x[3:6]
     lat, lon, alt = ecef_to_geodetic_wgs84(pos_ref)
@@ -512,6 +615,21 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
         "lon_ref_deg_wgs84": lon,
         "alt_ref_m_wgs84": alt,
         "initial_station_picks": station_picks,
+        "first_pass": {
+            "score": float(first_score),
+            "range_residual_rms_m": float(np.sqrt(np.mean(first_fit["range_residual_m"] ** 2))),
+            "doppler_residual_rms_hz": float(np.sqrt(np.mean(first_fit["doppler_residual_hz"] ** 2))),
+            "fit_parameters": first_res.x.tolist(),
+        },
+        "fit_weighting": {
+            "iteration": 2,
+            "description": "second-pass range/Doppler weighting estimated from first-pass robust residual scatter",
+            "nominal_range_sigma_m": nominal_range_sigma_m,
+            "nominal_doppler_sigma_hz": nominal_doppler_sigma_hz,
+            "station_scales_from_first_pass": station_scales,
+            "range_sigma_m": range_sigma.tolist(),
+            "doppler_sigma_hz": doppler_sigma.tolist(),
+        },
     }
 
 
@@ -531,7 +649,8 @@ def write_outputs(
     out_dir.mkdir(parents=True, exist_ok=True)
     res = fit["result"]
     speed = float(np.linalg.norm(res.x[3:6]))
-    covariance, residual_variance = fit_parameter_covariance(res)
+    formal_covariance, residual_variance = fit_parameter_covariance(res)
+    covariance, empirical_scales = empirical_parameter_covariance(obs, fit, use_doppler)
     t_obs = np.array([o["unix_time"] for o in obs])
     model_time = np.linspace(float(np.min(t_obs)), float(np.max(t_obs)), 200)
     model = model_state_series(res.x, model_time, fit["t_ref"], fit["tx0"], fit["rot"])
@@ -552,6 +671,8 @@ def write_outputs(
         "fit_uses_doppler": use_doppler,
         "doppler_model": "f_D = (f0/c) * (u_tx + u_rx) dot v, positive for increasing bistatic path length",
         "initial_station_picks": fit["initial_station_picks"],
+        "trajectory_fit_weighting": fit.get("fit_weighting", {}),
+        "first_pass_fit": fit.get("first_pass", {}),
         "t_ref_unix": fit["t_ref"],
         "t_ref_utc": iso_utc(fit["t_ref"]),
         "fit_parameters_enu_at_tx": {
@@ -564,7 +685,13 @@ def write_outputs(
             "parameter_order": ["east_m", "north_m", "up_m", "east_mps", "north_mps", "up_mps"],
             "covariance": covariance.tolist(),
             "one_sigma": np.sqrt(np.maximum(np.diag(covariance), 0.0)).tolist(),
+            "formal_covariance_from_solver_jacobian": formal_covariance.tolist(),
+            "formal_one_sigma_from_solver_jacobian": np.sqrt(np.maximum(np.diag(formal_covariance), 0.0)).tolist(),
             "residual_variance": residual_variance,
+            "covariance_model": "finite-difference physical Jacobian with station-specific residual scatter added in quadrature to nominal measurement scales",
+            "nominal_range_sigma_m": 750.0,
+            "nominal_doppler_sigma_hz": 500.0,
+            "empirical_residual_scales_by_station": empirical_scales,
             "covariance_samples_for_map": covariance_samples,
         },
         "cartopy_trajectory_uncertainty_plot": str(cartopy_file) if cartopy_file is not None else None,

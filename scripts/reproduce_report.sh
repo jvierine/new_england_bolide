@@ -103,11 +103,31 @@ run python estimate_head_echo_trajectory.py \
 
 run python reports/generate_trajectory_report_assets.py
 
+run python aod_position_from_merged.py \
+  --merged-dir "$MERGED_DIR" \
+  --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --out-dir products/aod_position_from_merged
+
 run python specular_trail_positions_from_merged.py \
   --annotations annotations/trail_echo_rois.json \
   --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
   --out-dir products/specular_trail_positions \
-  --report-fig reports/figures/head_echo_trajectory_trail_heatmap.png
+  --report-fig ""
+
+run python trail_echo_roi.py \
+  --merged-dir "$MERGED_DIR" \
+  --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --plot reports/figures/trail_echo_roi.png \
+  --altitude-overlay-plot reports/figures/trail_echo_roi_trail_altitude.png \
+  --overlay-only
+
+run python fit_combined_head_trail_eci.py
+run python fit_ballistic_head_trail.py
+
+run python plot_interferometric_echo_geometry.py
+
+run python tests/coordinate_sanity_checks.py \
+  --tex-out reports/coordinate_sanity_table.tex
 
 run python orbit_det_sample.py \
   --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
@@ -125,6 +145,7 @@ run python orbit_det_sample.py \
   --out "$ORBIT_DIR/orbit_mc_40.h5"
 
 run python nea_jopek_search.py
+run python comet_jopek_search.py
 run python meteor_source_search.py
 run python reports/generate_orbit_source_table.py
 run python plot_orbit_xy.py --out reports/figures/orbit_xy_bolide.png

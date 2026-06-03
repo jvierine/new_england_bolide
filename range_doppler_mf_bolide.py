@@ -315,7 +315,7 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Simple range-Doppler matched filter bank for the New England bolide data.")
+    p = argparse.ArgumentParser(description="Simple range-Doppler matched filter bank for the Cape Cod Bay bolide data.")
     p.add_argument("--data-dir", default="2026_05_30_bolide")
     p.add_argument("--station", default="pomfret")
     p.add_argument("--iso-hour", default="2026-05-30T18-00-00")

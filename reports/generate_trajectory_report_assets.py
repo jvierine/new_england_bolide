@@ -4,6 +4,9 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
 import numpy as np
@@ -88,6 +91,37 @@ def covariance_samples(fit, n_samples=800):
     )
 
 
+def circular_mean_deg(values_deg):
+    values = np.deg2rad(np.asarray(values_deg, dtype=float))
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return np.nan
+    return float(np.rad2deg(np.arctan2(np.mean(np.sin(values)), np.mean(np.cos(values)))) % 360.0)
+
+
+def angular_std_deg(values_deg, mean_deg):
+    values = np.asarray(values_deg, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return np.nan
+    diff = (values - mean_deg + 180.0) % 360.0 - 180.0
+    return float(np.nanstd(diff, ddof=1))
+
+
+def pm(value, sigma, unit="", min_decimals=1):
+    if not np.isfinite(value):
+        return "--"
+    if not np.isfinite(sigma) or sigma <= 0:
+        text = f"{value:.{min_decimals}f}"
+    else:
+        exponent = int(np.floor(np.log10(abs(sigma))))
+        first = abs(sigma) / (10.0**exponent)
+        sig_digits = 2 if first < 3.0 else 1
+        decimals = max(min_decimals, sig_digits - 1 - exponent)
+        text = f"{value:.{decimals}f} +/- {sigma:.{decimals}f}"
+    return f"{text} {unit}".rstrip()
+
+
 def prediction_interval_from_samples(sample_values, residual_half_width, coverage=0.95):
     pred_mean = np.nanmean(sample_values, axis=0)
     lo, hi = np.nanpercentile(sample_values, [(1.0 - coverage) * 50.0, 100.0 - (1.0 - coverage) * 50.0], axis=0)
@@ -149,7 +183,7 @@ def apparent_radiant(fit, tx0, rot, params):
     t_first = min(o["unix_time"] for o in obs)
     first_state = model_state_series(params, [t_first], fit["t_ref_unix"], tx0, rot)
     first_lat, first_lon, first_alt_m = first_state["lat_lon_alt"][0]
-    v_enu_tx = np.array(fit["fit_parameters_enu_at_tx"]["velocity_mps"], dtype=float)
+    v_enu_tx = np.asarray(params[3:6], dtype=float)
     v_ecef = rot @ v_enu_tx
     radiant_ecef = -v_ecef / np.linalg.norm(v_ecef)
     local_rot = enu_to_ecef_matrix(first_lat, first_lon)
@@ -171,6 +205,28 @@ def apparent_radiant(fit, tx0, rot, params):
     }
 
 
+def apparent_summary(fit, tx0, rot, params, samples):
+    sample_speed = np.linalg.norm(samples[:, 3:6], axis=1) / 1000.0
+    radiant_samples = [apparent_radiant(fit, tx0, rot, sample) for sample in samples]
+    ra = np.array([r["ra_deg"] for r in radiant_samples])
+    dec = np.array([r["dec_deg"] for r in radiant_samples])
+    az = np.array([r["az_deg"] for r in radiant_samples])
+    el = np.array([r["el_deg"] for r in radiant_samples])
+    out = {
+        "speed_mean_kmps": float(np.nanmean(sample_speed)),
+        "speed_sigma_kmps": float(np.nanstd(sample_speed, ddof=1)),
+        "ra_mean_deg": circular_mean_deg(ra),
+        "dec_mean_deg": float(np.nanmean(dec)),
+        "az_mean_deg": circular_mean_deg(az),
+        "el_mean_deg": float(np.nanmean(el)),
+    }
+    out["ra_sigma_deg"] = angular_std_deg(ra, out["ra_mean_deg"])
+    out["dec_sigma_deg"] = float(np.nanstd(dec, ddof=1))
+    out["az_sigma_deg"] = angular_std_deg(az, out["az_mean_deg"])
+    out["el_sigma_deg"] = float(np.nanstd(el, ddof=1))
+    return out
+
+
 def plot_altitude_summary(fit, tx0, rot, params, samples):
     obs = fit["observations"]
     t_ref = fit["t_ref_unix"]
@@ -180,8 +236,7 @@ def plot_altitude_summary(fit, tx0, rot, params, samples):
     sample_states = [model_state_series(p, t_grid, t_ref, tx0, rot) for p in samples]
     sample_alt_km = np.array([s["lat_lon_alt"][:, 2] / 1000.0 for s in sample_states])
     alt_lo, alt_hi = np.percentile(sample_alt_km, [2.5, 97.5], axis=0)
-    radiant = apparent_radiant(fit, tx0, rot, params)
-    speed_kms = fit["fit_parameters_enu_at_tx"]["speed_kmps"]
+    radiant = apparent_summary(fit, tx0, rot, params, samples)
 
     fig, ax = plt.subplots(figsize=(12.0, 6.6), constrained_layout=True)
     tr = model["time_relative_s"]
@@ -193,9 +248,11 @@ def plot_altitude_summary(fit, tx0, rot, params, samples):
     ax.set_title("Best-fit head echo altitude")
     ax.grid(True, color="0.9", linewidth=0.6)
     text = (
-        f"Speed = {speed_kms:.2f} km/s\n"
-        f"Radiant RA = {radiant['ra_deg']:.2f} deg, Dec = {radiant['dec_deg']:.2f} deg\n"
-        f"Radiant Az = {radiant['az_deg']:.2f} deg, El = {radiant['el_deg']:.2f} deg\n"
+        f"Speed = {pm(radiant['speed_mean_kmps'], radiant['speed_sigma_kmps'], 'km/s', 2)}\n"
+        f"Radiant RA = {pm(radiant['ra_mean_deg'], radiant['ra_sigma_deg'], 'deg', 1)}\n"
+        f"Radiant Dec = {pm(radiant['dec_mean_deg'], radiant['dec_sigma_deg'], 'deg', 1)}\n"
+        f"Radiant Az = {pm(radiant['az_mean_deg'], radiant['az_sigma_deg'], 'deg', 1)}\n"
+        f"Radiant El = {pm(radiant['el_mean_deg'], radiant['el_sigma_deg'], 'deg', 1)}\n"
         "No zenithal-attraction correction"
     )
     ax.text(
@@ -375,7 +432,7 @@ def plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples):
     return out
 
 
-def write_trajectory_stats(fit, tx0, rot, params):
+def write_trajectory_stats(fit, tx0, rot, params, samples):
     obs = fit["observations"]
     t_first = min(o["unix_time"] for o in obs)
     first_state = model_state_series(params, [t_first], fit["t_ref_unix"], tx0, rot)
@@ -383,7 +440,7 @@ def write_trajectory_stats(fit, tx0, rot, params):
     ref_lat, ref_lon, ref_alt_m = ecef_to_geodetic_wgs84(np.array(fit["position_ref_ecef_m"]))
     v_enu = np.array(fit["fit_parameters_enu_at_tx"]["velocity_mps"])
     speed = np.linalg.norm(v_enu)
-    radiant = apparent_radiant(fit, tx0, rot, params)
+    radiant = apparent_summary(fit, tx0, rot, params, samples)
     first_utc = datetime.fromtimestamp(t_first, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + " UTC"
     lines = [
         f"\\newcommand{{\\TrajectoryNObservations}}{{{fit['n_observations']}}}\n",
@@ -400,10 +457,15 @@ def write_trajectory_stats(fit, tx0, rot, params):
         f"\\newcommand{{\\TrajectoryVEastKmS}}{{{v_enu[0] / 1000.0:.2f}}}\n",
         f"\\newcommand{{\\TrajectoryVNorthKmS}}{{{v_enu[1] / 1000.0:.2f}}}\n",
         f"\\newcommand{{\\TrajectoryVUpKmS}}{{{v_enu[2] / 1000.0:.2f}}}\n",
-        f"\\newcommand{{\\TrajectoryRadiantRADeg}}{{{radiant['ra_deg']:.2f}}}\n",
-        f"\\newcommand{{\\TrajectoryRadiantDecDeg}}{{{radiant['dec_deg']:.2f}}}\n",
-        f"\\newcommand{{\\TrajectoryRadiantAzDeg}}{{{radiant['az_deg']:.2f}}}\n",
-        f"\\newcommand{{\\TrajectoryRadiantElDeg}}{{{radiant['el_deg']:.2f}}}\n",
+        f"\\newcommand{{\\TrajectorySpeedSigmaKmS}}{{{radiant['speed_sigma_kmps']:.2f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantRADeg}}{{{radiant['ra_mean_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantRASigmaDeg}}{{{radiant['ra_sigma_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantDecDeg}}{{{radiant['dec_mean_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantDecSigmaDeg}}{{{radiant['dec_sigma_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantAzDeg}}{{{radiant['az_mean_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantAzSigmaDeg}}{{{radiant['az_sigma_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantElDeg}}{{{radiant['el_mean_deg']:.1f}}}\n",
+        f"\\newcommand{{\\TrajectoryRadiantElSigmaDeg}}{{{radiant['el_sigma_deg']:.1f}}}\n",
         f"\\newcommand{{\\TrajectoryRangeRmsM}}{{{fit['range_residual_m']['rms']:.0f}}}\n",
         f"\\newcommand{{\\TrajectoryDopplerRmsHz}}{{{fit['doppler_residual_hz']['rms']:.0f}}}\n",
     ]
@@ -420,7 +482,7 @@ def main():
     measurement_fig = plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples)
     altitude_fig = plot_altitude_summary(fit, tx0, rot, params, samples)
     cartopy_fig = plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples)
-    stats = write_trajectory_stats(fit, tx0, rot, params)
+    stats = write_trajectory_stats(fit, tx0, rot, params, samples)
     print(measurement_fig)
     print(altitude_fig)
     print(cartopy_fig)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Monte Carlo orbit determination for the 2026-05-30 New England bolide.
+"""Monte Carlo orbit determination for the 2026-05-30 Cape Cod Bay bolide.
 
 This adapts the workflow in ../meteor/orbit_det_sample.py to the local
 head-echo trajectory product. It samples the straight-line trajectory fit
@@ -148,7 +148,7 @@ def plot_eccentricity(out_h5: Path, frame: str = "HeliocentricMeanEcliptic") -> 
     ax.axvline(np.nanmean(e), color="k", lw=1.5, label=f"mean={np.nanmean(e):.4g}")
     ax.set_xlabel("Eccentricity")
     ax.set_ylabel("Monte Carlo count")
-    ax.set_title("New England bolide pre-encounter orbit sample")
+    ax.set_title("Cape Cod Bay bolide pre-encounter orbit sample")
     ax.grid(True, color="0.9")
     ax.legend()
     fig.savefig(out_png, dpi=220, bbox_inches="tight")
@@ -192,7 +192,7 @@ def run(args: argparse.Namespace) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Monte Carlo Keplerian orbit determination for the New England bolide.")
+    parser = argparse.ArgumentParser(description="Monte Carlo Keplerian orbit determination for the Cape Cod Bay bolide.")
     parser.add_argument("--trajectory-json", type=Path, default=DEFAULT_TRAJECTORY)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--kernel", type=Path, default=DEFAULT_KERNEL)

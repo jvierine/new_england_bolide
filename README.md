@@ -1,7 +1,7 @@
-# New England Bolide
+# Cape Cod Bay Bolide
 
 Range-Doppler matched-filter and transmit angle-of-departure tools for the
-2026-05-30 New England bolide SIMONe/Haystack coded-CW data.
+2026-05-30 Cape Cod Bay bolide SIMONe/Haystack coded-CW data.
 
 ## Figures
 

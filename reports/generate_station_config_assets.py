@@ -32,23 +32,23 @@ def tex_escape(text: str) -> str:
 
 def write_station_coordinate_table(configs: dict) -> Path:
     lines = [
-        r"\begin{tabular}{llrrrl}",
+        r"\begin{tabular}{lrrrl}",
         "\n",
         r"\toprule",
         "\n",
-        r"Key & Place & Latitude (deg) & Longitude (deg) & Altitude (m) & Role \\",
+        r"Place & Latitude (deg) & Longitude (deg) & Altitude (m) & Role \\",
         "\n",
         r"\midrule",
         "\n",
     ]
     tx = transmitter_config(DATA_DIR)
     lines.append(
-        f"{tex_escape(tx.tx_name)} & {tex_escape(tx.tx_place)} & {tx.gps_tx[0]:.6f} & {tx.gps_tx[1]:.6f} & {tx.gps_tx[2]:.1f} & transmitter \\\\\n"
+        f"{tex_escape(tx.tx_place)} & {tx.gps_tx[0]:.6f} & {tx.gps_tx[1]:.6f} & {tx.gps_tx[2]:.1f} & transmitter \\\\\n"
     )
     for station in STATION_ORDER:
         cfg = configs[station]
         lines.append(
-            f"{tex_escape(station)} & {tex_escape(cfg.rx_place)} & {cfg.gps_rx[0]:.6f} & {cfg.gps_rx[1]:.6f} & {cfg.gps_rx[2]:.1f} & receiver \\\\\n"
+            f"{tex_escape(cfg.rx_place)} & {cfg.gps_rx[0]:.6f} & {cfg.gps_rx[1]:.6f} & {cfg.gps_rx[2]:.1f} & receiver \\\\\n"
         )
     lines.extend([r"\bottomrule", "\n", r"\end{tabular}", "\n"])
     out = REPORT_DIR / "station_coordinates_table.tex"
