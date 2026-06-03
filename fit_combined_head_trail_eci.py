@@ -304,6 +304,133 @@ def robust_std(x: np.ndarray, floor: float = 0.0) -> float:
     return float(max(sigma, floor))
 
 
+def binned_residual_scatter(snr_db: np.ndarray, residual: np.ndarray, n_bins: int = 3) -> list[dict]:
+    snr_db = np.asarray(snr_db, dtype=float)
+    residual = np.asarray(residual, dtype=float)
+    good = np.isfinite(snr_db) & np.isfinite(residual)
+    snr_db = snr_db[good]
+    residual = residual[good]
+    if snr_db.size < 6:
+        return []
+    quantiles = np.linspace(0.0, 1.0, min(n_bins, max(2, snr_db.size // 4)) + 1)
+    edges = np.unique(np.quantile(snr_db, quantiles))
+    if edges.size < 3:
+        return []
+    rows = []
+    for i in range(edges.size - 1):
+        if i == edges.size - 2:
+            keep = (snr_db >= edges[i]) & (snr_db <= edges[i + 1])
+        else:
+            keep = (snr_db >= edges[i]) & (snr_db < edges[i + 1])
+        if np.sum(keep) < 3:
+            continue
+        rows.append(
+            {
+                "snr_db": float(np.median(snr_db[keep])),
+                "std": robust_std(residual[keep]),
+                "n": int(np.sum(keep)),
+            }
+        )
+    return rows
+
+
+def fit_snr_error_model(
+    residual: np.ndarray,
+    snr_db: np.ndarray,
+    *,
+    floor: float,
+    unit: str,
+    name: str,
+) -> dict:
+    residual = np.asarray(residual, dtype=float)
+    snr_db = np.asarray(snr_db, dtype=float)
+    good = np.isfinite(residual) & np.isfinite(snr_db)
+    residual = residual[good]
+    snr_db = snr_db[good]
+    const_sigma = robust_std(residual, floor=floor)
+    bins = binned_residual_scatter(snr_db, residual, n_bins=3)
+    model = {
+        "name": name,
+        "unit": unit,
+        "type": "constant",
+        "constant_sigma": float(const_sigma),
+        "floor_sigma": float(floor),
+        "bins": bins,
+        "reason": "insufficient binned SNR dependence",
+    }
+    if len(bins) < 3:
+        return model
+
+    x = 1.0 / np.maximum(10.0 ** (np.array([b["snr_db"] for b in bins]) / 10.0), 1e-12)
+    y = np.maximum(np.array([b["std"] for b in bins], dtype=float), floor) ** 2
+    weights = np.array([b["n"] for b in bins], dtype=float)
+    design = np.column_stack((np.ones_like(x), x))
+    lhs = design * np.sqrt(weights)[:, None]
+    rhs = y * np.sqrt(weights)
+    intercept, slope = np.linalg.lstsq(lhs, rhs, rcond=None)[0]
+    intercept = max(float(intercept), floor**2)
+    slope = float(slope)
+    const_sse = float(np.sum(weights * (y - const_sigma**2) ** 2))
+    model_sse = float(np.sum(weights * (y - (intercept + slope * x)) ** 2))
+    snr_grid = 10.0 ** (np.array([np.nanmin(snr_db), np.nanmax(snr_db)], dtype=float) / 10.0)
+    pred = np.sqrt(np.maximum(intercept + slope / np.maximum(snr_grid, 1e-12), floor**2))
+    improves = model_sse < 0.90 * const_sse
+    expected_sign = slope > 0.0
+    meaningful_dynamic_range = pred[0] > 1.15 * pred[1]
+    if expected_sign and improves and meaningful_dynamic_range:
+        model.update(
+            {
+                "type": "inverse_snr_variance",
+                "floor_term_sigma": float(np.sqrt(intercept)),
+                "snr_term_sigma_at_1_linear_snr": float(np.sqrt(max(slope, 0.0))),
+                "constant_sigma": float(const_sigma),
+                "model_sse": model_sse,
+                "constant_sse": const_sse,
+                "reason": "accepted positive inverse-SNR variance trend",
+            }
+        )
+    else:
+        model.update(
+            {
+                "candidate_floor_term_sigma": float(np.sqrt(intercept)),
+                "candidate_snr_term_sigma_at_1_linear_snr": float(np.sqrt(max(slope, 0.0))) if slope > 0 else 0.0,
+                "model_sse": model_sse,
+                "constant_sse": const_sse,
+                "reason": "constant model retained because SNR trend was weak or had the wrong sign",
+            }
+        )
+    return model
+
+
+def sigmas_from_snr_model(model: dict, snr_db: np.ndarray) -> np.ndarray:
+    snr_db = np.asarray(snr_db, dtype=float)
+    if model.get("type") != "inverse_snr_variance":
+        return np.full(snr_db.shape, float(model["constant_sigma"]), dtype=float)
+    snr_linear = np.maximum(10.0 ** (snr_db / 10.0), 1e-12)
+    floor_sigma = float(model["floor_term_sigma"])
+    snr_term = float(model["snr_term_sigma_at_1_linear_snr"])
+    return np.sqrt(floor_sigma**2 + snr_term**2 / snr_linear)
+
+
+def head_sigmas_from_models(obs: list[dict], models: dict) -> tuple[np.ndarray, np.ndarray]:
+    snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    return (
+        sigmas_from_snr_model(models["range"], snr_db),
+        sigmas_from_snr_model(models["doppler"], snr_db),
+    )
+
+
+def fit_head_error_models(params: np.ndarray, obs: list[dict], geom: dict, t_ref: float) -> dict:
+    pr, pd = predict_head(params, obs, geom, t_ref)
+    mr = np.array([o["range_m"] for o in obs], dtype=float)
+    md = np.array([o["doppler_hz"] for o in obs], dtype=float)
+    snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    return {
+        "range": fit_snr_error_model(pr - mr, snr_db, floor=150.0, unit="m", name="bistatic range"),
+        "doppler": fit_snr_error_model(pd - md, snr_db, floor=25.0, unit="Hz", name="Doppler"),
+    }
+
+
 def empirical_measurement_sigmas(params: np.ndarray, obs: list[dict], trail_rows: list[dict], trail_gcrs: np.ndarray, geom: dict, t_ref: float) -> dict:
     pr, pd = predict_head(params, obs, geom, t_ref)
     mr = np.array([o["range_m"] for o in obs], dtype=float)
@@ -358,7 +485,7 @@ def summarize_fit(params, cov, obs, trail_rows, trail_gcrs, geom, t_ref):
     }
 
 
-def write_json(out_dir, args, params, cov, s2, summary, obs, trail_rows, rejected, t_ref, empirical_sigmas=None):
+def write_json(out_dir, args, params, cov, s2, summary, obs, trail_rows, rejected, t_ref, empirical_sigmas=None, head_error_models=None):
     settings = {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()}
     out = {
         "schema": "new_england_bolide.combined_head_trail_eci.v1",
@@ -418,6 +545,7 @@ def write_json(out_dir, args, params, cov, s2, summary, obs, trail_rows, rejecte
             for r in rejected
         ],
         "empirical_measurement_sigmas": empirical_sigmas or {},
+        "head_snr_error_models": head_error_models or {},
         "settings": settings,
     }
     out_path = out_dir / "combined_head_trail_eci_fit.json"
@@ -463,7 +591,7 @@ def sample_enu_components(samples: np.ndarray, t_grid, t_ref: float, tx0: np.nda
     return np.asarray(out)
 
 
-def plot_range_doppler(out, params, cov, obs, geom, t_ref):
+def plot_range_doppler(out, params, cov, obs, geom, t_ref, head_error_models=None):
     samples = sample_params(params, cov, n=300)
     stations = sorted(set(o["station"] for o in obs))
     fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True, constrained_layout=True)
@@ -475,6 +603,13 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref):
         tr = t - t_ref
         meas_r = np.array([o["range_m"] for o in so]) / 1000.0
         meas_d = np.array([o["doppler_hz"] for o in so]) / 1000.0
+        if head_error_models:
+            range_sigma_m, doppler_sigma_hz = head_sigmas_from_models(so, head_error_models)
+            range_yerr_km = range_sigma_m / 1000.0
+            doppler_yerr_khz = doppler_sigma_hz / 1000.0
+        else:
+            range_yerr_km = None
+            doppler_yerr_khz = None
         pr, pd = predict_head(params, so, geom, t_ref)
         sr = []
         sd = []
@@ -487,12 +622,52 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref):
         rlo, rhi = np.percentile(sr, [2.5, 97.5], axis=0)
         dlo, dhi = np.percentile(sd, [2.5, 97.5], axis=0)
         label = short_station_name(station)
-        axes[0].scatter(tr, meas_r, s=18, color=color, alpha=0.75, label=f"{label} measured")
+        axes[0].errorbar(
+            tr,
+            meas_r,
+            yerr=range_yerr_km,
+            fmt="o",
+            ms=4.0,
+            color=color,
+            ecolor=color,
+            elinewidth=0.8,
+            capsize=1.8,
+            alpha=0.75,
+            label=f"{label} measured",
+        )
         axes[0].plot(tr, pr / 1000.0, color=color, lw=2.0, label=f"{label} fit")
-        axes[0].fill_between(tr, rlo, rhi, color=color, alpha=0.16, linewidth=0)
-        axes[1].scatter(tr, meas_d, s=18, color=color, alpha=0.75, label=f"{label} measured")
+        axes[0].fill_between(
+            tr,
+            rlo,
+            rhi,
+            color=color,
+            alpha=0.20,
+            linewidth=0,
+            label="95% fit uncertainty" if si == 0 else None,
+        )
+        axes[1].errorbar(
+            tr,
+            meas_d,
+            yerr=doppler_yerr_khz,
+            fmt="o",
+            ms=4.0,
+            color=color,
+            ecolor=color,
+            elinewidth=0.8,
+            capsize=1.8,
+            alpha=0.75,
+            label=f"{label} measured",
+        )
         axes[1].plot(tr, pd / 1000.0, color=color, lw=2.0, label=f"{label} fit")
-        axes[1].fill_between(tr, dlo, dhi, color=color, alpha=0.16, linewidth=0)
+        axes[1].fill_between(
+            tr,
+            dlo,
+            dhi,
+            color=color,
+            alpha=0.20,
+            linewidth=0,
+            label="95% fit uncertainty" if si == 0 else None,
+        )
     axes[0].set_title("Combined head/trail ECI trajectory fit observables")
     axes[0].set_ylabel("Bistatic range (km)")
     axes[1].set_ylabel("Doppler shift (kHz)")
@@ -500,6 +675,45 @@ def plot_range_doppler(out, params, cov, obs, geom, t_ref):
     for ax in axes:
         ax.grid(True, color="0.9", lw=0.6)
         ax.legend(ncol=2, fontsize=9)
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_head_error_model(out, params, obs, geom, t_ref, head_error_models):
+    pr, pd = predict_head(params, obs, geom, t_ref)
+    snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    residuals = [
+        ("Range", pr - np.array([o["range_m"] for o in obs], dtype=float), head_error_models["range"]),
+        ("Doppler", pd - np.array([o["doppler_hz"] for o in obs], dtype=float), head_error_models["doppler"]),
+    ]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), constrained_layout=True)
+    for ax, (label, resid, model) in zip(axes, residuals, strict=True):
+        good = np.isfinite(snr_db) & np.isfinite(resid)
+        ax.scatter(snr_db[good], np.abs(resid[good]), s=22, color="0.35", alpha=0.55, label="absolute residual")
+        bins = model.get("bins", [])
+        if bins:
+            bx = np.array([b["snr_db"] for b in bins], dtype=float)
+            by = np.array([b["std"] for b in bins], dtype=float)
+            ax.plot(bx, by, "o", color="C1", ms=7, label="binned robust std")
+        if np.any(good):
+            xgrid = np.linspace(float(np.nanmin(snr_db[good])), float(np.nanmax(snr_db[good])), 200)
+            ygrid = sigmas_from_snr_model(model, xgrid)
+            ax.plot(xgrid, ygrid, color="C3", lw=2.2, label=f"{model['type']} model")
+        ax.set_title(f"{label} error model")
+        ax.set_xlabel("Matched-filter SNR (dB)")
+        ax.set_ylabel(f"Residual / standard deviation ({model['unit']})")
+        ax.grid(True, color="0.9", lw=0.6)
+        ax.legend(fontsize=8)
+        ax.text(
+            0.02,
+            0.96,
+            model.get("reason", ""),
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=8,
+            bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.8},
+        )
     fig.savefig(out, dpi=240, bbox_inches="tight")
     plt.close(fig)
 
@@ -759,6 +973,8 @@ def run(args):
         max_nfev=args.max_nfev,
     )
     empirical_sigmas = empirical_measurement_sigmas(res2.x, obs, trail_rows, trail_gcrs, geom, t_ref)
+    head_error_models = fit_head_error_models(res2.x, obs, geom, t_ref)
+    head_range_sigma, head_doppler_sigma = head_sigmas_from_models(obs, head_error_models)
     print(
         "Empirical sigmas: "
         f"range {empirical_sigmas['head_range_sigma_m']:.1f} m, "
@@ -766,8 +982,14 @@ def run(args):
         f"trail {empirical_sigmas['trail_position_sigma_m']:.1f} m",
         flush=True,
     )
+    print(
+        "Head SNR error models: "
+        f"range {head_error_models['range']['type']} ({head_error_models['range']['reason']}), "
+        f"doppler {head_error_models['doppler']['type']} ({head_error_models['doppler']['reason']})",
+        flush=True,
+    )
     trail_sigma_empirical = np.full(len(trail_rows), empirical_sigmas["trail_position_sigma_m"], dtype=float)
-    print("Final combined fit with empirical measurement scales", flush=True)
+    print("Final combined fit with SNR-dependent head measurement scales", flush=True)
     res3 = least_squares(
         combined_residuals,
         res2.x,
@@ -777,8 +999,8 @@ def run(args):
             trail_gcrs,
             geom,
             t_ref,
-            empirical_sigmas["head_range_sigma_m"],
-            empirical_sigmas["head_doppler_sigma_hz"],
+            head_range_sigma,
+            head_doppler_sigma,
             trail_sigma_empirical,
             args,
         ),
@@ -787,21 +1009,68 @@ def run(args):
         max_nfev=args.max_nfev,
     )
     empirical_sigmas = empirical_measurement_sigmas(res3.x, obs, trail_rows, trail_gcrs, geom, t_ref)
+    head_error_models = fit_head_error_models(res3.x, obs, geom, t_ref)
+    head_range_sigma, head_doppler_sigma = head_sigmas_from_models(obs, head_error_models)
     trail_sigma_empirical = np.full(len(trail_rows), empirical_sigmas["trail_position_sigma_m"], dtype=float)
+    print("Polishing combined fit with final SNR-dependent head scales", flush=True)
+    res3 = least_squares(
+        combined_residuals,
+        res3.x,
+        args=(
+            obs,
+            trail_rows,
+            trail_gcrs,
+            geom,
+            t_ref,
+            head_range_sigma,
+            head_doppler_sigma,
+            trail_sigma_empirical,
+            args,
+        ),
+        loss="soft_l1",
+        f_scale=2.0,
+        max_nfev=args.max_nfev,
+    )
+    empirical_sigmas = empirical_measurement_sigmas(res3.x, obs, trail_rows, trail_gcrs, geom, t_ref)
+    head_error_models = fit_head_error_models(res3.x, obs, geom, t_ref)
+    head_range_sigma, head_doppler_sigma = head_sigmas_from_models(obs, head_error_models)
+    trail_sigma_empirical = np.full(len(trail_rows), empirical_sigmas["trail_position_sigma_m"], dtype=float)
+    print(
+        "Final head SNR error models: "
+        f"range {head_error_models['range']['type']} ({head_error_models['range']['reason']}), "
+        f"doppler {head_error_models['doppler']['type']} ({head_error_models['doppler']['reason']})",
+        flush=True,
+    )
     print("Computing covariance and summary", flush=True)
     cov, s2 = covariance_from_jacobian(res3)
     summary = summarize_fit(res3.x, cov, obs, trail_rows, trail_gcrs, geom, t_ref)
-    json_path = write_json(out_dir, args, res3.x, cov, s2, summary, obs, trail_rows, rejected_trail, t_ref, empirical_sigmas=empirical_sigmas)
+    json_path = write_json(
+        out_dir,
+        args,
+        res3.x,
+        cov,
+        s2,
+        summary,
+        obs,
+        trail_rows,
+        rejected_trail,
+        t_ref,
+        empirical_sigmas=empirical_sigmas,
+        head_error_models=head_error_models,
+    )
     if not args.skip_plots:
         print("Writing plots", flush=True)
         range_plot = out_dir / "combined_head_trail_range_doppler_fit.png"
+        error_model_plot = out_dir / "head_echo_snr_error_model.png"
         altitude_plot = out_dir / "combined_head_trail_altitude.png"
         map_plot = out_dir / "combined_head_trail_map.png"
-        plot_range_doppler(range_plot, res3.x, cov, obs, geom, t_ref)
+        plot_range_doppler(range_plot, res3.x, cov, obs, geom, t_ref, head_error_models=head_error_models)
+        plot_head_error_model(error_model_plot, res3.x, obs, geom, t_ref, head_error_models)
         plot_altitude(altitude_plot, res3.x, cov, obs, trail_rows, t_ref, geom, all_trail_rows=all_trail_rows, rejected_trail=rejected_trail)
         plot_map(map_plot, res3.x, cov, obs, trail_rows, t_ref, all_trail_rows=all_trail_rows, rejected_trail=rejected_trail)
         report_dir = Path(args.report_fig_dir)
         shutil.copy2(range_plot, report_dir / range_plot.name)
+        shutil.copy2(error_model_plot, report_dir / error_model_plot.name)
         shutil.copy2(altitude_plot, report_dir / altitude_plot.name)
         shutil.copy2(map_plot, report_dir / map_plot.name)
     print(f"Wrote {json_path}")
