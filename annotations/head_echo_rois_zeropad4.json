@@ -1,0 +1,119 @@
+{
+  "description": "Manual head-echo ROI labels from range-time-Doppler matched-filter products.",
+  "schema": "new_england_bolide.head_echo_roi.v1",
+  "stations": {
+    "amherstnh": {
+      "has_head_echo": false,
+      "marked_utc": "2026-06-02T08:22:45.502421Z",
+      "source_file": "products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_amherstnh_merged.h5"
+    },
+    "beverly": {
+      "has_head_echo": true,
+      "range_km": {
+        "max": 250.67074224074202,
+        "min": 222.84364734711937
+      },
+      "source_file": "products/rdmf_zeropad4_head_merged/rdmf_peak_beverly_merged.h5",
+      "summary": {
+        "doppler_hz": {
+          "max": 49825.0,
+          "median": -2350.0,
+          "min": -49950.0,
+          "p05": -43012.5,
+          "p95": 43151.25
+        },
+        "n_range_bins": 37,
+        "n_time_bins": 91,
+        "peak": {
+          "doppler_hz": -2475.0,
+          "range_km": 237.0,
+          "snr_db": 12.743368148803711,
+          "unix_time": 1780164380.59,
+          "utc": "2026-05-30T18:06:20.590000Z"
+        },
+        "snr_db": {
+          "max": 12.743368148803711,
+          "median": 5.077157974243164
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164381.1199238,
+        "end_utc": "2026-05-30T18:06:21.119924Z",
+        "start_unix": 1780164380.203911,
+        "start_utc": "2026-05-30T18:06:20.203911Z"
+      }
+    },
+    "clinton": {
+      "has_head_echo": true,
+      "range_km": {
+        "max": 270.33428983792635,
+        "min": 255.34900569423274
+      },
+      "source_file": "products/rdmf_zeropad4_head_merged/rdmf_peak_clinton_merged.h5",
+      "summary": {
+        "doppler_hz": {
+          "max": 49825.0,
+          "median": -2068.75,
+          "min": -49525.0,
+          "p05": -39387.5,
+          "p95": 43325.0
+        },
+        "n_range_bins": 20,
+        "n_time_bins": 49,
+        "peak": {
+          "doppler_hz": -1875.0,
+          "range_km": 261.0,
+          "snr_db": 12.275935173034668,
+          "unix_time": 1780164380.53,
+          "utc": "2026-05-30T18:06:20.530000Z"
+        },
+        "snr_db": {
+          "max": 12.275935173034668,
+          "median": 5.619754791259766
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164380.6970952,
+        "end_utc": "2026-05-30T18:06:20.697095Z",
+        "start_unix": 1780164380.2004898,
+        "start_utc": "2026-05-30T18:06:20.200490Z"
+      }
+    },
+    "pomfret": {
+      "has_head_echo": true,
+      "range_km": {
+        "max": 395.49661509433724,
+        "min": 382.5739901877815
+      },
+      "source_file": "products/rdmf_zeropad4_head_merged/rdmf_peak_pomfret_merged.h5",
+      "summary": {
+        "doppler_hz": {
+          "max": 49975.0,
+          "median": -1050.0,
+          "min": -49937.5,
+          "p05": -43935.0,
+          "p95": 40112.5
+        },
+        "n_range_bins": 17,
+        "n_time_bins": 85,
+        "peak": {
+          "doppler_hz": -1062.5,
+          "range_km": 388.5,
+          "snr_db": 10.600714683532715,
+          "unix_time": 1780164380.61,
+          "utc": "2026-05-30T18:06:20.610000Z"
+        },
+        "snr_db": {
+          "max": 10.600714683532715,
+          "median": 4.586356163024902
+        }
+      },
+      "time_range": {
+        "end_unix": 1780164381.0200684,
+        "end_utc": "2026-05-30T18:06:21.020068Z",
+        "start_unix": 1780164380.1772914,
+        "start_utc": "2026-05-30T18:06:20.177291Z"
+      }
+    }
+  }
+}

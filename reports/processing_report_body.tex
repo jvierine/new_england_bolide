@@ -99,8 +99,11 @@ coherent integration window.
 For each receiver station, channel, transmit code, range gate, and time step,
 a window of complex voltage data was multiplied by the conjugate of the
 repeated transmit code.  A Fourier transform along the coherent integration
-window then produced the Doppler spectrum.  Power was averaged incoherently
-over the two receiver channels and all transmit codes:
+window then produced the Doppler spectrum.  The Doppler FFT was zero padded to
+four times the eight-code coherent integration length, increasing the sampled
+Doppler-bin density while leaving the coherent integration time unchanged.
+Power was averaged incoherently over the two receiver channels and all transmit
+codes:
 \[
   S(r,f) =
   \frac{1}{N_{\mathrm{ch}}N_{\mathrm{tx}}}
@@ -259,9 +262,11 @@ geometry, and calibration errors.
   \caption{Near-zero-Doppler trail echo ROI for Amherst, Siena, Pomfret,
   Clinton, and Beverly.  The cyan contours mark cells with SNR at least 6 dB
   and \(|f_D| < 100\) Hz; all qualifying range gates are retained, so multiple
-  range gates can contribute at one time step.  The right-side manual labels
-  mark the meteor altitude inferred from the fitted head-echo trajectory at the
-  corresponding bistatic range for each station.}
+  range gates can contribute at one time step.  The faint dashed white curves
+  show the bistatic range predicted by the head-echo trajectory fit for each
+  station.  The right-side manual labels mark the meteor altitude inferred from
+  the fitted head-echo trajectory at the corresponding bistatic range for each
+  station.}
   \figsource{trail_echo_roi.py}
   \label{fig:trail-echo-roi}
 \end{figure}

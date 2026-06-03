@@ -102,6 +102,7 @@ def make_output(args, site, n_steps, range_idx, fvec):
     h["n_coh"] = int(args.n_coh)
     h["codes_per_step"] = int(args.codes_per_step)
     h["range_interp"] = int(args.range_interp)
+    h["doppler_zero_pad_factor"] = int(args.doppler_zero_pad_factor)
     h["range_resolution_m"] = float(site["range_resolution_m"])
     h["ignore_freq"] = float(args.ignore_freq)
     h["head_min_doppler_hz"] = float(args.head_min_doppler_hz)
@@ -138,6 +139,9 @@ def run_station(args):
     code_len_i = site["code_len"] * args.range_interp
     sample_rate_i = sample_rate * args.range_interp
     win_len = args.n_coh * code_len_i
+    fftlen = int(args.doppler_zero_pad_factor) * win_len
+    if fftlen < win_len:
+        raise ValueError("--doppler-zero-pad-factor must be at least 1")
     step_len = args.codes_per_step * code_len_i
     original_step_len = args.codes_per_step * site["code_len"]
     gate_km = site["range_resolution_m"] / args.range_interp / 1000.0
@@ -151,7 +155,7 @@ def run_station(args):
     if args.max_steps is not None:
         n_steps = min(n_steps, int(args.max_steps))
 
-    fvec = np.fft.fftshift(np.fft.fftfreq(win_len, d=1.0 / sample_rate_i))
+    fvec = np.fft.fftshift(np.fft.fftfreq(fftlen, d=1.0 / sample_rate_i))
     fidx = np.where((fvec >= args.fmin) & (fvec <= args.fmax))[0]
     fvec0 = fvec[fidx]
     good_rti_dop = np.abs(fvec0) >= args.ignore_freq
@@ -180,15 +184,13 @@ def run_station(args):
         for ti in range(n_steps):
             start = ti * step_len
             S = np.zeros((len(range_idx), len(fidx)), dtype=np.float32)
-            Z_store = np.zeros((len(args.channels), len(range_idx), len(codes), len(fidx)), dtype=np.complex64)
             for chi, z in enumerate(zc):
                 z0 = detrend_window(z[start : start + read_len], spike_sigma=args.spike_sigma)
                 windows = np.lib.stride_tricks.sliding_window_view(z0, win_len)[range_idx, :]
                 if dc_offsets is not None:
                     windows = windows - dc_offsets[chi, :, None]
                 for ci, code in enumerate(codes):
-                    Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), axis=1), axes=1)[:, fidx]
-                    Z_store[chi, :, ci, :] = Z
+                    Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), n=fftlen, axis=1), axes=1)[:, fidx]
                     S += np.abs(Z) ** 2
 
             S /= float(len(args.channels) * len(codes))
@@ -223,8 +225,14 @@ def run_station(args):
             dop_head = fvec0[imax_head]
 
             voltage = np.zeros((len(args.channels), len(range_idx), len(codes)), dtype=np.complex64)
-            for ri, fi in enumerate(imax_head):
-                voltage[:, ri, :] = Z_store[:, ri, :, fi]
+            for chi, z in enumerate(zc):
+                z0 = detrend_window(z[start : start + read_len], spike_sigma=args.spike_sigma)
+                windows = np.lib.stride_tricks.sliding_window_view(z0, win_len)[range_idx, :]
+                if dc_offsets is not None:
+                    windows = windows - dc_offsets[chi, :, None]
+                for ci, code in enumerate(codes):
+                    Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), n=fftlen, axis=1), axes=1)[:, fidx]
+                    voltage[chi, :, ci] = Z[np.arange(len(range_idx)), imax_head]
 
             h["t_sample"][ti] = abs_index0 + ti * original_step_len
             h["N"][ti, :] = noise
@@ -311,6 +319,7 @@ def run_batch(args):
                 "--n-coh", str(args.n_coh),
                 "--codes-per-step", str(args.codes_per_step),
                 "--range-interp", str(args.range_interp),
+                "--doppler-zero-pad-factor", str(args.doppler_zero_pad_factor),
                 "--range-min-km", str(args.range_min_km),
                 "--range-max-km", str(args.range_max_km),
                 "--fmin", str(args.fmin),
@@ -417,7 +426,7 @@ def merge_station(indir, station, out_file, overwrite=False):
             for key in (
                 "station", "channels", "seeds", "code_len", "frequency_hz", "gps_rx", "gps_tx",
                 "range_idx", "range_km", "fvec", "sample_rate", "t0_sample", "n_coh",
-                "codes_per_step", "range_interp", "range_resolution_m", "ignore_freq",
+                "codes_per_step", "range_interp", "doppler_zero_pad_factor", "range_resolution_m", "ignore_freq",
                 "head_min_doppler_hz", "dc_cancel", "dc_cancel_seconds", "dc_cancel_start_second", "doppler_whiten",
             ):
                 if key in h0:
@@ -485,6 +494,7 @@ def parser():
         q.add_argument("--n-coh", type=int, default=8)
         q.add_argument("--codes-per-step", type=int, default=1)
         q.add_argument("--range-interp", type=int, default=2)
+        q.add_argument("--doppler-zero-pad-factor", type=int, default=4)
         q.add_argument("--range-min-km", type=float, default=0.0)
         q.add_argument("--range-max-km", type=float, default=600.0)
         q.add_argument("--fmin", type=float, default=-50000.0)

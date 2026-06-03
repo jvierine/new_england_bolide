@@ -38,6 +38,8 @@ def build_worker_cmd(args, station, out_file):
         str(args.codes_per_step),
         "--range-interp",
         str(args.range_interp),
+        "--doppler-zero-pad-factor",
+        str(args.doppler_zero_pad_factor),
         "--range-resolution-m",
         str(args.range_resolution_m),
         "--fmin",
@@ -117,6 +119,7 @@ def main():
     p.add_argument("--n-coh", type=int, default=8)
     p.add_argument("--codes-per-step", type=int, default=8)
     p.add_argument("--range-interp", type=int, default=1)
+    p.add_argument("--doppler-zero-pad-factor", type=int, default=4)
     p.add_argument("--range-resolution-m", type=float, default=3000.0)
     p.add_argument("--max-range-km", type=float)
     p.add_argument("--rmin-idx", type=int)

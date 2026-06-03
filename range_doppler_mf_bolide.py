@@ -140,6 +140,7 @@ def range_doppler_bank(
     dc_calibration_data=None,
     spike_sigma=0.0,
     doppler_whiten=False,
+    doppler_zero_pad_factor=4,
     progress_every=1,
     checkpoint_every=0,
     checkpoint_func=None,
@@ -155,7 +156,9 @@ def range_doppler_bank(
         raise ValueError("Requested coherent window/range span is longer than the data")
 
     ridx = np.arange(rmin_idx, rmax_idx + 1, dtype=np.int64)
-    fftlen = win_len
+    fftlen = int(doppler_zero_pad_factor) * win_len
+    if fftlen < win_len:
+        raise ValueError("doppler_zero_pad_factor must be at least 1")
     fvec = np.fft.fftshift(np.fft.fftfreq(fftlen, d=1.0 / sample_rate_i))
     fidx = np.where((fvec >= fmin) & (fvec <= fmax))[0]
     fvec0 = fvec[fidx]
@@ -190,7 +193,7 @@ def range_doppler_bank(
             if dc_offsets is not None:
                 windows = windows - dc_offsets[chi, :, None]
             for code in codes:
-                Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), axis=1), axes=1)
+                Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), n=fftlen, axis=1), axes=1)
                 S += np.abs(Z[:, fidx]) ** 2
 
         if doppler_whiten:
@@ -274,6 +277,7 @@ def range_doppler_bank(
         "range_idx": ridx.astype(np.int32),
         "range_km": (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
         "fvec": fvec0.astype(np.float32),
+        "doppler_zero_pad_factor": np.array(int(doppler_zero_pad_factor), dtype=np.int32),
     }
 
 
@@ -293,6 +297,7 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
         h["n_coh"] = args.n_coh
         h["codes_per_step"] = args.codes_per_step
         h["range_interp"] = args.range_interp
+        h["doppler_zero_pad_factor"] = args.doppler_zero_pad_factor
         h["range_resolution_m"] = args.range_resolution_m
         h["ignore_freq"] = args.ignore_freq
         h["head_min_doppler_hz"] = args.head_min_doppler_hz
@@ -325,6 +330,7 @@ def main():
     p.add_argument("--n-coh", type=int, default=8)
     p.add_argument("--codes-per-step", type=int, default=8)
     p.add_argument("--range-interp", type=int, default=1)
+    p.add_argument("--doppler-zero-pad-factor", type=int, default=4)
     p.add_argument("--range-resolution-m", type=float, default=3000.0)
     p.add_argument("--max-range-km", type=float)
     p.add_argument("--rmin-idx", type=int)
@@ -400,6 +406,7 @@ def main():
         range_interp=args.range_interp,
         n_coh=args.n_coh,
         codes_per_step=args.codes_per_step,
+        doppler_zero_pad_factor=args.doppler_zero_pad_factor,
         fmin=args.fmin,
         fmax=args.fmax,
         ignore_freq=args.ignore_freq,
