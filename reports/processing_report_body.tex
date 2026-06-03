@@ -274,7 +274,7 @@ range--Doppler products.  Within each station ROI, one measurement was
 extracted at each time step by
 choosing the range gate with the largest SNR, subject to a minimum SNR of
 5 dB.  Robust outlier rejection was then applied independently to each
-station's delay and Doppler sequence.  The first
+station's range and Doppler sequence.  The first
 \TrajectoryPomfretStartTrimS{} s of Pomfret measurements were excluded because
 these earliest picks are inconsistent with the subsequent Pomfret trend.  The
 final fit contains \TrajectoryNObservations{} retained measurements and
@@ -286,11 +286,11 @@ frame of the transmitter,
 \[
   {\bf x}(t) = {\bf x}_0 + {\bf v}(t-t_0).
 \]
-with both bistatic delay and bistatic Doppler fit simultaneously.  For each
-transmitter--meteor--receiver path, the delay model is
+with both bistatic range and bistatic Doppler fit simultaneously.  For each
+transmitter--meteor--receiver path, the bistatic range model is
 \[
-  \tau(t)=\frac{|{\bf x}(t)-{\bf x}_{\mathrm{tx}}|
-             +|{\bf x}(t)-{\bf x}_{\mathrm{rx}}|}{c},
+  R_b(t)=|{\bf x}(t)-{\bf x}_{\mathrm{tx}}|
+             +|{\bf x}(t)-{\bf x}_{\mathrm{rx}}|,
 \]
 and the bistatic Doppler model is
 \[
