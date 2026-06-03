@@ -288,7 +288,15 @@ def plot_altitude_summary(fit, tx0, rot, params, samples):
 
     fig, ax = plt.subplots(figsize=(12.0, 6.6), constrained_layout=True)
     tr = model["time_relative_s"]
-    ax.fill_between(tr, alt_lo, alt_hi, color="C0", alpha=0.2, linewidth=0, label="95% fit uncertainty")
+    ax.fill_between(
+        tr,
+        alt_lo,
+        alt_hi,
+        color="C0",
+        alpha=0.2,
+        linewidth=0,
+        label="95% robust covariance interval",
+    )
     ax.plot(tr, model["lat_lon_alt"][:, 2] / 1000.0, color="C0", lw=2.2, label="fit")
     ax.scatter([0.0], [fit["geodetic_ref_wgs84"]["alt_m"] / 1000.0], color="k", s=32, zorder=4, label="t_ref")
     ax.set_xlabel(f"Seconds relative to {fit['t_ref_utc']}")
