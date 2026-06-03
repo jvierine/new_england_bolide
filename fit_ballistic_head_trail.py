@@ -1397,7 +1397,7 @@ def plot_lonlat_height(
             elinewidth=0.85,
             capsize=2.0,
             capthick=0.8,
-            alpha=0.78,
+            alpha=0.5,
             label="trail positions with 1$\\sigma$ errors",
             zorder=6,
         )
