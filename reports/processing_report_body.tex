@@ -356,10 +356,11 @@ the native units of each observable.  The second pass changes the residual RMS
 from 475 m and 90 Hz to \TrajectoryRangeRmsM{} m and
 \TrajectoryDopplerRmsHz{} Hz for range and Doppler, respectively.
 The shaded bands in
-Figure~\ref{fig:trajectory-observables} are prediction intervals: Monte Carlo
-draws from \(\mathcal{N}({\bf p},\widehat{\bf C}_{p})\) are propagated through
-the range and Doppler equations and then broadened by the empirical 95\%
-residual scatter for each station.
+Figure~\ref{fig:trajectory-observables} show the trajectory-parameter
+uncertainty: Monte Carlo draws from
+\(\mathcal{N}({\bf p},\widehat{\bf C}_{p})\) are propagated through the range
+and Doppler equations, and the plotted envelope is the central 95\% interval
+of the resulting model curves.
 
 \begin{figure}
   \centering
@@ -367,9 +368,10 @@ residual scatter for each station.
   \caption{Range and Doppler measurements used in the head-echo trajectory
   fit.  Points show the ROI-derived measurements after SNR thresholding and
   outlier rejection; lines show the fitted straight-line trajectory model for
-  each bistatic path.  Shaded bands show 95\% prediction intervals formed by
-  combining samples from the heteroskedasticity-robust trajectory covariance
-  with the empirical post-fit range and Doppler residual scatter.}
+  each bistatic path.  Shaded bands show central 95\% trajectory-parameter
+  uncertainty intervals obtained by propagating samples from the
+  heteroskedasticity-robust trajectory covariance through the range and
+  Doppler equations.}
   \figsource{reports/generate_trajectory_report_assets.py}
   \label{fig:trajectory-observables}
 \end{figure}

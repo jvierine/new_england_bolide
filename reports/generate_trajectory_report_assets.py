@@ -122,12 +122,12 @@ def pm(value, sigma, unit="", min_decimals=1):
     return f"{text} {unit}".rstrip()
 
 
-def prediction_interval_from_samples(sample_values, residual_half_width, coverage=0.95):
-    pred_mean = np.nanmean(sample_values, axis=0)
-    lo, hi = np.nanpercentile(sample_values, [(1.0 - coverage) * 50.0, 100.0 - (1.0 - coverage) * 50.0], axis=0)
-    param_half_width = np.maximum(pred_mean - lo, hi - pred_mean)
-    total_half_width = np.sqrt(param_half_width * param_half_width + residual_half_width * residual_half_width)
-    return pred_mean - total_half_width, pred_mean + total_half_width
+def covariance_band_from_samples(sample_values, coverage=0.95):
+    return np.nanpercentile(
+        sample_values,
+        [(1.0 - coverage) * 50.0, 100.0 - (1.0 - coverage) * 50.0],
+        axis=0,
+    )
 
 
 def plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples):
@@ -149,12 +149,10 @@ def plot_range_doppler_measurements(fit, geom, tx0, rot, params, samples):
         pred_dop_khz = predict_dopplers(params, model_obs, geom, t_ref, tx0, rot) / 1000.0
         sample_range = np.array([predict_ranges(p, model_obs, geom, t_ref, tx0, rot) / 1000.0 for p in samples])
         sample_dop = np.array([predict_dopplers(p, model_obs, geom, t_ref, tx0, rot) / 1000.0 for p in samples])
-        range_residual_half_width_km = float(np.nanpercentile(np.abs(pred_range_km - range_km), 95.0))
-        doppler_residual_half_width_khz = float(np.nanpercentile(np.abs(pred_dop_khz - dop_khz), 95.0))
-        range_lo, range_hi = prediction_interval_from_samples(sample_range, range_residual_half_width_km)
-        dop_lo, dop_hi = prediction_interval_from_samples(sample_dop, doppler_residual_half_width_khz)
+        range_lo, range_hi = covariance_band_from_samples(sample_range)
+        dop_lo, dop_hi = covariance_band_from_samples(sample_dop)
 
-        uncertainty_label = "95% prediction interval" if si == 0 else None
+        uncertainty_label = "95% trajectory covariance band" if si == 0 else None
         station_name = short_station_name(station)
         axes[0].scatter(tr, range_km, s=20, alpha=0.75, color=color, label=f"{station_name} measured")
         axes[0].fill_between(tr, range_lo, range_hi, color=color, alpha=0.18, linewidth=0, label=uncertainty_label)
