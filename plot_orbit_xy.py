@@ -17,7 +17,7 @@ from astropy.time import Time
 AU = 1.495978707e11
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_SAMPLES = Path("products/orbit_determination/best_fit_orbit.h5")
-DEFAULT_OUT = Path("plots/orbit_xy_bolide.png")
+DEFAULT_OUT = Path("reports/figures/orbit_xy_bolide.png")
 
 J2000 = Time("2000-01-01T12:00:00", scale="tdb")
 
@@ -143,12 +143,15 @@ def kepler_annotation(sample_kepler: np.ndarray) -> str:
     a_au = kep[0] / AU
     e = kep[1]
     q_au = a_au * (1.0 - e)
+    jupiter_a_au = PLANETS["Jupiter"]["a"]
+    tj = jupiter_a_au / a_au + 2.0 * np.cos(np.deg2rad(kep[2])) * np.sqrt((a_au / jupiter_a_au) * (1.0 - e * e))
 
     rows = [
         (r"$a$", "AU", a_au, False, 2),
         (r"$q$", "AU", q_au, False, 3),
         (r"$e$", "", e, False, 3),
         (r"$i$", "deg", kep[2], True, 1),
+        (r"$T_J$", "", tj, False, 2),
         (r"$\omega$", "deg", kep[3], True, 1),
         (r"$\Omega$", "deg", kep[4], True, 2),
         (r"$\nu$", "deg", kep[5], True, 1),
@@ -191,7 +194,7 @@ def draw_orbits(
             dy = 0.18 if py < limits[1] - 4 else -1.2
             x_text = np.clip(px + dx, limits[0] + 0.4, limits[1] - 3.0)
             y_text = np.clip(py + dy, limits[0] + 0.8, limits[1] - 0.8)
-            ax.text(x_text, y_text, name, fontsize=8, color="0.2", zorder=7, clip_on=True)
+            ax.text(x_text, y_text, name, fontsize=12, color="0.2", zorder=7, clip_on=True)
 
     finite_samples = 0
     cloud_points = []
@@ -225,7 +228,7 @@ def draw_orbits(
     return finite_samples
 
 
-def style_axis(ax, limits: tuple[float, float], title: str) -> None:
+def style_axis(ax, limits: tuple[float, float]) -> None:
     ax.axhline(0, color="0.9", lw=0.8, zorder=0)
     ax.axvline(0, color="0.9", lw=0.8, zorder=0)
     ax.set_aspect("equal", adjustable="box")
@@ -233,7 +236,6 @@ def style_axis(ax, limits: tuple[float, float], title: str) -> None:
     ax.set_ylim(*limits)
     ax.set_xlabel("Heliocentric ecliptic x (AU)")
     ax.set_ylabel("Heliocentric ecliptic y (AU)")
-    ax.set_title(title)
     ax.grid(True, color="0.92", lw=0.8)
 
 
@@ -245,7 +247,7 @@ def add_kepler_inset(ax, sample_kepler: np.ndarray) -> None:
         transform=ax.transAxes,
         ha="left",
         va="bottom",
-        fontsize=10,
+        fontsize=14,
         color="0.08",
         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.72, "pad": 5.0},
         zorder=20,
@@ -258,14 +260,23 @@ def plot(args: argparse.Namespace) -> None:
     epoch = Time(t_ref_unix, scale="utc", format="unix")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    plt.rcParams.update(
+        {
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
+            "legend.fontsize": 12,
+        }
+    )
     fig, ax_inner = plt.subplots(1, 1, figsize=(8.6, 8.2))
-    finite_samples = draw_orbits(ax_inner, best, sample_kepler, epoch, (-5.8, 5.8), {"Mercury", "Venus", "Earth", "Mars", "Jupiter"})
-    style_axis(ax_inner, (-5.8, 5.8), "Inner solar system")
+    limits = (-8.0, 8.0)
+    finite_samples = draw_orbits(ax_inner, best, sample_kepler, epoch, limits, {"Mercury", "Venus", "Earth", "Mars", "Jupiter"})
+    style_axis(ax_inner, limits)
     add_kepler_inset(ax_inner, sample_kepler)
-    fig.suptitle(f"Cape Cod Bay bolide orbit in the J2000 heliocentric ecliptic x-y plane\nNASA mean planet elements advanced to {epoch_utc}", fontsize=14)
     ax_inner.fill_between([], [], [], color="0.55", alpha=0.34, label=f"MC uncertainty area (n={finite_samples})")
     ax_inner.legend(loc="upper right", frameon=True, framealpha=0.95)
-    fig.subplots_adjust(left=0.12, right=0.97, bottom=0.09, top=0.88)
+    fig.subplots_adjust(left=0.13, right=0.97, bottom=0.10, top=0.98)
     fig.savefig(args.out, dpi=240, bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote {args.out}")
