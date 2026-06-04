@@ -99,6 +99,7 @@ run python estimate_head_echo_trajectory.py \
   --data-dir 2026_05_30_bolide \
   --out-dir products/head_echo_trajectory_roi_fit \
   --covariance-samples 800 \
+  --coherent-codes 8 \
   --no-show
 
 run python reports/generate_trajectory_report_assets.py

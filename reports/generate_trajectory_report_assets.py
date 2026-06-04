@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import sys
+import types
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -378,6 +379,12 @@ def _annotate_altitudes(ax, lon, lat, alt_km, data_crs):
 
 def plot_cartopy_report_figure(fit, geom, tx0, rot, params, samples):
     try:
+        if "readline" not in sys.modules:
+            readline_stub = types.ModuleType("readline")
+            readline_stub.get_completer = lambda: None
+            readline_stub.set_completer = lambda func: None
+            readline_stub.parse_and_bind = lambda spec: None
+            sys.modules["readline"] = readline_stub
         import cartopy.crs as ccrs
         import cartopy.feature as cfeature
     except Exception as exc:

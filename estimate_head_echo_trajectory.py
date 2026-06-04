@@ -273,9 +273,16 @@ def overlap_correlation(times, code_period_s, n_codes):
     return np.maximum(0.0, 1.0 - dt_codes / float(n_codes))
 
 
-def build_range_doppler_covariance(obs, fit, use_doppler, coherent_codes=16, code_period_s=0.01):
-    range_sigma = np.asarray(fit["fit_weighting"]["range_sigma_m"], dtype=float)
-    doppler_sigma = np.asarray(fit["fit_weighting"]["doppler_sigma_hz"], dtype=float)
+def build_range_doppler_covariance_from_sigmas(
+    obs,
+    range_sigma,
+    doppler_sigma,
+    use_doppler,
+    coherent_codes=16,
+    code_period_s=0.01,
+):
+    range_sigma = np.asarray(range_sigma, dtype=float)
+    doppler_sigma = np.asarray(doppler_sigma, dtype=float)
     n_obs = len(obs)
     n_rows = n_obs * (2 if use_doppler else 1)
     cov = np.zeros((n_rows, n_rows), dtype=float)
@@ -291,6 +298,17 @@ def build_range_doppler_covariance(obs, fit, use_doppler, coherent_codes=16, cod
     cov = 0.5 * (cov + cov.T)
     cov += np.eye(n_rows) * 1e-9
     return cov
+
+
+def build_range_doppler_covariance(obs, fit, use_doppler, coherent_codes=16, code_period_s=0.01):
+    return build_range_doppler_covariance_from_sigmas(
+        obs,
+        fit["fit_weighting"]["range_sigma_m"],
+        fit["fit_weighting"]["doppler_sigma_hz"],
+        use_doppler,
+        coherent_codes=coherent_codes,
+        code_period_s=code_period_s,
+    )
 
 
 def linearized_correlated_parameter_covariance(obs, fit, use_doppler, coherent_codes=16, code_period_s=0.01):
@@ -496,6 +514,22 @@ def combined_residuals(params, obs, geom, t_ref, tx0, rot, sigma_range_m, use_do
     return np.concatenate([rr, doppler_residuals(params, obs, geom, t_ref, tx0, rot, None, sigma_doppler_hz)])
 
 
+def physical_residual_vector(params, obs, geom, t_ref, tx0, rot, use_doppler):
+    range_pred = predict_ranges(params, obs, geom, t_ref, tx0, rot)
+    range_meas = np.array([o["range_m"] for o in obs], dtype=float)
+    out = [range_pred - range_meas]
+    if use_doppler:
+        dop_pred = predict_dopplers(params, obs, geom, t_ref, tx0, rot)
+        dop_meas = np.array([o["doppler_hz"] for o in obs], dtype=float)
+        out.append(dop_pred - dop_meas)
+    return np.concatenate(out)
+
+
+def whitened_correlated_residuals(params, obs, geom, t_ref, tx0, rot, use_doppler, chol):
+    raw = physical_residual_vector(params, obs, geom, t_ref, tx0, rot, use_doppler)
+    return np.linalg.solve(chol, raw)
+
+
 def static_position_residuals(p_enu, station_picks, geom, tx0, rot, sigma_range_m):
     pos = tx0 + rot @ p_enu
     res = []
@@ -540,7 +574,7 @@ def initial_position_from_ranges(obs, geom, tx0, rot):
     return best[1].x, picks
 
 
-def fit_trajectory(obs, geom, data_dir, use_doppler=True):
+def fit_trajectory(obs, geom, data_dir, use_doppler=True, coherent_codes=16, code_period_s=0.01):
     tx_site = load_station_yaml(data_dir, obs[0]["station"])
     tx0 = geodetic_to_ecef(*tx_site["gps_tx"])
     rot = enu_to_ecef_matrix(tx_site["gps_tx"][0], tx_site["gps_tx"][1])
@@ -582,10 +616,28 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
     nominal_range_sigma_m = 750.0
     nominal_doppler_sigma_hz = 500.0
     score, res = solve(guesses, nominal_range_sigma_m, nominal_doppler_sigma_hz, 1200)
-    meas = np.array([o["range_m"] for o in obs])
-    meas_doppler = np.array([o["doppler_hz"] for o in obs])
     range_sigma = np.full(len(obs), nominal_range_sigma_m, dtype=float)
     doppler_sigma = np.full(len(obs), nominal_doppler_sigma_hz, dtype=float)
+    meas_cov = build_range_doppler_covariance_from_sigmas(
+        obs,
+        range_sigma,
+        doppler_sigma,
+        use_doppler,
+        coherent_codes=coherent_codes,
+        code_period_s=code_period_s,
+    )
+    chol = np.linalg.cholesky(meas_cov)
+    res = least_squares(
+        whitened_correlated_residuals,
+        res.x,
+        bounds=bounds,
+        args=(obs, geom, t_ref, tx0, rot, use_doppler, chol),
+        loss="linear",
+        max_nfev=1200,
+    )
+    score = float(np.sum(res.fun**2))
+    meas = np.array([o["range_m"] for o in obs])
+    meas_doppler = np.array([o["doppler_hz"] for o in obs])
     pred = predict_ranges(res.x, obs, geom, t_ref, tx0, rot)
     pred_doppler = predict_dopplers(res.x, obs, geom, t_ref, tx0, rot)
     range_resid = pred - meas
@@ -611,11 +663,13 @@ def fit_trajectory(obs, geom, data_dir, use_doppler=True):
         "alt_ref_m_wgs84": alt,
         "initial_station_picks": station_picks,
         "fit_weighting": {
-            "description": "single-pass range/Doppler weighting using fixed nominal range and Doppler standard deviations",
+            "description": "two-stage range/Doppler fit: robust independent-weight solve for initialization, followed by linear GLS solve whitened by triangular coherent-integration overlap covariance",
             "nominal_range_sigma_m": nominal_range_sigma_m,
             "nominal_doppler_sigma_hz": nominal_doppler_sigma_hz,
             "range_sigma_m": range_sigma.tolist(),
             "doppler_sigma_hz": doppler_sigma.tolist(),
+            "head_coherent_codes": int(coherent_codes),
+            "code_period_s": float(code_period_s),
         },
     }
 
@@ -869,7 +923,14 @@ def main():
         raise SystemExit(f"Need at least three head-echo station ROIs; got {used_stations}")
     geom = station_geometry(args.data_dir, used_stations)
     use_doppler = not args.no_use_doppler
-    fit = fit_trajectory(obs, geom, args.data_dir, use_doppler=use_doppler)
+    fit = fit_trajectory(
+        obs,
+        geom,
+        args.data_dir,
+        use_doppler=use_doppler,
+        coherent_codes=args.coherent_codes,
+        code_period_s=args.code_period_s,
+    )
     payload = write_outputs(
         args.out_dir,
         annotations,
