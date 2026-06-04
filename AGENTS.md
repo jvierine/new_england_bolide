@@ -116,6 +116,58 @@ with 1.6 m diameter and 5 metric tons mass. If an atmospheric drag coefficient
 is needed for propagation, derive the ballistic parameter from that fixed
 sphere and mass assumption rather than fitting \(C_D A/m\) as a free parameter.
 
+The `dasst` package is available in the `/home/j/fys3002` virtual environment,
+installed editable from `/home/j/src/dasst/src`. Use this interpreter for
+orbit-association work that needs `dasst`:
+
+```bash
+source /home/j/fys3002/bin/activate
+python -c "import dasst; print(dasst.__file__)"
+```
+
+Do not use the base conda environment for `dasst`; it does not contain the
+package.
+
+The independent correlated-covariance ballistic appendix workflow lives in:
+
+```text
+fit_ballistic_head_trail_correlated_appendix.py
+products/ballistic_head_trail_correlated_appendix_fit/
+reports/figures/appendix_correlated_fit/
+reports/appendix_correlated_fit/
+```
+
+This workflow was created as appendix/debug material only. It uses manually
+selected Gaussian-refined head-echo measurements plus retained trail positions,
+with block covariance terms for overlapping coherent integrations: 16 code
+periods for head echoes and 8 code periods for trail echoes, stepped by one
+code period. Because atmospheric drag is no longer to be estimated, update this
+workflow before using it again: remove the fitted \(C_D A/m\) state and use the
+fixed 1.6 m, 5 metric ton spherical-body assumption instead.
+
+The earlier correlated-fit uncertainty bands in
+`ballistic_head_trail_correlated_altitude_enu.png` exploded because the
+linearized covariance sampled an essentially unconstrained, bounded drag
+parameter as an unconstrained Gaussian variable. That diagnostic band should
+not be interpreted physically and should not be used in the manuscript without
+first removing fitted drag or otherwise replacing the uncertainty model.
+
+The manually selected head-echo measurement workflow is separate from the main
+ROI-derived fit and should not overwrite existing products. The current Python
+selection workflow is:
+
+```text
+reports/select_head_echo_measurements.py
+reports/head_echo_python_selection_workflow_ext0p5/
+reports/figures/head_echo_python_selection_range_doppler.png
+```
+
+When comparing selected head-echo measurements to existing trajectory data, use
+the same ROI-derived observations used in `fig:trajectory-observables`, namely
+`products/head_echo_trajectory_roi_fit/head_echo_trajectory.json`. Do not
+compare against local Gaussian seed picks unless that is explicitly the point
+of the diagnostic.
+
 The local working tree may intentionally contain uncommitted trail-ROI and
 micro-Doppler work, including regenerated `trail_echo_roi.png`, altitude-label
 annotation files, and `reports/generate_head_microdoppler.py`. Preserve those
