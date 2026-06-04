@@ -26,6 +26,7 @@ RDMF_DIR = ROOT / "products" / "rdmf_exact_highres_180615_10s_merged_20260602_09
 TRAJECTORY_JSON = ROOT / "products" / "head_echo_trajectory_roi_fit" / "head_echo_trajectory.json"
 FIG_DIR = ROOT / "reports" / "figures"
 OUT_FIG = FIG_DIR / "head_echo_microdoppler.png"
+OUT_AMBIGUITY_FIG = FIG_DIR / "head_echo_microdoppler_ambiguity.png"
 OUT_SUMMARY = ROOT / "reports" / "head_microdoppler_summary.tex"
 C = 299792458.0
 
@@ -173,15 +174,110 @@ def best_fit_doppler_hz(model: dict, station: str, unix_time: float) -> float:
     return geom["frequency_hz"] * range_rate_mps / C
 
 
-def minimum_frequency_bin(freqs: np.ndarray, spectra: np.ndarray, n_bins: int) -> tuple[np.ndarray, np.ndarray]:
-    if n_bins <= 1:
-        return freqs, spectra
-    n_freq = len(freqs)
-    start = (n_freq % n_bins) // 2
-    stop = start + ((n_freq - start) // n_bins) * n_bins
-    freqs_b = freqs[start:stop].reshape(-1, n_bins).mean(axis=1)
-    spectra_b = np.nanmin(spectra[:, start:stop].reshape(spectra.shape[0], -1, n_bins), axis=2)
-    return freqs_b, spectra_b
+def code_ambiguity_kernel(codes: list[np.ndarray]) -> np.ndarray:
+    """Return the multi-code matched-filter power response to a centered tone.
+
+    The micro-Doppler diagnostic sums power over all candidate transmit-code
+    seeds.  For an echo from one seed, the matched seed gives the desired
+    response, while the other repeated seeds produce a comb-like cross-code
+    ambiguity response.  Averaging over possible true seeds gives the
+    station-independent point-spread function used below.
+    """
+    kernel = np.zeros(len(codes[0]), dtype=np.float64)
+    for true_code in codes:
+        for test_code in codes:
+            spec = np.fft.fftshift(np.fft.fft(true_code * np.conj(test_code)))
+            kernel += np.abs(spec) ** 2
+    kernel /= float(len(codes))
+    kernel /= np.sum(kernel)
+    return kernel
+
+
+def centered_kernel_for_frequency_grid(full_kernel: np.ndarray, fvec: np.ndarray, rel_freqs: np.ndarray) -> np.ndarray:
+    center = len(full_kernel) // 2
+    full_offsets = np.arange(len(full_kernel)) - center
+    df = float(np.median(np.diff(fvec)))
+    rel_offsets = np.rint(rel_freqs / df).astype(int)
+    kernel = np.zeros(len(rel_freqs), dtype=np.float64)
+    good = (rel_offsets + center >= 0) & (rel_offsets + center < len(full_kernel))
+    kernel[good] = full_kernel[rel_offsets[good] + center]
+    if np.sum(kernel) <= 0:
+        raise ValueError("Ambiguity kernel has zero weight on the requested frequency grid")
+    kernel /= np.sum(kernel)
+    return kernel
+
+
+def clean_deconvolution_rows(
+    spectra: np.ndarray,
+    kernel: np.ndarray,
+    rel_freqs: np.ndarray,
+    picked_residuals_hz: np.ndarray,
+    n_iter: int = 12,
+    gain: float = 0.35,
+    search_half_width_hz: float = 180.0,
+) -> np.ndarray:
+    """CLEAN the ambiguity comb using the manual Doppler picks as a weak prior."""
+    kernel = np.asarray(kernel, dtype=np.float64)
+    kernel /= np.max(kernel)
+    center = len(kernel) // 2
+    df = float(np.median(np.diff(rel_freqs)))
+    sigma_bins = max(1.0, 12.0 / df)
+    x = np.arange(len(kernel)) - center
+    restore = np.exp(-0.5 * (x / sigma_bins) ** 2)
+    restore /= np.sum(restore)
+
+    out = np.empty_like(spectra, dtype=np.float64)
+    cols = np.arange(spectra.shape[1])
+    for i, y0 in enumerate(spectra):
+        y = np.nan_to_num(y0, nan=0.0, posinf=0.0, neginf=0.0)
+        baseline = np.nanpercentile(y[y > 0], 20) if np.any(y > 0) else 0.0
+        residual = np.maximum(y - baseline, 0.0)
+        clean = np.zeros_like(residual)
+        search = np.abs(rel_freqs - picked_residuals_hz[i]) <= search_half_width_hz
+        if not np.any(search):
+            search = np.abs(rel_freqs) <= search_half_width_hz
+        for _ in range(n_iter):
+            masked = np.where(search, residual, -np.inf)
+            peak_idx = int(np.argmax(masked))
+            peak = residual[peak_idx]
+            if not np.isfinite(peak) or peak <= 0:
+                break
+            amp = gain * peak
+            clean[peak_idx] += amp
+            shift = peak_idx - center
+            k_idx = cols - shift
+            good = (k_idx >= 0) & (k_idx < len(kernel))
+            residual[good] = np.maximum(residual[good] - amp * kernel[k_idx[good]], 0.0)
+        restored = np.convolve(clean, restore, mode="same")
+        residual_floor = np.minimum(residual, np.nanpercentile(residual, 70) if np.any(residual > 0) else 0.0)
+        out[i, :] = np.maximum(restored + residual_floor + baseline, 1e-30)
+    return out
+
+
+def plot_ambiguity_kernel(rel_freqs: np.ndarray, kernel: np.ndarray, n_coh: int) -> Path:
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    plt.rcParams.update({
+        "font.size": 9,
+        "axes.titlesize": 10,
+        "axes.labelsize": 9,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+    })
+    k_db = 10.0 * np.log10(np.maximum(kernel / np.max(kernel), 1e-12))
+    fig, ax = plt.subplots(figsize=(7.2, 2.8), constrained_layout=True)
+    ax.plot(rel_freqs, k_db, color="black", lw=0.9)
+    df = float(np.median(np.diff(rel_freqs)))
+    repeat_hz = n_coh * df
+    for x in np.arange(-1800.0, 1800.1, repeat_hz):
+        ax.axvline(x, color="#c73e3a", lw=0.55, alpha=0.28)
+    ax.set_xlim(float(np.nanmin(rel_freqs)), float(np.nanmax(rel_freqs)))
+    ax.set_ylim(-60, 1)
+    ax.set_xlabel("Residual Doppler offset (Hz)")
+    ax.set_ylabel("Relative response (dB)")
+    ax.set_title(f"Multi-code ambiguity kernel; repeat spacing {repeat_hz:.1f} Hz ({n_coh} FFT bins)")
+    fig.savefig(OUT_AMBIGUITY_FIG, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+    return OUT_AMBIGUITY_FIG
 
 
 def station_microdoppler(station: str, observations: list[dict], doppler_model: dict, rel_half_width_hz: float = 1800.0) -> dict:
@@ -195,7 +291,6 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
         n_coh = 16
         n_incoh = 16
         step_codes = 1
-        freq_bin_count = n_coh
         range_interp = int(h["range_interp"][()])
         sample_rate = float(h["sample_rate"][()])
         range_resolution_m = float(h["range_resolution_m"][()])
@@ -203,9 +298,9 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
         seconds = max(float(h.attrs["seconds"]), 10.0)
         iso_hour = str(h.attrs["iso_hour"])
         t0_sample = float(h["t0_sample"][()])
-        dc_cancel = bool(int(h["dc_cancel"][()]))
-        dc_cancel_seconds = float(h["dc_cancel_seconds"][()])
-        dc_cancel_start_second = float(h["dc_cancel_start_second"][()])
+        dc_cancel = bool(int(h["dc_cancel"][()])) if "dc_cancel" in h else False
+        dc_cancel_seconds = float(h["dc_cancel_seconds"][()]) if "dc_cancel_seconds" in h else 5.0
+        dc_cancel_start_second = float(h["dc_cancel_start_second"][()]) if "dc_cancel_start_second" in h else 0.0
         range_idx_all = h["range_idx"][()]
 
     sample_rate_i = sample_rate * range_interp
@@ -217,6 +312,8 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
     rel_freqs = np.arange(-rel_half_width_hz, rel_half_width_hz + 0.5 * df, df)
     code_seeds = [int(seed) for seed in seeds]
     codes = get_codes(seeds, code_len, n_coh, range_interp)
+    ambiguity_kernel_full = code_ambiguity_kernel(codes)
+    ambiguity_kernel = centered_kernel_for_frequency_grid(ambiguity_kernel_full, fvec, rel_freqs)
     zc, _sr, abs_index0 = read_station_channels(
         data_dir,
         station,
@@ -277,10 +374,13 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
     spectra = np.asarray(spectra, dtype=np.float64)
     if spectra.size == 0:
         raise ValueError(f"No spectra generated for {station}")
-    rel_freqs, spectra = minimum_frequency_bin(rel_freqs, spectra, freq_bin_count)
+    picked_residuals_hz = np.asarray(picked_dopplers_hz) - np.asarray(model_dopplers_hz)
+    deconvolved = clean_deconvolution_rows(spectra, ambiguity_kernel, rel_freqs, picked_residuals_hz)
     spec_db = 10.0 * np.log10(np.maximum(spectra, 1e-30))
+    deconvolved_db = 10.0 * np.log10(np.maximum(deconvolved, 1e-30))
     # Remove a per-station robust background level so panels share an SNR-like scale.
     spec_db -= np.nanmedian(spec_db)
+    deconvolved_db -= np.nanmedian(deconvolved_db)
     return {
         "station": station,
         "times": np.asarray(times),
@@ -290,12 +390,15 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
         "picked_dopplers_hz": np.asarray(picked_dopplers_hz),
         "rel_freqs": np.asarray(rel_freqs),
         "spec_db": spec_db,
+        "deconvolved_db": deconvolved_db,
+        "ambiguity_kernel": ambiguity_kernel,
         "code_seeds": code_seeds,
         "product_n_coh": product_n_coh,
         "micro_n_coh": n_coh,
         "micro_n_incoh": n_incoh,
         "micro_step_codes": step_codes,
-        "micro_freq_bin_count": freq_bin_count,
+        "micro_clean_iterations": 12,
+        "micro_clean_gain": 0.35,
     }
 
 
@@ -313,10 +416,24 @@ def plot_microdoppler(results: list[dict]) -> Path:
         axes = [axes]
     mappable = None
     for ax, res in zip(axes, results):
+        ax.set_facecolor("black")
         t = res["time_rel"]
         f = res["rel_freqs"]
-        z = res["spec_db"].T
+        z = res["deconvolved_db"].T
         mappable = ax.pcolormesh(t, f, z, shading="auto", cmap="inferno", vmin=0.0, vmax=18.0)
+        picked_residual = res["picked_dopplers_hz"] - res["model_dopplers_hz"]
+        ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.55)
+        ax.scatter(
+            t,
+            picked_residual,
+            s=10,
+            marker="o",
+            facecolor="#79e6ff",
+            edgecolor="black",
+            linewidth=0.25,
+            alpha=0.9,
+            zorder=3,
+        )
         ax.set_ylabel("$f-f_{D,model}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo")
         ax.text(
@@ -328,7 +445,7 @@ def plot_microdoppler(results: list[dict]) -> Path:
             fontsize=8,
             ha="left",
             va="top",
-            bbox={"facecolor": "black", "alpha": 0.35, "edgecolor": "none", "pad": 2},
+            bbox={"facecolor": "black", "alpha": 0.55, "edgecolor": "none", "pad": 2},
         )
     axes[-1].set_xlabel("Seconds after 18:06:20 UTC")
     if mappable is not None:
@@ -347,7 +464,8 @@ def write_summary(results: list[dict]) -> None:
         f"\\newcommand{{\\HeadMicroDopplerNCoherentCodes}}{{{results[0]['micro_n_coh']}}}\n",
         f"\\newcommand{{\\HeadMicroDopplerNIncoherentSpectra}}{{{results[0]['micro_n_incoh']}}}\n",
         f"\\newcommand{{\\HeadMicroDopplerStepCodes}}{{{results[0]['micro_step_codes']}}}\n",
-        f"\\newcommand{{\\HeadMicroDopplerFrequencyBinCount}}{{{results[0]['micro_freq_bin_count']}}}\n",
+        f"\\newcommand{{\\HeadMicroDopplerCleanIterations}}{{{results[0]['micro_clean_iterations']}}}\n",
+        f"\\newcommand{{\\HeadMicroDopplerCleanGain}}{{{results[0]['micro_clean_gain']:.2f}}}\n",
     ]
     for res in results:
         name = res["station"].title()
@@ -363,8 +481,10 @@ def main() -> None:
     payload, observations = load_station_observations()
     doppler_model = load_doppler_model(payload, data_dir)
     results = [station_microdoppler(station, observations[station], doppler_model) for station in STATIONS]
+    ambiguity = plot_ambiguity_kernel(results[0]["rel_freqs"], results[0]["ambiguity_kernel"], results[0]["micro_n_coh"])
     out = plot_microdoppler(results)
     write_summary(results)
+    print(ambiguity)
     print(out)
     print(OUT_SUMMARY)
 
