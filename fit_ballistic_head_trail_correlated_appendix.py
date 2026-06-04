@@ -71,6 +71,20 @@ OMEGA_EARTH = 7.2921150e-5
 C = 299792458.0
 MU_SUN = 1.32712440018e20
 AU_M = 1.495978707e11
+FIXED_BODY_DIAMETER_M = 1.6
+FIXED_BODY_MASS_KG = 5000.0
+FIXED_BODY_CD = 1.0
+FIXED_BODY_DENSITY_KG_M3 = FIXED_BODY_MASS_KG / ((4.0 / 3.0) * math.pi * (0.5 * FIXED_BODY_DIAMETER_M) ** 3)
+
+
+def fixed_cd_area_over_mass(args) -> float:
+    radius = 0.5 * float(args.body_diameter_m)
+    area = math.pi * radius**2
+    return float(args.body_cd) * area / float(args.body_mass_kg)
+
+
+def fixed_log10_cd_area_over_mass(args) -> float:
+    return math.log10(fixed_cd_area_over_mass(args))
 
 
 def load_selected_head_observations(path: Path) -> list[dict]:
@@ -110,8 +124,8 @@ def pre_head_reference_time(obs: list[dict], offset_s: float = 4.0) -> float:
     return float(min(o["unix_time"] for o in obs) - offset_s)
 
 
-def parameters_from_delta(delta: np.ndarray, base_state: np.ndarray) -> np.ndarray:
-    return np.r_[base_state[:3] + delta[:3], base_state[3:6] + delta[3:6], delta[6]]
+def parameters_from_delta(delta: np.ndarray, base_state: np.ndarray, args) -> np.ndarray:
+    return np.r_[base_state[:3] + delta[:3], base_state[3:6] + delta[3:6], fixed_log10_cd_area_over_mass(args)]
 
 
 def low_altitude_trail_timing_raw(trail_rows: list[dict], model_time: np.ndarray, args) -> np.ndarray:
@@ -262,7 +276,7 @@ def whiten(residual: np.ndarray, chol: np.ndarray) -> np.ndarray:
 
 
 def whitened_delta_residuals(delta, base_state, obs, trail_rows, t_ref, t_model, density_profile, args, chol):
-    params = parameters_from_delta(delta, base_state)
+    params = parameters_from_delta(delta, base_state, args)
     return whiten(raw_residuals(params, obs, trail_rows, t_ref, t_model, density_profile, args), chol)
 
 
@@ -274,6 +288,12 @@ def covariance_from_whitened_jacobian(result, n_params: int) -> tuple[np.ndarray
     dof = max(1, jac.shape[0] - n_params)
     chi2_red = float(np.sum(np.asarray(result.fun) ** 2) / dof)
     return cov, chi2_red
+
+
+def embed_state_covariance(cov6: np.ndarray) -> np.ndarray:
+    cov7 = np.zeros((7, 7), dtype=float)
+    cov7[:6, :6] = np.asarray(cov6, dtype=float)
+    return cov7
 
 
 def load_initial_state(args, t_ref: float) -> np.ndarray:
@@ -305,6 +325,8 @@ def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_met
         f"\\newcommand{{\\CorrFitDeltaPositionKm}}{{{fmt(np.linalg.norm(dp) / 1000.0, 2)}}}\n",
         f"\\newcommand{{\\CorrFitDeltaVelocityMps}}{{{fmt(np.linalg.norm(dv), 1)}}}\n",
         f"\\newcommand{{\\CorrFitCdAreaMass}}{{{payload['cd_area_over_mass_m2_kg']:.3e}}}\n",
+        f"\\newcommand{{\\CorrFitBodyDiameterM}}{{{payload['fixed_body']['diameter_m']:.1f}}}\n",
+        f"\\newcommand{{\\CorrFitBodyMassTon}}{{{payload['fixed_body']['mass_kg'] / 1000.0:.1f}}}\n",
         f"\\newcommand{{\\CorrFitTrailMedianKm}}{{{fmt(payload['trail_residual_m']['median'] / 1000.0, 2)}}}\n",
     ]
     if impact and old_impact:
@@ -507,8 +529,9 @@ def main() -> None:
 
     base_state = load_initial_state(args, t_ref)
     old_payload = json.loads(Path(args.initial_ballistic_json).read_text(encoding="utf-8"))
-    old_params_shifted = np.r_[base_state, old_payload["fit_parameters"][6]]
-    q0 = np.r_[np.zeros(6), float(old_payload["fit_parameters"][6])]
+    fixed_log_drag = fixed_log10_cd_area_over_mass(args)
+    old_params_shifted = np.r_[base_state, fixed_log_drag]
+    q0 = np.zeros(6, dtype=float)
 
     t_head = np.array([o["unix_time"] for o in obs], dtype=float)
     v2 = float(np.dot(base_state[3:6], base_state[3:6]))
@@ -528,30 +551,49 @@ def main() -> None:
         f"{len(trail_rows)} trail positions, {cov_meta['n_residuals']} residuals",
         flush=True,
     )
-    lower = np.r_[np.full(3, -30000.0), np.full(3, -4000.0), -6.0]
-    upper = np.r_[np.full(3, 30000.0), np.full(3, 4000.0), -0.2]
+    lower = np.r_[np.full(3, -30000.0), np.full(3, -4000.0)]
+    upper = np.r_[np.full(3, 30000.0), np.full(3, 4000.0)]
     res = least_squares(
         whitened_delta_residuals,
         q0,
         args=(base_state, obs, trail_rows, t_ref, t_model, density_profile, args, chol),
         bounds=(lower, upper),
-        x_scale=np.r_[np.full(3, 3000.0), np.full(3, 500.0), 1.0],
-        diff_step=np.r_[np.full(3, 100.0), np.full(3, 10.0), 0.05],
+        x_scale=np.r_[np.full(3, 3000.0), np.full(3, 500.0)],
+        diff_step=np.r_[np.full(3, 100.0), np.full(3, 10.0)],
         loss="linear",
         max_nfev=args.max_nfev,
         verbose=1,
     )
-    xhat = parameters_from_delta(res.x, base_state)
+    xhat = parameters_from_delta(res.x, base_state, args)
     cov_delta, chi2_red = covariance_from_whitened_jacobian(res, len(res.x))
-    cov_params = cov_delta.copy()
+    cov_params = embed_state_covariance(cov_delta)
 
     print("Writing products", flush=True)
     payload = write_json(args.out_dir / "ballistic_head_trail_correlated_fit.json", res, xhat, obs, trail_rows, t_ref, t_model, density_profile, args)
+    payload["parameter_order"] = [
+        "x_gcrs_m",
+        "y_gcrs_m",
+        "z_gcrs_m",
+        "vx_gcrs_mps",
+        "vy_gcrs_mps",
+        "vz_gcrs_mps",
+        "fixed_log10_cd_area_over_mass_m2_kg",
+    ]
+    payload["fitted_parameter_order"] = payload["parameter_order"][:6]
+    payload["fixed_parameter_order"] = payload["parameter_order"][6:]
     payload["fit_covariance"] = cov_params.tolist()
     payload["correlated_covariance"] = {
         **cov_meta,
         "reduced_chi2": chi2_red,
-        "covariance_model": "Sigma blocks use triangular overlap autocorrelation; covariance is not diagonalized by assuming independent overlapping integrations.",
+        "covariance_model": "Sigma blocks use triangular overlap autocorrelation; parameter covariance is the standard linearized GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters.",
+    }
+    payload["fixed_body"] = {
+        "diameter_m": float(args.body_diameter_m),
+        "mass_kg": float(args.body_mass_kg),
+        "cd": float(args.body_cd),
+        "cd_area_over_mass_m2_kg": float(fixed_cd_area_over_mass(args)),
+        "density_kg_m3": float(FIXED_BODY_DENSITY_KG_M3 if args.body_diameter_m == FIXED_BODY_DIAMETER_M and args.body_mass_kg == FIXED_BODY_MASS_KG else args.body_mass_kg / ((4.0 / 3.0) * math.pi * (0.5 * args.body_diameter_m) ** 3)),
+        "note": "Atmospheric drag is fixed from this body model and is not estimated in the least-squares fit.",
     }
     payload["nominal_orbit_comparison"] = {
         "method": "Astropy built-in Earth/Sun ephemeris plus two-body heliocentric elements; diagnostic only.",
@@ -586,7 +628,7 @@ def main() -> None:
     write_orbit_comparison_table(Path(args.report_table_dir) / "correlated_ballistic_orbit_comparison_table.tex", payload["nominal_orbit_comparison"])
     print(f"Wrote {args.out_dir / 'ballistic_head_trail_correlated_fit.json'}")
     print(f"reduced chi^2 {chi2_red:.3f}")
-    print(f"Cd*A/m {payload['cd_area_over_mass_m2_kg']:.4g} m^2/kg")
+    print(f"fixed Cd*A/m {payload['cd_area_over_mass_m2_kg']:.4g} m^2/kg")
     print(f"Trail median residual {payload['trail_residual_m']['median']:.1f} m")
 
 
@@ -614,11 +656,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model-padding-s", type=float, default=0.8)
     p.add_argument("--model-dt-s", type=float, default=0.10)
     p.add_argument("--fragment-breakup-alt-km", type=float, default=30.0)
-    p.add_argument("--fragment-diameter-m", type=float, default=DEFAULT_FRAGMENT_DIAMETER_M)
-    p.add_argument("--fragment-diameter-min-m", type=float, default=0.01)
-    p.add_argument("--fragment-diameter-max-m", type=float, default=1.0)
-    p.add_argument("--fragment-density-kg-m3", type=float, default=DEFAULT_FRAGMENT_DENSITY_KG_M3)
-    p.add_argument("--fragment-cd", type=float, default=DEFAULT_FRAGMENT_CD)
+    p.add_argument("--body-diameter-m", type=float, default=FIXED_BODY_DIAMETER_M)
+    p.add_argument("--body-mass-kg", type=float, default=FIXED_BODY_MASS_KG)
+    p.add_argument("--body-cd", type=float, default=FIXED_BODY_CD)
+    p.add_argument("--fragment-diameter-m", type=float, default=FIXED_BODY_DIAMETER_M)
+    p.add_argument("--fragment-diameter-min-m", type=float, default=FIXED_BODY_DIAMETER_M)
+    p.add_argument("--fragment-diameter-max-m", type=float, default=FIXED_BODY_DIAMETER_M)
+    p.add_argument("--fragment-density-kg-m3", type=float, default=FIXED_BODY_DENSITY_KG_M3)
+    p.add_argument("--fragment-cd", type=float, default=FIXED_BODY_CD)
     p.add_argument("--fragment-breakup-search-s", type=float, default=30.0)
     p.add_argument("--fragment-impact-max-duration-s", type=float, default=3600.0)
     p.add_argument("--fragment-integration-dt-s", type=float, default=10.0)
