@@ -73,6 +73,10 @@ def table_utc(t: float) -> str:
     return datetime.fromtimestamp(float(t), UTC).strftime("%H:%M:%S.%f")[:-2]
 
 
+def mjd2000_days(t_unix: float) -> float:
+    return float(t_unix) / 86400.0 - 10957.5
+
+
 def gcrs_to_geodetic(gcrs_m: np.ndarray, t_unix: float) -> tuple[float, float, float]:
     return ecef_to_geodetic_wgs84(gcrs_to_ecef(gcrs_m, t_unix))
 
@@ -558,6 +562,91 @@ def write_fragment_impact_table(path: Path, summary: dict) -> None:
 \end{{table}}
 """
     path.write_text(text, encoding="utf-8")
+
+
+def tex_sci(value: float, digits: int = 3) -> str:
+    value = float(value)
+    if not np.isfinite(value):
+        return "--"
+    if value == 0.0:
+        return "0"
+    exponent = int(math.floor(math.log10(abs(value))))
+    mantissa = value / (10.0**exponent)
+    if -2 <= exponent < 4:
+        decimals = max(0, digits - 1 - exponent)
+        return f"{value:.{decimals}f}"
+    return rf"{mantissa:.{digits - 1}f}\times 10^{{{exponent}}}"
+
+
+def write_initial_state_json(path: Path, params: np.ndarray, cov: np.ndarray, t_ref: float) -> dict:
+    state_order = ["x_gcrs_m", "y_gcrs_m", "z_gcrs_m", "vx_gcrs_mps", "vy_gcrs_mps", "vz_gcrs_mps"]
+    state_units = ["m", "m", "m", "m s^-1", "m s^-1", "m s^-1"]
+    cov6 = np.asarray(cov, dtype=float)[:6, :6]
+    payload = {
+        "schema": "new_england_bolide.ballistic_initial_state.v1",
+        "description": "Initial inertial state from the ballistic head/trail fit, evaluated 4 s before the first retained head echo.",
+        "time_unix": float(t_ref),
+        "time_utc": iso_utc(t_ref),
+        "time_mjd2000_days_utc": mjd2000_days(t_ref),
+        "time_scale": "UTC",
+        "frame": "GCRS/ECI_GMST",
+        "state_order": state_order,
+        "state_units": state_units,
+        "state": np.asarray(params[:6], dtype=float).tolist(),
+        "covariance": cov6.tolist(),
+        "covariance_units": [[f"{ui} {uj}" for uj in state_units] for ui in state_units],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
+def write_initial_state_table_from_json(json_path: Path, tex_path: Path) -> None:
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    labels = ["$x$", "$y$", "$z$", "$v_x$", "$v_y$", "$v_z$"]
+    units = ["m", "m", "m", "m s$^{-1}$", "m s$^{-1}$", "m s$^{-1}$"]
+    state = np.asarray(payload["state"], dtype=float)
+    cov = np.asarray(payload["covariance"], dtype=float)
+    lines = [
+        "\\begin{table}\n",
+        "  \\centering\n",
+        "  \\caption{Initial GCRS/ECI state used for orbit propagation.  The epoch is 4 s before the first retained head echo.  The covariance matrix is ordered as $(x,y,z,v_x,v_y,v_z)$ and is given in the SI products implied by the row and column variables.}\n",
+        "  \\label{tab:ballistic-initial-state}\n",
+        "  \\resizebox{\\linewidth}{!}{%\n",
+        "  \\begin{tabular}{llr}\n",
+        "    \\toprule\n",
+        "    Quantity & Unit & Value \\\\\n",
+        "    \\midrule\n",
+        f"    Epoch (UTC) & -- & {payload['time_utc'].replace('T', ' ').replace('Z', ' UTC')} \\\\\n",
+        f"    Epoch (MJD2000 UTC) & d & {payload['time_mjd2000_days_utc']:.8f} \\\\\n",
+    ]
+    for label, unit, value in zip(labels, units, state, strict=True):
+        lines.append(f"    {label} & {unit} & ${tex_sci(value, 6)}$ \\\\\n")
+    lines.extend(
+        [
+            "    \\bottomrule\n",
+            "  \\end{tabular}}\n",
+            "\n",
+            "  \\vspace{0.5em}\n",
+            "  \\resizebox{\\linewidth}{!}{%\n",
+            "  \\begin{tabular}{lrrrrrr}\n",
+            "    \\toprule\n",
+            "     & $x$ & $y$ & $z$ & $v_x$ & $v_y$ & $v_z$ \\\\\n",
+            "    \\midrule\n",
+        ]
+    )
+    for label, row in zip(labels, cov, strict=True):
+        values = " & ".join(f"${tex_sci(v, 3)}$" for v in row)
+        lines.append(f"    {label} & {values} \\\\\n")
+    lines.extend(
+        [
+            "    \\bottomrule\n",
+            "  \\end{tabular}}\n",
+            "\\end{table}\n",
+        ]
+    )
+    tex_path.parent.mkdir(parents=True, exist_ok=True)
+    tex_path.write_text("".join(lines), encoding="utf-8")
 
 
 def enu_from_llh_time(llh: np.ndarray, t_unix: np.ndarray, tx0: np.ndarray, rot: np.ndarray) -> np.ndarray:
@@ -1537,6 +1626,10 @@ def main():
     cov_params = cov_delta.copy()
     payload["fit_covariance"] = cov_params.tolist()
     (args.out_dir / "ballistic_head_trail_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    initial_state_json = args.out_dir / "ballistic_initial_state.json"
+    initial_state_table = Path(args.report_table_dir) / "ballistic_initial_state_table.tex"
+    write_initial_state_json(initial_state_json, xhat, cov_params, t_ref)
+    write_initial_state_table_from_json(initial_state_json, initial_state_table)
     tx0, rot = transmitter_local_frame(geom)
     impact_plot = args.out_dir / "ballistic_head_trail_impact_map.png"
     print("Propagating fragment impact map", flush=True)

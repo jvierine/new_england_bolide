@@ -1,0 +1,35 @@
+\begin{table}
+  \centering
+  \caption{Initial GCRS/ECI state used for orbit propagation.  The epoch is 4 s before the first retained head echo.  The covariance matrix is ordered as $(x,y,z,v_x,v_y,v_z)$ and is given in the SI products implied by the row and column variables.}
+  \label{tab:ballistic-initial-state}
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{llr}
+    \toprule
+    Quantity & Unit & Value \\
+    \midrule
+    Epoch (UTC) & -- & 2026-05-30 18:06:16.260000 UTC \\
+    Epoch (MJD2000 UTC) & d & 9646.25435486 \\
+    $x$ & m & $1.00224\times 10^{5}$ \\
+    $y$ & m & $4.87666\times 10^{6}$ \\
+    $z$ & m & $4.38420\times 10^{6}$ \\
+    $v_x$ & m s$^{-1}$ & $-8332.54$ \\
+    $v_y$ & m s$^{-1}$ & $-1.55527\times 10^{4}$ \\
+    $v_z$ & m s$^{-1}$ & $-1.99729\times 10^{4}$ \\
+    \bottomrule
+  \end{tabular}}
+
+  \vspace{0.5em}
+  \resizebox{\linewidth}{!}{%
+  \begin{tabular}{lrrrrrr}
+    \toprule
+     & $x$ & $y$ & $z$ & $v_x$ & $v_y$ & $v_z$ \\
+    \midrule
+    $x$ & $2.02\times 10^{5}$ & $1.01\times 10^{5}$ & $-1.04\times 10^{5}$ & $-4.13\times 10^{4}$ & $-1.98\times 10^{4}$ & $2.47\times 10^{4}$ \\
+    $y$ & $1.01\times 10^{5}$ & $1.49\times 10^{5}$ & $-3.67\times 10^{4}$ & $-2.10\times 10^{4}$ & $-3.29\times 10^{4}$ & $5635$ \\
+    $z$ & $-1.04\times 10^{5}$ & $-3.67\times 10^{4}$ & $3.89\times 10^{5}$ & $2.39\times 10^{4}$ & $1.41\times 10^{4}$ & $-7.89\times 10^{4}$ \\
+    $v_x$ & $-4.13\times 10^{4}$ & $-2.10\times 10^{4}$ & $2.39\times 10^{4}$ & $8938$ & $4436$ & $-5518$ \\
+    $v_y$ & $-1.98\times 10^{4}$ & $-3.29\times 10^{4}$ & $1.41\times 10^{4}$ & $4436$ & $7650$ & $-2210$ \\
+    $v_z$ & $2.47\times 10^{4}$ & $5635$ & $-7.89\times 10^{4}$ & $-5518$ & $-2210$ & $1.70\times 10^{4}$ \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
