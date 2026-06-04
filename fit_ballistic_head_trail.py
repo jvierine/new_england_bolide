@@ -261,20 +261,7 @@ def residuals(params, obs, trail_rows, t_ref, t_model, density_profile, args):
     trail_points = np.array([r["gcrs_ref_m"] for r in trail_rows], dtype=float)
     trail_vec, _idx = closest_curve_vectors(trail_points, pos_model)
     trail_sigma = np.array([r["sigma_m"] for r in trail_rows], dtype=float)
-    r_trail_time = low_altitude_trail_timing_residuals(trail_rows, t_model[_idx], args)
-    return np.r_[r_head, d_head, (trail_vec / trail_sigma[:, None]).ravel(), r_trail_time]
-
-
-def low_altitude_trail_timing_residuals(trail_rows: list[dict], model_time: np.ndarray, args) -> np.ndarray:
-    if not args.trail_timing_enable:
-        return np.array([], dtype=float)
-    alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
-    echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
-    keep = np.isfinite(alt_km) & np.isfinite(echo_time) & (alt_km <= args.trail_timing_max_alt_km)
-    if not np.any(keep):
-        return np.array([], dtype=float)
-    predicted_echo_time = np.asarray(model_time, dtype=float)[keep] + args.trail_timing_lag_s
-    return (predicted_echo_time - echo_time[keep]) / args.trail_timing_sigma_s
+    return np.r_[r_head, d_head, (trail_vec / trail_sigma[:, None]).ravel()]
 
 
 def parameters_from_delta(delta: np.ndarray, base_state: np.ndarray) -> np.ndarray:
@@ -296,8 +283,7 @@ def write_json(path: Path, result, params, obs, trail_rows, t_ref, t_model, dens
     speed = np.linalg.norm(vel_model, axis=1)
     llh = np.array([gcrs_to_geodetic(p, t) for p, t in zip(pos_model, t_model, strict=True)])
     trail_points = np.array([r["gcrs_ref_m"] for r in trail_rows], dtype=float)
-    trail_vec, idx = closest_curve_vectors(trail_points, pos_model)
-    timing_resid = low_altitude_trail_timing_residuals(trail_rows, t_model[idx], args) * args.trail_timing_sigma_s
+    trail_vec, _idx = closest_curve_vectors(trail_points, pos_model)
     out = {
         "schema": "new_england_bolide.ballistic_head_trail.v1",
         "t_ref_unix": float(t_ref),
@@ -323,13 +309,6 @@ def write_json(path: Path, result, params, obs, trail_rows, t_ref, t_model, dens
         "trail_residual_m": {
             "median": float(np.median(np.linalg.norm(trail_vec, axis=1))),
             "p95": float(np.percentile(np.linalg.norm(trail_vec, axis=1), 95.0)),
-        },
-        "low_altitude_trail_timing": {
-            "max_alt_km": float(args.trail_timing_max_alt_km),
-            "lag_s": float(args.trail_timing_lag_s),
-            "sigma_s": float(args.trail_timing_sigma_s),
-            "n_constraints": int(len(timing_resid)),
-            "residual_s": timing_resid.tolist(),
         },
         "settings": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
     }
@@ -688,10 +667,6 @@ def plot_altitude_enu(
         ],
         dtype=float,
     ) / 1000.0
-    trail_time_sigma = np.zeros(len(trail_rows), dtype=float)
-    if args is not None and args.trail_timing_enable:
-        timed = np.isfinite(trail_alt) & (trail_alt <= args.trail_timing_max_alt_km)
-        trail_time_sigma[timed] = float(args.trail_timing_sigma_s)
     fig, axes = plt.subplots(3, 1, figsize=(12, 10.4), sharex=True, constrained_layout=True)
     tr = t - t_ref
     if params is not None and cov is not None and density_profile is not None and args is not None:
@@ -731,7 +706,6 @@ def plot_altitude_enu(
         ax.errorbar(
             tau,
             scat,
-            xerr=trail_time_sigma,
             yerr=sigma,
             fmt="o",
             ms=4.2,
@@ -1539,10 +1513,6 @@ def parse_args():
     p.add_argument("--max-aod-offset-deg", type=float, default=35.0)
     p.add_argument("--min-trail-alt-km", type=float, default=20.0)
     p.add_argument("--max-trail-alt-km", type=float, default=115.0)
-    p.add_argument("--trail-timing-enable", action=argparse.BooleanOptionalAction, default=True)
-    p.add_argument("--trail-timing-max-alt-km", type=float, default=60.0)
-    p.add_argument("--trail-timing-lag-s", type=float, default=1.0)
-    p.add_argument("--trail-timing-sigma-s", type=float, default=1.0)
     p.add_argument("--model-padding-s", type=float, default=0.8)
     p.add_argument("--model-dt-s", type=float, default=0.10)
     p.add_argument("--initial-cd-area-over-mass", type=float, default=0.002)

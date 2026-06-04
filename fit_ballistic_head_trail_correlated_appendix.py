@@ -128,17 +128,6 @@ def parameters_from_delta(delta: np.ndarray, base_state: np.ndarray, args) -> np
     return np.r_[base_state[:3] + delta[:3], base_state[3:6] + delta[3:6], fixed_log10_cd_area_over_mass(args)]
 
 
-def low_altitude_trail_timing_raw(trail_rows: list[dict], model_time: np.ndarray, args) -> np.ndarray:
-    if not args.trail_timing_enable:
-        return np.array([], dtype=float)
-    alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
-    echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
-    keep = np.isfinite(alt_km) & np.isfinite(echo_time) & (alt_km <= args.trail_timing_max_alt_km)
-    if not np.any(keep):
-        return np.array([], dtype=float)
-    return np.asarray(model_time, dtype=float)[keep] + args.trail_timing_lag_s - echo_time[keep]
-
-
 def raw_residuals(params, obs, trail_rows, t_ref, t_model, density_profile, args) -> np.ndarray:
     try:
         pos_head, vel_head = propagate_state(
@@ -155,9 +144,8 @@ def raw_residuals(params, obs, trail_rows, t_ref, t_model, density_profile, args
     meas_range = np.array([o["range_m"] for o in obs], dtype=float)
     meas_doppler = np.array([o["doppler_hz"] for o in obs], dtype=float)
     trail_points = np.array([r["gcrs_ref_m"] for r in trail_rows], dtype=float)
-    trail_vec, idx = closest_curve_vectors(trail_points, pos_model)
-    timing = low_altitude_trail_timing_raw(trail_rows, t_model[idx], args)
-    return np.r_[pred_range - meas_range, pred_doppler - meas_doppler, trail_vec.ravel(), timing]
+    trail_vec, _idx = closest_curve_vectors(trail_points, pos_model)
+    return np.r_[pred_range - meas_range, pred_doppler - meas_doppler, trail_vec.ravel()]
 
 
 def overlap_corr(dt_s: np.ndarray, code_period_s: float, n_codes: int) -> np.ndarray:
@@ -186,10 +174,7 @@ def fill_correlated_block(
 def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) -> tuple[np.ndarray, dict]:
     n_head = len(obs)
     n_trail = len(trail_rows)
-    n_timing = 0
-    if args.trail_timing_enable:
-        n_timing = int(np.sum(np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows]) <= args.trail_timing_max_alt_km))
-    n = 2 * n_head + 3 * n_trail + n_timing
+    n = 2 * n_head + 3 * n_trail
     cov = np.zeros((n, n), dtype=float)
 
     for station in sorted(set(o["station"] for o in obs)):
@@ -230,29 +215,12 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
                 code_period_s=args.code_period_s,
             )
 
-    timing_base = trail_base + 3 * n_trail
-    if n_timing:
-        timing_sigma = np.full(n_timing, float(args.trail_timing_sigma_s), dtype=float)
-        timing_times = np.array(
-            [float(r["unix_time"]) for r in trail_rows if float(r["alt_m"]) / 1000.0 <= args.trail_timing_max_alt_km],
-            dtype=float,
-        )
-        fill_correlated_block(
-            cov,
-            list(range(timing_base, timing_base + n_timing)),
-            timing_times,
-            timing_sigma,
-            n_codes=args.trail_coherent_codes,
-            code_period_s=args.code_period_s,
-        )
-
     diag_floor = np.maximum(np.abs(np.diag(cov)) * 1e-8, 1e-6)
     cov += np.diag(diag_floor)
     meta = {
         "n_residuals": int(n),
         "n_head_observations": int(n_head),
         "n_trail_positions": int(n_trail),
-        "n_timing_constraints": int(n_timing),
         "head_coherent_codes": int(args.head_coherent_codes),
         "trail_coherent_codes": int(args.trail_coherent_codes),
         "code_period_s": float(args.code_period_s),
@@ -649,10 +617,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-aod-offset-deg", type=float, default=35.0)
     p.add_argument("--min-trail-alt-km", type=float, default=20.0)
     p.add_argument("--max-trail-alt-km", type=float, default=115.0)
-    p.add_argument("--trail-timing-enable", action=argparse.BooleanOptionalAction, default=True)
-    p.add_argument("--trail-timing-max-alt-km", type=float, default=60.0)
-    p.add_argument("--trail-timing-lag-s", type=float, default=1.0)
-    p.add_argument("--trail-timing-sigma-s", type=float, default=1.0)
     p.add_argument("--model-padding-s", type=float, default=0.8)
     p.add_argument("--model-dt-s", type=float, default=0.10)
     p.add_argument("--fragment-breakup-alt-km", type=float, default=30.0)

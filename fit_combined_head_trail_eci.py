@@ -281,18 +281,6 @@ def trail_line_residual_vectors(
     return curve[idx] - trail_gcrs, t_grid[idx] - float(t_ref)
 
 
-def low_altitude_trail_timing_residuals(params, trail_rows: list[dict], tau: np.ndarray, t_ref: float, args) -> np.ndarray:
-    if not args.trail_timing_enable:
-        return np.array([], dtype=float)
-    alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
-    echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
-    keep = np.isfinite(alt_km) & np.isfinite(echo_time) & (alt_km <= args.trail_timing_max_alt_km)
-    if not np.any(keep):
-        return np.array([], dtype=float)
-    predicted_echo_time = t_ref + tau[keep] + args.trail_timing_lag_s
-    return (predicted_echo_time - echo_time[keep]) / args.trail_timing_sigma_s
-
-
 def combined_residuals(params, head_obs, trail_rows, trail_gcrs, geom, t_ref, head_range_sigma, head_doppler_sigma, trail_sigma, args):
     pred_range, pred_doppler = predict_head(params, head_obs, geom, t_ref)
     meas_range = np.array([o["range_m"] for o in head_obs], dtype=float)
@@ -301,8 +289,7 @@ def combined_residuals(params, head_obs, trail_rows, trail_gcrs, geom, t_ref, he
     d_head = (pred_doppler - meas_doppler) / head_doppler_sigma
     trail_vec, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
     r_trail = (trail_vec / trail_sigma[:, None]).ravel()
-    r_trail_time = low_altitude_trail_timing_residuals(params, trail_rows, tau, t_ref, args)
-    return np.r_[r_head, d_head, r_trail, r_trail_time]
+    return np.r_[r_head, d_head, r_trail]
 
 
 def robust_reject_trail(params, trail_rows, trail_gcrs, t_ref: float, max_sigma=3.5, min_threshold_m=4500.0):
@@ -476,15 +463,10 @@ def empirical_measurement_sigmas(params: np.ndarray, obs: list[dict], trail_rows
     mr = np.array([o["range_m"] for o in obs], dtype=float)
     md = np.array([o["doppler_hz"] for o in obs], dtype=float)
     trail_vec, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
-    alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
-    echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
-    low = np.isfinite(alt_km) & np.isfinite(echo_time) & (alt_km <= 60.0)
-    timing_resid = (t_ref + tau[low] + 1.0) - echo_time[low]
     return {
         "head_range_sigma_m": robust_std(pr - mr, floor=150.0),
         "head_doppler_sigma_hz": robust_std(pd - md, floor=25.0),
         "trail_position_sigma_m": robust_std(trail_vec.ravel(), floor=500.0),
-        "low_altitude_trail_timing_sigma_s": robust_std(timing_resid, floor=1.0),
     }
 
 
@@ -502,9 +484,6 @@ def summarize_fit(params, cov, obs, trail_rows, trail_gcrs, geom, t_ref):
     md = np.array([o["doppler_hz"] for o in obs], dtype=float)
     tv, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
     trail_dist = np.linalg.norm(tv, axis=1)
-    trail_alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
-    trail_echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
-    low_time = np.isfinite(trail_alt_km) & np.isfinite(trail_echo_time) & (trail_alt_km <= 60.0)
     p_ecef = gcrs_to_ecef(params[:3], t_ref)
     v_ecef = gcrs_to_ecef(params[:3] + params[3:6], t_ref + 1.0) - p_ecef
     lat, lon, alt = ecef_to_geodetic_wgs84(p_ecef)
@@ -513,8 +492,6 @@ def summarize_fit(params, cov, obs, trail_rows, trail_gcrs, geom, t_ref):
         "doppler_residual_hz": pd - md,
         "trail_residual_m": trail_dist,
         "trail_tau_s": tau,
-        "low_altitude_trail_timing_residual_s": (t_ref + tau[low_time] + 1.0) - trail_echo_time[low_time],
-        "n_low_altitude_timing_constraints": int(np.sum(low_time)),
         "position_ref_ecef_m": p_ecef,
         "velocity_ecef_mps": v_ecef,
         "lat_ref_deg": lat,
@@ -562,16 +539,6 @@ def write_json(out_dir, args, params, cov, s2, summary, obs, trail_rows, rejecte
             "rms": float(np.sqrt(np.mean(summary["trail_residual_m"] ** 2))),
             "median": float(np.median(summary["trail_residual_m"])),
             "p95": float(np.percentile(summary["trail_residual_m"], 95.0)),
-        },
-        "low_altitude_trail_timing": {
-            "max_alt_km": float(args.trail_timing_max_alt_km),
-            "lag_s": float(args.trail_timing_lag_s),
-            "sigma_s": float(args.trail_timing_sigma_s),
-            "n_constraints": int(summary["n_low_altitude_timing_constraints"]),
-            "residual_s": summary["low_altitude_trail_timing_residual_s"].tolist(),
-            "rms_s": float(np.sqrt(np.mean(summary["low_altitude_trail_timing_residual_s"] ** 2)))
-            if summary["n_low_altitude_timing_constraints"] > 0
-            else None,
         },
         "rejected_trail_positions": [
             {
@@ -1125,7 +1092,6 @@ def run(args):
     print(f"Head range RMS {summary['range_residual_m'].std():.1f} m")
     print(f"Head Doppler RMS {summary['doppler_residual_hz'].std():.1f} Hz")
     print(f"Trail median residual {np.median(summary['trail_residual_m']):.1f} m; rejected {len(rejected_trail)} above {reject_threshold:.1f} m")
-    print(f"Low-altitude trail timing constraints {summary['n_low_altitude_timing_constraints']}")
 
 
 def parse_args():
@@ -1147,10 +1113,6 @@ def parse_args():
     p.add_argument("--max-aod-offset-deg", type=float, default=35.0)
     p.add_argument("--min-trail-alt-km", type=float, default=20.0)
     p.add_argument("--max-trail-alt-km", type=float, default=115.0)
-    p.add_argument("--trail-timing-enable", action=argparse.BooleanOptionalAction, default=True)
-    p.add_argument("--trail-timing-max-alt-km", type=float, default=60.0)
-    p.add_argument("--trail-timing-lag-s", type=float, default=1.0)
-    p.add_argument("--trail-timing-sigma-s", type=float, default=1.0)
     p.add_argument("--max-nfev", type=int, default=200)
     p.add_argument("--skip-plots", action="store_true")
     return p.parse_args()
