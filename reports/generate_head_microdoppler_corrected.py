@@ -195,7 +195,7 @@ def write_summary(path: Path, rows: list[dict]) -> None:
             writer.writerow({field: row.get(field, "") for field in fields})
 
 
-def plot_corrected(results: list[dict], out_fig: Path) -> Path:
+def plot_corrected(results: list[dict], out_fig: Path, vmin_db: float, vmax_db: float) -> Path:
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update(
         {
@@ -215,7 +215,7 @@ def plot_corrected(results: list[dict], out_fig: Path) -> Path:
         t = res["time_rel"]
         f = res["rel_freqs"]
         z = res["spec_db"].T
-        mappable = ax.pcolormesh(t, f, z, shading="auto", cmap="inferno", vmin=0.0, vmax=6.0)
+        mappable = ax.pcolormesh(t, f, z, shading="auto", cmap="inferno", vmin=vmin_db, vmax=vmax_db)
         ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.65)
         ax.set_ylabel("$f-f_{D,Gaussian}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo")
@@ -251,6 +251,8 @@ def main() -> None:
     p.add_argument("--smooth-range-pixels", type=float, default=4.0)
     p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
     p.add_argument("--code-period-s", type=float, default=0.01)
+    p.add_argument("--vmin-db", type=float, default=0.0)
+    p.add_argument("--vmax-db", type=float, default=6.0)
     args = p.parse_args()
 
     fit_rows = load_fit_rows(args.fit_summary, args.stations)
@@ -264,7 +266,7 @@ def main() -> None:
             rows.extend(station_rows)
     write_summary(args.summary, rows)
 
-    out = plot_corrected(results, args.out_fig)
+    out = plot_corrected(results, args.out_fig, args.vmin_db, args.vmax_db)
     print(out)
     print(args.summary)
 
