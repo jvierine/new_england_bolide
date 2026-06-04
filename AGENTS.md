@@ -108,8 +108,13 @@ bd47fbf Clarify ballistic head trail fit equations
 Do not confuse the old straight-line ECI helper fit with the manuscript's
 reported combined head/trail solution. Section 3.4 now describes a ballistic
 inertial fit: trail positions are closest-point constraints to the propagated
-ballistic curve, and the drag parameter \(C_D A/m\) is included in the fitted
-parameter vector.
+ballistic curve.
+
+Do not estimate atmospheric drag in future ballistic or orbit-association
+updates. Use a fixed physical body model for the bolide: a spherical meteoroid
+with 1.6 m diameter and 5 metric tons mass. If an atmospheric drag coefficient
+is needed for propagation, derive the ballistic parameter from that fixed
+sphere and mass assumption rather than fitting \(C_D A/m\) as a free parameter.
 
 The local working tree may intentionally contain uncommitted trail-ROI and
 micro-Doppler work, including regenerated `trail_echo_roi.png`, altitude-label
