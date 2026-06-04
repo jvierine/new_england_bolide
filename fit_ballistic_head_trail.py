@@ -583,44 +583,37 @@ def write_initial_state_json(path: Path, params: np.ndarray, cov: np.ndarray, t_
 def write_initial_state_table_from_json(json_path: Path, tex_path: Path) -> None:
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     labels = ["$x$", "$y$", "$z$", "$v_x$", "$v_y$", "$v_z$"]
-    units = ["m", "m", "m", "m s$^{-1}$", "m s$^{-1}$", "m s$^{-1}$"]
     state = np.asarray(payload["state"], dtype=float)
     cov = np.asarray(payload["covariance"], dtype=float)
+
+    def scaled(value: float, digits: int = 4) -> str:
+        return f"{value / 1.0e4:.{digits}g}"
+
+    time_utc = payload["time_utc"].replace("T", " ").replace("Z", " UTC")
+    mjd2000 = payload["time_mjd2000_days_utc"]
     lines = [
         "\\begin{table}\n",
         "  \\centering\n",
-        "  \\caption{Initial GCRS/ECI state used for orbit propagation.  The epoch is 4 s before the first retained head echo.  The covariance matrix is ordered as $(x,y,z,v_x,v_y,v_z)$ and is given in the SI products implied by the row and column variables.}\n",
+        f"  \\caption{{Initial GCRS/ECI state used for orbit propagation at {time_utc} (MJD2000 UTC {mjd2000:.8f}), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}})$; covariance entries use the corresponding unit products.}}\n",
         "  \\label{tab:ballistic-initial-state}\n",
-        "  \\resizebox{\\linewidth}{!}{%\n",
-        "  \\begin{tabular}{llr}\n",
+        "  \\begingroup\n",
+        "  \\small\n",
+        "  \\setlength{\\tabcolsep}{2.5pt}\n",
+        "  \\begin{tabular}{@{}ll|rrrrrr@{}}\n",
         "    \\toprule\n",
-        "    Quantity & Unit & Value \\\\\n",
+        "     & Mean / $10^4$ & \\multicolumn{6}{c@{}}{Covariance / $10^4$} \\\\\n",
         "    \\midrule\n",
-        f"    Epoch (UTC) & -- & {payload['time_utc'].replace('T', ' ').replace('Z', ' UTC')} \\\\\n",
-        f"    Epoch (MJD2000 UTC) & d & {payload['time_mjd2000_days_utc']:.8f} \\\\\n",
+        "    Variable & Estimate & $x$ & $y$ & $z$ & $v_x$ & $v_y$ & $v_z$ \\\\\n",
+        "    \\midrule\n",
     ]
-    for label, unit, value in zip(labels, units, state, strict=True):
-        lines.append(f"    {label} & {unit} & ${tex_sci(value, 6)}$ \\\\\n")
+    for label, mean, row in zip(labels, state, cov, strict=True):
+        cov_values = " & ".join(f"${scaled(v)}$" for v in row)
+        lines.append(f"    {label} & ${scaled(mean, 5)}$ & {cov_values} \\\\\n")
     lines.extend(
         [
             "    \\bottomrule\n",
-            "  \\end{tabular}}\n",
-            "\n",
-            "  \\vspace{0.5em}\n",
-            "  \\resizebox{\\linewidth}{!}{%\n",
-            "  \\begin{tabular}{lrrrrrr}\n",
-            "    \\toprule\n",
-            "     & $x$ & $y$ & $z$ & $v_x$ & $v_y$ & $v_z$ \\\\\n",
-            "    \\midrule\n",
-        ]
-    )
-    for label, row in zip(labels, cov, strict=True):
-        values = " & ".join(f"${tex_sci(v, 3)}$" for v in row)
-        lines.append(f"    {label} & {values} \\\\\n")
-    lines.extend(
-        [
-            "    \\bottomrule\n",
-            "  \\end{tabular}}\n",
+            "  \\end{tabular}\n",
+            "  \\endgroup\n",
             "\\end{table}\n",
         ]
     )

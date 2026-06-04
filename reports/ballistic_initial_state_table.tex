@@ -1,35 +1,23 @@
 \begin{table}
   \centering
-  \caption{Initial GCRS/ECI state used for orbit propagation.  The epoch is 4 s before the first retained head echo.  The covariance matrix is ordered as $(x,y,z,v_x,v_y,v_z)$ and is given in the SI products implied by the row and column variables.}
+  \caption{Initial GCRS/ECI state used for orbit propagation at 2026-05-30 18:06:16.180000 UTC (MJD2000 UTC 9646.25435394), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\mathrm{m},\mathrm{m},\mathrm{m},\mathrm{m\,s^{-1}},\mathrm{m\,s^{-1}},\mathrm{m\,s^{-1}})$; covariance entries use the corresponding unit products.}
   \label{tab:ballistic-initial-state}
-  \resizebox{\linewidth}{!}{%
-  \begin{tabular}{llr}
+  \begingroup
+  \small
+  \setlength{\tabcolsep}{2.5pt}
+  \begin{tabular}{@{}ll|rrrrrr@{}}
     \toprule
-    Quantity & Unit & Value \\
+     & Mean / $10^4$ & \multicolumn{6}{c@{}}{Covariance / $10^4$} \\
     \midrule
-    Epoch (UTC) & -- & 2026-05-30 18:06:16.180000 UTC \\
-    Epoch (MJD2000 UTC) & d & 9646.25435394 \\
-    $x$ & m & $9.38387\times 10^{4}$ \\
-    $y$ & m & $4.87973\times 10^{6}$ \\
-    $z$ & m & $4.37901\times 10^{6}$ \\
-    $v_x$ & m s$^{-1}$ & $-7588.58$ \\
-    $v_y$ & m s$^{-1}$ & $-1.66378\times 10^{4}$ \\
-    $v_z$ & m s$^{-1}$ & $-1.97630\times 10^{4}$ \\
-    \bottomrule
-  \end{tabular}}
-
-  \vspace{0.5em}
-  \resizebox{\linewidth}{!}{%
-  \begin{tabular}{lrrrrrr}
-    \toprule
-     & $x$ & $y$ & $z$ & $v_x$ & $v_y$ & $v_z$ \\
+    Variable & Estimate & $x$ & $y$ & $z$ & $v_x$ & $v_y$ & $v_z$ \\
     \midrule
-    $x$ & $2.64\times 10^{6}$ & $2.08\times 10^{6}$ & $-1.08\times 10^{6}$ & $-6.96\times 10^{5}$ & $-5.50\times 10^{5}$ & $1.15\times 10^{5}$ \\
-    $y$ & $2.08\times 10^{6}$ & $4.26\times 10^{6}$ & $8.72\times 10^{5}$ & $-7.12\times 10^{5}$ & $-1.25\times 10^{6}$ & $-7.61\times 10^{5}$ \\
-    $z$ & $-1.08\times 10^{6}$ & $8.72\times 10^{5}$ & $3.55\times 10^{6}$ & $2.40\times 10^{5}$ & $-2.64\times 10^{5}$ & $-9.95\times 10^{5}$ \\
-    $v_x$ & $-6.96\times 10^{5}$ & $-7.12\times 10^{5}$ & $2.40\times 10^{5}$ & $2.02\times 10^{5}$ & $2.05\times 10^{5}$ & $1.94\times 10^{4}$ \\
-    $v_y$ & $-5.50\times 10^{5}$ & $-1.25\times 10^{6}$ & $-2.64\times 10^{5}$ & $2.05\times 10^{5}$ & $3.88\times 10^{5}$ & $2.52\times 10^{5}$ \\
-    $v_z$ & $1.15\times 10^{5}$ & $-7.61\times 10^{5}$ & $-9.95\times 10^{5}$ & $1.94\times 10^{4}$ & $2.52\times 10^{5}$ & $3.88\times 10^{5}$ \\
+    $x$ & $9.38387$ & $264$ & $208$ & $-108$ & $-69.6$ & $-55.0$ & $11.5$ \\
+    $y$ & $487.973$ & $208$ & $426$ & $87.2$ & $-71.2$ & $-125$ & $-76.1$ \\
+    $z$ & $437.901$ & $-108$ & $87.2$ & $355$ & $24.0$ & $-26.4$ & $-99.5$ \\
+    $v_x$ & $-0.758858$ & $-69.6$ & $-71.2$ & $24.0$ & $20.2$ & $20.5$ & $1.94$ \\
+    $v_y$ & $-1.66378$ & $-55.0$ & $-125$ & $-26.4$ & $20.5$ & $38.8$ & $25.2$ \\
+    $v_z$ & $-1.97630$ & $11.5$ & $-76.1$ & $-99.5$ & $1.94$ & $25.2$ & $38.8$ \\
     \bottomrule
-  \end{tabular}}
+  \end{tabular}
+  \endgroup
 \end{table}
