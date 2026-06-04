@@ -119,6 +119,9 @@ run python trail_echo_roi.py \
 
 run python fit_combined_head_trail_eci.py
 run python fit_ballistic_head_trail.py
+# Regenerates correlated ballistic-fit figures, including
+# reports/figures/appendix_correlated_fit/ballistic_head_trail_correlated_range_doppler_fit.png
+# used by fig:combined-trajectory-observables.
 run python fit_ballistic_head_trail_correlated_appendix.py
 
 run python aod_position_from_merged.py \
