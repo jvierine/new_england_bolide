@@ -1,0 +1,50 @@
+{
+  "schema": "new_england_bolide.head_echo_manual_selection.v1",
+  "description": "Manual-selection workflow built from browser selector JSON exports. This workflow intentionally uses separate output paths and does not override retained/ext0p5 Gaussian products or trajectory products.",
+  "fit_summary": "/home/j/src/new_england_bolide/reports/head_echo_gaussian_fit_summary_retained_ext0p5.csv",
+  "out_dir": "reports/head_echo_python_selection_workflow_ext0p5",
+  "raw_exports": [
+    {
+      "path": "reports/head_echo_python_selection_workflow_ext0p5/raw_exports/head_echo_measurement_selection_export_01.json",
+      "name": "head_echo_measurement_selection_export_01.json",
+      "sha256": "ddd33fe697a863316c68fe2e614c8c9681f58f2358a050ce4e69990634a12b8c",
+      "n_rows": 489,
+      "counts": {
+        "unknown": 276,
+        "reject": 0,
+        "real": 213
+      }
+    }
+  ],
+  "outputs": {
+    "all_csv": "reports/head_echo_python_selection_workflow_ext0p5/head_echo_manual_selection_all.csv",
+    "real_csv": "reports/head_echo_python_selection_workflow_ext0p5/head_echo_manual_selection_real.csv",
+    "reject_csv": "reports/head_echo_python_selection_workflow_ext0p5/head_echo_manual_selection_reject.csv"
+  },
+  "counts": {
+    "all": 489,
+    "real": 213,
+    "reject": 0,
+    "unknown": 276
+  },
+  "by_station": {
+    "beverly": {
+      "all": 182,
+      "real": 80,
+      "reject": 0,
+      "unknown": 102
+    },
+    "clinton": {
+      "all": 134,
+      "real": 54,
+      "reject": 0,
+      "unknown": 80
+    },
+    "pomfret": {
+      "all": 173,
+      "real": 79,
+      "reject": 0,
+      "unknown": 94
+    }
+  }
+}

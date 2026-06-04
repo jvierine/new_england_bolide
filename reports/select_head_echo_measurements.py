@@ -2,9 +2,9 @@
 """Interactive matplotlib selector for head-echo range/Doppler measurements.
 
 Keyboard shortcuts:
-  r  mark selected points real
-  x  reject selected points
-  u  set selected points unknown
+  r  switch brush mode to real
+  x  switch brush mode to reject
+  u  switch brush mode to unknown
   c  clear current selection
   a  select all points in current station
   n  next station
@@ -12,7 +12,8 @@ Keyboard shortcuts:
   s  save JSON/CSV
   q  save and close
 
-Use the lasso tool on either panel, or click near a point, to select points.
+Use the lasso tool on either panel, or click near a point, to apply the current
+brush mode. Classifications are saved to disk immediately after every edit.
 """
 
 from __future__ import annotations
@@ -109,6 +110,7 @@ class HeadEchoSelector:
         self.stations = list(dict.fromkeys(df["station"].tolist()))
         self.station_i = 0
         self.selected: set[str] = set()
+        self.brush_mode = "real"
         self.scatters = []
 
         self.fig, self.axes = plt.subplots(2, 1, figsize=(11.5, 8.0), sharex=True)
@@ -135,11 +137,11 @@ class HeadEchoSelector:
 
     def make_buttons(self) -> None:
         specs = [
-            ("Real (r)", self.mark_real),
-            ("Reject (x)", self.mark_reject),
-            ("Unknown (u)", self.mark_unknown),
+            ("Brush Real (r)", self.brush_real),
+            ("Brush Reject (x)", self.brush_reject),
+            ("Brush Unknown (u)", self.brush_unknown),
             ("Clear (c)", self.clear_selection),
-            ("All (a)", self.select_all_station),
+            ("Apply All (a)", self.apply_all_station),
             ("Prev (p)", self.prev_station),
             ("Next (n)", self.next_station),
             ("Save (s)", self.save),
@@ -202,9 +204,10 @@ class HeadEchoSelector:
         counts = {status: sum(self.state[k] == status for k in sdf["key"]) for status in ["unknown", "real", "reject"]}
         self.axes[0].set_title(
             f"{STATION_LABELS.get(self.station, self.station)}: "
-            f"unknown={counts['unknown']} real={counts['real']} reject={counts['reject']} selected={len(self.selected)}"
+            f"unknown={counts['unknown']} real={counts['real']} reject={counts['reject']} "
+            f"brush={self.brush_mode} selected={len(self.selected)}"
         )
-        self.axes[1].set_title("Click or lasso points; r=real, x=reject, u=unknown, s=save, n/p=station")
+        self.axes[1].set_title("Click/lasso paints current brush; r=real, x=reject, u=unknown, s=save, n/p=station")
         self.axes[0].legend(loc="best", framealpha=0.90)
         self.fig.canvas.draw_idle()
 
@@ -220,8 +223,8 @@ class HeadEchoSelector:
         pts, keys = self.points_for_axis(axis_i)
         path = MplPath(verts)
         mask = path.contains_points(pts)
-        self.selected.update(key for key, keep in zip(keys, mask) if keep)
-        self.draw()
+        touched = [key for key, keep in zip(keys, mask) if keep]
+        self.apply_status(touched, self.brush_mode)
 
     def on_click(self, event) -> None:
         if event.inaxes not in self.axes or event.xdata is None or event.ydata is None:
@@ -239,34 +242,38 @@ class HeadEchoSelector:
         if len(dist) == 0 or float(np.min(dist)) > 12.0:
             return
         key = sdf.iloc[int(np.argmin(dist))]["key"]
-        if key in self.selected:
-            self.selected.remove(key)
-        else:
-            self.selected.add(key)
-        self.draw()
+        status = self.brush_mode
+        if event.button == 3:
+            status = "reject"
+        elif event.button == 2:
+            status = "unknown"
+        self.apply_status([key], status)
 
-    def set_selected(self, status: str) -> None:
-        for key in self.selected:
+    def apply_status(self, keys: list[str], status: str) -> None:
+        self.selected = set(keys)
+        for key in keys:
             self.state[key] = status
-        self.selected.clear()
+        self.save()
         self.draw()
 
-    def mark_real(self) -> None:
-        self.set_selected("real")
+    def brush_real(self) -> None:
+        self.brush_mode = "real"
+        self.draw()
 
-    def mark_reject(self) -> None:
-        self.set_selected("reject")
+    def brush_reject(self) -> None:
+        self.brush_mode = "reject"
+        self.draw()
 
-    def mark_unknown(self) -> None:
-        self.set_selected("unknown")
+    def brush_unknown(self) -> None:
+        self.brush_mode = "unknown"
+        self.draw()
 
     def clear_selection(self) -> None:
         self.selected.clear()
         self.draw()
 
-    def select_all_station(self) -> None:
-        self.selected = set(self.station_df()["key"])
-        self.draw()
+    def apply_all_station(self) -> None:
+        self.apply_status(list(self.station_df()["key"]), self.brush_mode)
 
     def next_station(self) -> None:
         self.station_i = (self.station_i + 1) % len(self.stations)
@@ -280,15 +287,15 @@ class HeadEchoSelector:
 
     def on_key(self, event) -> None:
         if event.key == "r":
-            self.mark_real()
+            self.brush_real()
         elif event.key == "x":
-            self.mark_reject()
+            self.brush_reject()
         elif event.key == "u":
-            self.mark_unknown()
+            self.brush_unknown()
         elif event.key == "c":
             self.clear_selection()
         elif event.key == "a":
-            self.select_all_station()
+            self.apply_all_station()
         elif event.key == "n":
             self.next_station()
         elif event.key == "p":
