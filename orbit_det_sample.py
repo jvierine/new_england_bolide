@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Monte Carlo orbit determination for the 2026-05-30 Cape Cod Bay bolide.
 
-This adapts the workflow in ../meteor/orbit_det_sample.py to the local
-head-echo trajectory product. It samples the straight-line trajectory fit
-covariance, converts each sampled ENU state at the Haystack transmitter frame
-to ECEF/ITRS, then uses dasst/rebound to propagate the pre-encounter orbit.
+This adapts the workflow in ../meteor/orbit_det_sample.py to local trajectory
+products. It supports both the original head-echo ENU trajectory product and
+the ballistic GCRS/ECI initial-state JSON products.
 """
 
 from __future__ import annotations
@@ -26,6 +25,7 @@ DEFAULT_TRAJECTORY = Path("products/head_echo_trajectory_roi_fit/head_echo_traje
 DEFAULT_DATA_DIR = Path("2026_05_30_bolide")
 DEFAULT_KERNEL = Path("data/de440s.bsp")
 DEFAULT_OUT = Path("products/orbit_determination/head_echo_orbit_samples.h5")
+OMEGA_EARTH = 7.2921150e-5
 
 KEPLER_OUT_FRAMES = ["ICRS", "HeliocentricMeanEcliptic"]
 RADIANT_OUT_FRAMES = ["GCRS", "GeocentricMeanEcliptic"]
@@ -46,13 +46,25 @@ def clean_covariance(covariance: np.ndarray) -> np.ndarray:
 
 def load_trajectory_state(path: Path) -> dict:
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema") == "new_england_bolide.ballistic_initial_state.v1":
+        return {
+            "payload": payload,
+            "source_kind": "ballistic_initial_state",
+            "t_ref_unix": float(payload["time_unix"]),
+            "mean_state": np.asarray(payload["state"], dtype=float),
+            "cov_state": clean_covariance(np.asarray(payload["covariance"], dtype=float)),
+            "fit_state_frame": payload.get("frame", "GCRS/ECI_GMST"),
+            "used_stations": ["beverly"],
+        }
     params = payload["fit_parameters_enu_at_tx"]
     errors = payload["linearized_fit_error"]
     return {
         "payload": payload,
+        "source_kind": "head_echo_enu",
         "t_ref_unix": float(payload["t_ref_unix"]),
         "mean_enu": np.r_[params["position_ref_m"], params["velocity_mps"]].astype(float),
         "cov_enu": clean_covariance(np.array(errors["covariance"], dtype=float)),
+        "fit_state_frame": "ENU_at_tx",
         "used_stations": list(payload["used_stations"]),
     }
 
@@ -79,6 +91,56 @@ def enu_samples_to_ecef_states(samples_enu: np.ndarray, tx_ecef: np.ndarray, rot
     states[:3, :] = (tx_ecef[None, :] + pos_enu @ rot.T).T
     states[3:, :] = (vel_enu @ rot.T).T
     return states
+
+
+def gmst_angle(unix_time: float | np.ndarray) -> np.ndarray:
+    unix_time = np.asarray(unix_time, dtype=float)
+    jd = unix_time / 86400.0 + 2440587.5
+    t_ut1 = (jd - 2451545.0) / 36525.0
+    gmst_deg = (
+        280.46061837
+        + 360.98564736629 * (jd - 2451545.0)
+        + 0.000387933 * t_ut1**2
+        - t_ut1**3 / 38710000.0
+    )
+    return np.deg2rad(np.mod(gmst_deg, 360.0))
+
+
+def eci_to_ecef_position(pos_eci: np.ndarray, unix_time: float | np.ndarray) -> np.ndarray:
+    pos_eci = np.asarray(pos_eci, dtype=float)
+    theta = gmst_angle(unix_time)
+    c = np.cos(theta)
+    s = np.sin(theta)
+    x = pos_eci[..., 0]
+    y = pos_eci[..., 1]
+    z = pos_eci[..., 2]
+    return np.stack((c * x + s * y, -s * x + c * y, z), axis=-1)
+
+
+def gcrs_samples_to_itrf_states(samples_state: np.ndarray, t_ref_unix: float) -> np.ndarray:
+    """Convert ECI_GMST/GCRS-like inertial samples to ITRS position/velocity.
+
+    The ballistic products use the repository's fast GMST inertial frame.  DASST
+    expects ITRS states, including velocity in the rotating terrestrial frame,
+    so the Earth-rotation term is removed from the rotated inertial velocity.
+    """
+    pos_eci = samples_state[:, :3]
+    vel_eci = samples_state[:, 3:6]
+    pos_ecef = eci_to_ecef_position(pos_eci, t_ref_unix)
+    vel_rotated = eci_to_ecef_position(vel_eci, t_ref_unix)
+    omega = np.array([0.0, 0.0, OMEGA_EARTH], dtype=float)
+    vel_ecef = vel_rotated - np.cross(omega, pos_ecef)
+    states = np.empty((6, len(samples_state)), dtype=float)
+    states[:3, :] = pos_ecef.T
+    states[3:, :] = vel_ecef.T
+    return states
+
+
+def sample_state(mean_state: np.ndarray, cov_state: np.ndarray, n_samples: int, seed: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    if n_samples == 1:
+        return mean_state[None, :]
+    return rng.multivariate_normal(mean_state, cov_state, size=n_samples)
 
 
 def summarize_samples(samples: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -109,9 +171,17 @@ def write_results(
         h.attrs["save_propagation"] = args.save_propagation
         h.attrs["kepler_names"] = json.dumps(KEPLER_NAMES)
         h.create_dataset("haystack_gps_tx_lat_lon_alt", data=gps_tx)
-        h.create_dataset("fit_mean_enu", data=trajectory["mean_enu"])
-        h.create_dataset("fit_covariance_enu", data=trajectory["cov_enu"])
-        h.create_dataset("sample_enu", data=samples_enu)
+        h.attrs["source_kind"] = trajectory["source_kind"]
+        h.attrs["fit_state_frame"] = trajectory["fit_state_frame"]
+        if "mean_enu" in trajectory:
+            h.create_dataset("fit_mean_enu", data=trajectory["mean_enu"])
+            h.create_dataset("fit_covariance_enu", data=trajectory["cov_enu"])
+            h.create_dataset("sample_enu", data=samples_enu)
+        else:
+            h.attrs["fit_state_names"] = json.dumps(["x_gcrs_m", "y_gcrs_m", "z_gcrs_m", "vx_gcrs_mps", "vy_gcrs_mps", "vz_gcrs_mps"])
+            h.create_dataset("fit_mean_state", data=trajectory["mean_state"])
+            h.create_dataset("fit_covariance_state", data=trajectory["cov_state"])
+            h.create_dataset("sample_state_input", data=samples_enu)
         h.create_dataset("sample_state_ecef_m_mps", data=states_ecef)
 
         t_sec = results["t"].sec
@@ -160,8 +230,12 @@ def run(args: argparse.Namespace) -> None:
     trajectory = load_trajectory_state(args.trajectory_json)
     station = args.station or trajectory["used_stations"][0]
     gps_tx, tx_ecef, rot = haystack_frame(args.data_dir, station)
-    samples_enu = sample_enu_states(trajectory["mean_enu"], trajectory["cov_enu"], args.samples, args.seed)
-    states_ecef = enu_samples_to_ecef_states(samples_enu, tx_ecef, rot)
+    if trajectory["source_kind"] == "ballistic_initial_state":
+        samples = sample_state(trajectory["mean_state"], trajectory["cov_state"], args.samples, args.seed)
+        states_ecef = gcrs_samples_to_itrf_states(samples, trajectory["t_ref_unix"])
+    else:
+        samples = sample_enu_states(trajectory["mean_enu"], trajectory["cov_enu"], args.samples, args.seed)
+        states_ecef = enu_samples_to_ecef_states(samples, tx_ecef, rot)
 
     epoch = Time(trajectory["t_ref_unix"], scale="utc", format="unix")
     results = dasst.orbit_determination.rebound_od(
@@ -177,7 +251,7 @@ def run(args: argparse.Namespace) -> None:
         progress_bar=not args.no_progress,
     )
 
-    write_results(args.out, args, trajectory, gps_tx, states_ecef, samples_enu, results)
+    write_results(args.out, args, trajectory, gps_tx, states_ecef, samples, results)
     if args.plot:
         png = plot_eccentricity(args.out)
         print(f"Wrote {png}")
