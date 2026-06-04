@@ -64,6 +64,23 @@ TRAIL_POSITION_EXCLUDE = [
 ]
 
 
+def add_version_stamp(ax, version: str | None) -> None:
+    if not version:
+        return
+    ax.text(
+        0.015,
+        0.985,
+        f"v{version}",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=9,
+        color="0.35",
+        alpha=0.45,
+        zorder=1000,
+    )
+
+
 def iso_utc(t: float) -> str:
     return datetime.fromtimestamp(float(t), UTC).isoformat().replace("+00:00", "Z")
 
@@ -557,7 +574,14 @@ def tex_sci(value: float, digits: int = 3) -> str:
     return rf"{mantissa:.{digits - 1}f}\times 10^{{{exponent}}}"
 
 
-def write_initial_state_json(path: Path, params: np.ndarray, cov: np.ndarray, t_ref: float) -> dict:
+def write_initial_state_json(
+    path: Path,
+    params: np.ndarray,
+    cov: np.ndarray,
+    t_ref: float,
+    trajectory_fit_version: str | None = None,
+    trajectory_fit_version_description: str | None = None,
+) -> dict:
     state_order = ["x_gcrs_m", "y_gcrs_m", "z_gcrs_m", "vx_gcrs_mps", "vy_gcrs_mps", "vz_gcrs_mps"]
     state_units = ["m", "m", "m", "m s^-1", "m s^-1", "m s^-1"]
     cov6 = np.asarray(cov, dtype=float)[:6, :6]
@@ -575,6 +599,10 @@ def write_initial_state_json(path: Path, params: np.ndarray, cov: np.ndarray, t_
         "covariance": cov6.tolist(),
         "covariance_units": [[f"{ui} {uj}" for uj in state_units] for ui in state_units],
     }
+    if trajectory_fit_version is not None:
+        payload["trajectory_fit_version"] = str(trajectory_fit_version)
+    if trajectory_fit_version_description is not None:
+        payload["trajectory_fit_version_description"] = str(trajectory_fit_version_description)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return payload
@@ -592,6 +620,8 @@ def write_initial_state_table_from_json(json_path: Path, tex_path: Path) -> None
     time_utc = payload["time_utc"].replace("T", " ").replace("Z", " UTC")
     mjd2000 = payload["time_mjd2000_days_utc"]
     lines = [
+        f"% trajectory_fit_version: {payload.get('trajectory_fit_version', 'unspecified')}\n",
+        f"% trajectory_fit_version_description: {payload.get('trajectory_fit_version_description', 'unspecified')}\n",
         "\\begin{table}\n",
         "  \\centering\n",
         f"  \\caption{{Initial GCRS state used for orbit propagation at {time_utc} (MJD2000 UTC {mjd2000:.8f}), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}})$; covariance entries use the corresponding unit products.}}\n",
@@ -713,6 +743,7 @@ def plot_altitude_enu(
         )
         ax.set_ylabel(ylabel)
         ax.grid(True, color="0.9", lw=0.6)
+        add_version_stamp(ax, getattr(args, "plot_version_label", None))
     axes[0].axhline(30.0, color="0.35", lw=0.9, ls="--", alpha=0.7)
     if params is not None and obs is not None and density_profile is not None and args is not None:
         t_head = np.array([o["unix_time"] for o in obs], dtype=float)
@@ -1123,7 +1154,7 @@ def plot_impact_map(
         label="nominal water impact",
         zorder=8,
     )
-    ax.set_title("Ballistic trajectory and fragment impact estimate")
+    add_version_stamp(ax, getattr(args, "plot_version_label", None))
     ax.legend(loc="best", fontsize=8)
     fig.savefig(out, dpi=260, bbox_inches="tight")
     plt.close(fig)
@@ -1386,7 +1417,7 @@ def plot_station_measurement_ballistic_overview(
             ax.text(tx_lon + 0.035, tx_lat + 0.02, "TX", fontsize=17, weight="bold", transform=data_crs, zorder=9, clip_on=True)
             tx_seen.add(tx_key)
 
-    ax.set_title("Radar station geometry and bolide trajectory overview", fontsize=23)
+    add_version_stamp(ax, getattr(args, "plot_version_label", None))
     ax.legend(loc="lower left", fontsize=17, framealpha=0.92)
     fig.savefig(out, dpi=420, bbox_inches="tight")
     plt.close(fig)
@@ -1475,12 +1506,12 @@ def plot_lonlat_height(
             label="head-echo positions",
             zorder=30,
         )
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel(xlabel, fontsize=14)
+        ax.tick_params(labelsize=12)
         ax.grid(True, color="0.9", lw=0.6)
-    axes[0].set_ylabel("Height (km)")
-    axes[0].set_title("Ballistic trajectory: longitude-height")
-    axes[1].set_title("Ballistic trajectory: latitude-height")
-    axes[0].legend(loc="best")
+        add_version_stamp(ax, getattr(args, "plot_version_label", None))
+    axes[0].set_ylabel("Height (km)", fontsize=14)
+    axes[0].legend(loc="best", fontsize=12)
     fig.savefig(out, dpi=260, bbox_inches="tight")
     plt.close(fig)
 

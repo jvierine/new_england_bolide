@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 from pathlib import Path
 
 import h5py
@@ -18,6 +19,7 @@ AU = 1.495978707e11
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_SAMPLES = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_OUT = Path("reports/figures/orbit_xy_bolide.png")
+DEFAULT_MACROS = Path("reports/orbit_analysis_macros.tex")
 
 J2000 = Time("2000-01-01T12:00:00", scale="tdb")
 
@@ -137,6 +139,56 @@ def read_kepler(path: Path) -> tuple[np.ndarray, np.ndarray, str, float]:
     return kepler, mean, epoch_utc, t_ref_unix
 
 
+def read_orbit_metadata(path: Path) -> dict[str, str]:
+    try:
+        with h5py.File(path, "r") as h:
+            attrs = {
+                "trajectory_fit_version": str(h.attrs.get("trajectory_fit_version", "unspecified")),
+                "n_samples": str(int(h.attrs.get("n_samples", 0))),
+                "seed": str(int(h.attrs.get("seed", 0))),
+            }
+    except Exception:
+        return {}
+    return attrs
+
+
+def add_version_stamp(ax, label: str | None) -> None:
+    if not label:
+        return
+    ax.text(
+        0.015,
+        0.985,
+        label,
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=10,
+        color="0.35",
+        alpha=0.70,
+        zorder=30,
+    )
+
+
+def metadata_stamp_label(metadata: dict[str, str]) -> str | None:
+    version = metadata.get("trajectory_fit_version")
+    if not version or version == "unspecified":
+        return None
+    n_samples = metadata.get("n_samples", "?")
+    seed = metadata.get("seed", "?")
+    return f"fit v{version}; n={n_samples}; seed={seed}"
+
+
+def validate_macro_metadata(macros: dict[str, str], metadata: dict[str, str]) -> None:
+    macro_version = macros.get("OrbitTrajectoryFitVersion")
+    h5_version = metadata.get("trajectory_fit_version")
+    if macro_version and h5_version and macro_version != h5_version:
+        raise RuntimeError(f"orbit macro version {macro_version} does not match HDF5 version {h5_version}")
+    macro_samples = macros.get("OrbitSampleCount")
+    h5_samples = metadata.get("n_samples")
+    if macro_samples and h5_samples and macro_samples != h5_samples:
+        raise RuntimeError(f"orbit macro sample count {macro_samples} does not match HDF5 sample count {h5_samples}")
+
+
 def kepler_annotation(sample_kepler: np.ndarray) -> str:
     finite = np.all(np.isfinite(sample_kepler), axis=0)
     kep = sample_kepler[:, finite]
@@ -169,9 +221,62 @@ def kepler_annotation(sample_kepler: np.ndarray) -> str:
     return "\n".join(lines)
 
 
+def read_macro_values(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    pattern = re.compile(r"\\newcommand\{\\([A-Za-z0-9]+)\}\{(.+)\}")
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = pattern.fullmatch(line.strip())
+        if match:
+            values[match.group(1)] = match.group(2)
+    return values
+
+
+def kepler_annotation_from_macros(macros: dict[str, str]) -> str | None:
+    required = [
+        "OrbitSemiMajorMeanAU",
+        "OrbitSemiMajorSigmaAU",
+        "OrbitPerihelionMeanAU",
+        "OrbitPerihelionSigmaAU",
+        "OrbitAphelionMeanAU",
+        "OrbitAphelionSigmaAU",
+        "OrbitEccentricityMean",
+        "OrbitEccentricitySigma",
+        "OrbitInclinationMeanDeg",
+        "OrbitInclinationSigmaDeg",
+        "OrbitTisserandMean",
+        "OrbitTisserandSigma",
+        "OrbitArgPerihelionMeanDeg",
+        "OrbitArgPerihelionSigmaDeg",
+        "OrbitNodeMeanDeg",
+        "OrbitNodeSigmaDeg",
+        "OrbitTrueAnomalyMeanDeg",
+        "OrbitTrueAnomalySigmaDeg",
+    ]
+    if any(name not in macros for name in required):
+        return None
+    rows = [
+        (r"$a$", macros["OrbitSemiMajorMeanAU"], macros["OrbitSemiMajorSigmaAU"], "AU"),
+        (r"$q$", macros["OrbitPerihelionMeanAU"], macros["OrbitPerihelionSigmaAU"], "AU"),
+        (r"$Q$", macros["OrbitAphelionMeanAU"], macros["OrbitAphelionSigmaAU"], "AU"),
+        (r"$e$", macros["OrbitEccentricityMean"], macros["OrbitEccentricitySigma"], ""),
+        (r"$i$", macros["OrbitInclinationMeanDeg"], macros["OrbitInclinationSigmaDeg"], "deg"),
+        (r"$T_J$", macros["OrbitTisserandMean"], macros["OrbitTisserandSigma"], ""),
+        (r"$\omega$", macros["OrbitArgPerihelionMeanDeg"], macros["OrbitArgPerihelionSigmaDeg"], "deg"),
+        (r"$\Omega$", macros["OrbitNodeMeanDeg"], macros["OrbitNodeSigmaDeg"], "deg"),
+        (r"$\nu$", macros["OrbitTrueAnomalyMeanDeg"], macros["OrbitTrueAnomalySigmaDeg"], "deg"),
+    ]
+    lines = ["Keplerian elements"]
+    for symbol, mean, sigma, unit in rows:
+        suffix = f" {unit}" if unit else ""
+        lines.append(f"{symbol} = {mean} +/- {sigma}{suffix}")
+    return "\n".join(lines)
+
+
 def draw_orbits(
     ax,
-    best: np.ndarray,
+    best: np.ndarray | None,
     sample_kepler: np.ndarray,
     epoch: Time,
     limits: tuple[float, float],
@@ -217,13 +322,14 @@ def draw_orbits(
         for pts in cloud_points:
             ax.plot(pts[:, 0], pts[:, 1], color="0.35", alpha=0.07, lw=0.8, zorder=3)
 
-    bx, by = kepler_to_xy(best, n_points=1000)
-    ax.plot(bx, by, color="#d62728", lw=2.5, label="Bolide best-fit orbit", zorder=8)
+    if best is not None:
+        bx, by = kepler_to_xy(best, n_points=1000)
+        ax.plot(bx, by, color="#d62728", lw=2.0, alpha=0.7, label="Nominal propagated orbit", zorder=8)
 
-    orb_now = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
-    orb_now.kepler = best[:, None]
-    now = orb_now.cartesian[:2, 0] / AU
-    ax.scatter(now[0], now[1], marker="*", s=145, color="#d62728", edgecolor="white", linewidth=0.8, zorder=9, label="Bolide at orbit epoch")
+        orb_now = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
+        orb_now.kepler = best[:, None]
+        now = orb_now.cartesian[:2, 0] / AU
+        ax.scatter(now[0], now[1], marker="*", s=145, color="#d62728", edgecolor="white", linewidth=0.8, zorder=9, label="Nominal epoch state")
     ax.scatter(0.0, 0.0, s=140, color="gold", edgecolor="0.25", linewidth=0.8, zorder=10, label="Sun")
     return finite_samples
 
@@ -239,11 +345,14 @@ def style_axis(ax, limits: tuple[float, float]) -> None:
     ax.grid(True, color="0.92", lw=0.8)
 
 
-def add_kepler_inset(ax, sample_kepler: np.ndarray) -> None:
+def add_kepler_inset(ax, sample_kepler: np.ndarray, macro_path: Path) -> None:
+    text = kepler_annotation_from_macros(read_macro_values(macro_path))
+    if text is None:
+        text = kepler_annotation(sample_kepler)
     ax.text(
         0.035,
         0.035,
-        kepler_annotation(sample_kepler),
+        text,
         transform=ax.transAxes,
         ha="left",
         va="bottom",
@@ -257,6 +366,9 @@ def add_kepler_inset(ax, sample_kepler: np.ndarray) -> None:
 def plot(args: argparse.Namespace) -> None:
     _, best, epoch_utc, t_ref_unix = read_kepler(args.orbit_h5)
     sample_kepler, _, _, _ = read_kepler(args.samples_h5)
+    macros = read_macro_values(args.macro_tex)
+    metadata = read_orbit_metadata(args.orbit_h5)
+    validate_macro_metadata(macros, metadata)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -271,10 +383,11 @@ def plot(args: argparse.Namespace) -> None:
     )
     fig, ax_inner = plt.subplots(1, 1, figsize=(8.6, 8.2))
     limits = (-8.0, 8.0)
-    finite_samples = draw_orbits(ax_inner, best, sample_kepler, epoch, limits, {"Mercury", "Venus", "Earth", "Mars", "Jupiter"})
+    finite_samples = draw_orbits(ax_inner, None, sample_kepler, epoch, limits, {"Mercury", "Venus", "Earth", "Mars", "Jupiter"})
     style_axis(ax_inner, limits)
-    add_kepler_inset(ax_inner, sample_kepler)
-    ax_inner.fill_between([], [], [], color="0.55", alpha=0.34, label=f"MC uncertainty area (n={finite_samples})")
+    add_kepler_inset(ax_inner, sample_kepler, args.macro_tex)
+    add_version_stamp(ax_inner, metadata_stamp_label(metadata))
+    ax_inner.fill_between([], [], [], color="0.55", alpha=0.34, label=f"Monte Carlo orbit samples (n={finite_samples})")
     ax_inner.legend(loc="upper right", frameon=True, framealpha=0.95)
     fig.subplots_adjust(left=0.13, right=0.97, bottom=0.10, top=0.98)
     fig.savefig(args.out, dpi=240, bbox_inches="tight")
@@ -286,6 +399,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Plot bolide orbit and planet positions in heliocentric ecliptic x-y.")
     parser.add_argument("--orbit-h5", type=Path, default=DEFAULT_ORBIT)
     parser.add_argument("--samples-h5", type=Path, default=DEFAULT_SAMPLES)
+    parser.add_argument("--macro-tex", type=Path, default=DEFAULT_MACROS)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     return parser.parse_args()
 

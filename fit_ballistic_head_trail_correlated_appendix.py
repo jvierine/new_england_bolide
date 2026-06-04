@@ -28,6 +28,8 @@ from fit_ballistic_head_trail import (
     DEFAULT_FRAGMENT_CD,
     DEFAULT_FRAGMENT_DENSITY_KG_M3,
     DEFAULT_TRAIL,
+    add_version_stamp,
+    ballistic_llh_from_altitude,
     build_density_profile,
     cache_head_station_states,
     closest_curve_vectors,
@@ -55,7 +57,9 @@ from fit_ballistic_head_trail import (
     write_json,
 )
 from fit_combined_head_trail_eci import (
+    fit_snr_error_model,
     geodetic_to_gcrs_posvel,
+    sigmas_from_snr_model,
     station_geometry,
 )
 
@@ -67,6 +71,14 @@ DEFAULT_HEAD_SELECTION = (
 DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_appendix_fit"
 DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit"
 DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit"
+TRAJECTORY_FIT_VERSION = "2.0.0"
+TRAJECTORY_FIT_VERSION_DESCRIPTION = (
+    "Selected head-echo correlated ballistic fit with mutual correlations within "
+    "head-echo and trail-echo measurements. Head-echo correlations follow "
+    "coherent-integration overlap in time; trail-position correlations require "
+    "temporal overlap and the same raw range gate, with different range gates "
+    "treated as uncorrelated."
+)
 OMEGA_EARTH = 7.2921150e-5
 C = 299792458.0
 MU_SUN = 1.32712440018e20
@@ -260,6 +272,153 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
     return cov, meta
 
 
+def max_neighbor_correlation(
+    times: np.ndarray,
+    *,
+    n_codes: int,
+    code_period_s: float,
+    corr_mask: np.ndarray | None = None,
+) -> np.ndarray:
+    if len(times) == 0:
+        return np.empty(0, dtype=float)
+    corr = overlap_corr(times[:, None] - times[None, :], code_period_s, n_codes)
+    np.fill_diagonal(corr, 0.0)
+    if corr_mask is not None:
+        corr = corr * np.asarray(corr_mask, dtype=float)
+    return np.max(corr, axis=1)
+
+
+def head_neighbor_correlations(obs: list[dict], args) -> np.ndarray:
+    corr = np.zeros(len(obs), dtype=float)
+    for station in sorted(set(o["station"] for o in obs)):
+        idx = [i for i, o in enumerate(obs) if o["station"] == station]
+        times = np.array([obs[i]["unix_time"] for i in idx], dtype=float)
+        corr[idx] = max_neighbor_correlation(
+            times,
+            n_codes=args.head_coherent_codes,
+            code_period_s=args.code_period_s,
+        )
+    return corr
+
+
+def trail_neighbor_correlations(trail_rows: list[dict], args) -> np.ndarray:
+    corr = np.zeros(len(trail_rows), dtype=float)
+    for station in sorted(set(r["station"] for r in trail_rows)):
+        idx = [i for i, r in enumerate(trail_rows) if r["station"] == station]
+        rows = [trail_rows[i] for i in idx]
+        times = np.array([r["unix_time"] for r in rows], dtype=float)
+        gate_ids = trail_range_gate_ids(rows, args.trail_correlation_range_gate_m)
+        corr[idx] = max_neighbor_correlation(
+            times,
+            n_codes=args.trail_coherent_codes,
+            code_period_s=args.code_period_s,
+            corr_mask=gate_ids[:, None] == gate_ids[None, :],
+        )
+    return corr
+
+
+def plot_measurement_correlation_overview(
+    out: Path,
+    params: np.ndarray,
+    obs: list[dict],
+    trail_rows: list[dict],
+    geom: dict,
+    t_ref: float,
+    density_profile: dict,
+    args,
+) -> None:
+    t_head = np.array([o["unix_time"] for o in obs], dtype=float)
+    head_pos, _head_vel = propagate_state(params, t_head, t_ref, density_profile, use_drag=not args.no_drag)
+    head_llh = geodetic_path_from_states(head_pos, t_head)
+    trail_llh = np.column_stack(
+        [
+            np.array([r["lat_deg"] for r in trail_rows], dtype=float),
+            np.array([r["lon_deg"] for r in trail_rows], dtype=float),
+            np.array([r["alt_m"] for r in trail_rows], dtype=float),
+        ]
+    )
+    _t_ballistic, ballistic_llh = ballistic_llh_from_altitude(params, t_ref, density_profile, args, start_alt_km=300.0)
+    head_corr = head_neighbor_correlations(obs, args)
+    trail_corr = trail_neighbor_correlations(trail_rows, args)
+
+    trail_sigma_enu_m = np.array(
+        [
+            (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
+            for r in trail_rows
+        ],
+        dtype=float,
+    )
+    meters_per_deg_lat = 111_320.0
+    meters_per_deg_lon = meters_per_deg_lat * np.cos(np.deg2rad(trail_llh[:, 0]))
+    trail_lon_sigma_deg = trail_sigma_enu_m[:, 0] / meters_per_deg_lon
+    trail_lat_sigma_deg = trail_sigma_enu_m[:, 1] / meters_per_deg_lat
+    trail_alt_sigma_km = trail_sigma_enu_m[:, 2] / 1000.0
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.4, 6.2), sharey=True, constrained_layout=True)
+    cmap = "viridis"
+    y_trail = trail_llh[:, 2] / 1000.0
+    y_head = head_llh[:, 2] / 1000.0
+    y_model = ballistic_llh[:, 2] / 1000.0
+    panel_specs = [
+        (axes[0], ballistic_llh[:, 1], trail_llh[:, 1], head_llh[:, 1], trail_lon_sigma_deg, "Longitude (deg)"),
+        (axes[1], ballistic_llh[:, 0], trail_llh[:, 0], head_llh[:, 0], trail_lat_sigma_deg, "Latitude (deg)"),
+    ]
+    sc = None
+    for ax, x_model, x_trail, x_head, x_sigma, xlabel in panel_specs:
+        ax.plot(x_model, y_model, color="C2", lw=2.5, label="ballistic trajectory", zorder=4)
+        ax.errorbar(
+            x_trail,
+            y_trail,
+            xerr=x_sigma,
+            yerr=trail_alt_sigma_km,
+            fmt="none",
+            ecolor="0.68",
+            elinewidth=0.75,
+            alpha=0.55,
+            zorder=1,
+        )
+        sc = ax.scatter(
+            x_trail,
+            y_trail,
+            c=trail_corr,
+            cmap=cmap,
+            vmin=0.0,
+            vmax=1.0,
+            s=38,
+            marker="o",
+            edgecolors="0.18",
+            linewidths=0.25,
+            alpha=0.88,
+            label="trail position",
+            zorder=5,
+        )
+        ax.scatter(
+            x_head,
+            y_head,
+            c=head_corr,
+            cmap=cmap,
+            vmin=0.0,
+            vmax=1.0,
+            s=52,
+            marker="x",
+            linewidths=1.4,
+            alpha=0.96,
+            label="head range--Doppler",
+            zorder=6,
+        )
+        ax.set_xlabel(xlabel)
+        ax.grid(True, color="0.88", lw=0.65)
+        ax.tick_params(labelsize=11)
+        add_version_stamp(ax, TRAJECTORY_FIT_VERSION)
+    axes[0].set_ylabel("Height (km)")
+    axes[0].legend(loc="best", fontsize=10, frameon=True)
+    cbar = fig.colorbar(sc, ax=axes, shrink=0.86, pad=0.02)
+    cbar.set_label("maximum neighbour correlation", fontsize=14)
+    cbar.ax.tick_params(labelsize=12)
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+
+
 def whitening_from_covariance(cov: np.ndarray) -> np.ndarray:
     jitter = 0.0
     for _ in range(8):
@@ -317,6 +476,8 @@ def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_met
     old_impact = old_payload.get("fragment_impact", {}).get("summary", {})
     lines = [
         "% Auto-generated by fit_ballistic_head_trail_correlated_appendix.py\n",
+        f"% trajectory_fit_version: {payload.get('trajectory_fit_version', 'unspecified')}\n",
+        f"% trajectory_fit_version_description: {payload.get('trajectory_fit_version_description', 'unspecified')}\n",
         f"\\newcommand{{\\CorrFitNHead}}{{{payload['n_head_observations']}}}\n",
         f"\\newcommand{{\\CorrFitNTrail}}{{{payload['n_trail_positions']}}}\n",
         f"\\newcommand{{\\CorrFitNResiduals}}{{{cov_meta['n_residuals']}}}\n",
@@ -411,7 +572,7 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
             dlo, dhi = np.percentile(np.asarray(sample_d), [2.5, 97.5], axis=0)
             axes[0].fill_between(tr, rlo, rhi, color=color, alpha=0.16, linewidth=0, label="95% correlated-fit covariance" if si == 0 else None)
             axes[1].fill_between(tr, dlo, dhi, color=color, alpha=0.16, linewidth=0, label="95% correlated-fit covariance" if si == 0 else None)
-    axes[0].set_title("Appendix correlated ballistic fit: selected head-echo observables")
+    add_version_stamp(axes[0], TRAJECTORY_FIT_VERSION)
     axes[0].set_ylabel("Bistatic range (km)")
     axes[1].set_ylabel("Doppler shift (kHz)")
     axes[1].set_xlabel(f"Seconds relative to {payload_time_label(t_ref)}")
@@ -421,6 +582,70 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=240, bbox_inches="tight")
     plt.close(fig)
+
+
+def head_snr_error_models(params, obs, t_ref, density_profile, args) -> dict:
+    pos_head, vel_head = propagate_state(
+        params,
+        np.array([o["unix_time"] for o in obs], dtype=float),
+        t_ref,
+        density_profile,
+        use_drag=not args.no_drag,
+    )
+    pred_range, pred_doppler = head_predictions_from_states(pos_head, vel_head, obs)
+    meas_range = np.array([o["range_m"] for o in obs], dtype=float)
+    meas_doppler = np.array([o["doppler_hz"] for o in obs], dtype=float)
+    snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    return {
+        "range": fit_snr_error_model(pred_range - meas_range, snr_db, floor=150.0, unit="m", name="bistatic range"),
+        "doppler": fit_snr_error_model(pred_doppler - meas_doppler, snr_db, floor=25.0, unit="Hz", name="Doppler"),
+    }
+
+
+def plot_head_snr_error_model(out: Path, params, obs, t_ref, density_profile, args) -> dict:
+    models = head_snr_error_models(params, obs, t_ref, density_profile, args)
+    pos_head, vel_head = propagate_state(
+        params,
+        np.array([o["unix_time"] for o in obs], dtype=float),
+        t_ref,
+        density_profile,
+        use_drag=not args.no_drag,
+    )
+    pred_range, pred_doppler = head_predictions_from_states(pos_head, vel_head, obs)
+    snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    residuals = [
+        ("Range", pred_range - np.array([o["range_m"] for o in obs], dtype=float), models["range"]),
+        ("Doppler", pred_doppler - np.array([o["doppler_hz"] for o in obs], dtype=float), models["doppler"]),
+    ]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), constrained_layout=True)
+    for ax, (label, resid, model) in zip(axes, residuals, strict=True):
+        good = np.isfinite(snr_db) & np.isfinite(resid)
+        ax.scatter(snr_db[good], np.abs(resid[good]), s=22, color="0.35", alpha=0.55, label="absolute residual")
+        bins = model.get("bins", [])
+        if bins:
+            ax.plot([b["snr_db"] for b in bins], [b["std"] for b in bins], "o", color="C1", ms=7, label="binned robust std")
+        if np.any(good):
+            xgrid = np.linspace(float(np.nanmin(snr_db[good])), float(np.nanmax(snr_db[good])), 200)
+            ax.plot(xgrid, sigmas_from_snr_model(model, xgrid), color="C3", lw=2.2, label=f"{model['type']} model")
+        ax.set_title(f"{label} error model")
+        ax.set_xlabel("Matched-filter SNR (dB)")
+        ax.set_ylabel(f"Residual / standard deviation ({model['unit']})")
+        ax.grid(True, color="0.9", lw=0.6)
+        ax.legend(fontsize=8)
+        ax.text(
+            0.02,
+            0.96,
+            model.get("reason", ""),
+            transform=ax.transAxes,
+            va="top",
+            ha="left",
+            fontsize=8,
+            bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.8},
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+    return models
 
 
 def payload_time_label(t_ref: float) -> str:
@@ -494,6 +719,8 @@ def write_orbit_comparison_table(path: Path, comparison: dict) -> None:
         ("Argument of perihelion", "deg", "arg_periapsis_deg", 2),
     ]
     lines = [
+        f"% trajectory_fit_version: {comparison.get('trajectory_fit_version', 'unspecified')}\n",
+        f"% trajectory_fit_version_description: {comparison.get('trajectory_fit_version_description', 'unspecified')}\n",
         "\\begin{table}\n",
         "  \\centering\n",
         "  \\caption{Nominal two-body heliocentric orbit comparison for the baseline ballistic fit and the appendix correlated-covariance fit.  This table uses Astropy's built-in Earth/Sun ephemeris and does not replace the full rebound Monte Carlo orbit solution used for the main article.}\n",
@@ -513,6 +740,7 @@ def write_orbit_comparison_table(path: Path, comparison: dict) -> None:
 
 def main() -> None:
     args = parse_args()
+    args.plot_version_label = TRAJECTORY_FIT_VERSION
     args.out_dir.mkdir(parents=True, exist_ok=True)
     Path(args.report_fig_dir).mkdir(parents=True, exist_ok=True)
     Path(args.report_table_dir).mkdir(parents=True, exist_ok=True)
@@ -586,6 +814,8 @@ def main() -> None:
     payload["fitted_parameter_order"] = payload["parameter_order"][:6]
     payload["fixed_parameter_order"] = payload["parameter_order"][6:]
     payload["fit_covariance"] = cov_params.tolist()
+    payload["trajectory_fit_version"] = TRAJECTORY_FIT_VERSION
+    payload["trajectory_fit_version_description"] = TRAJECTORY_FIT_VERSION_DESCRIPTION
     payload["correlated_covariance"] = {
         **cov_meta,
         "reduced_chi2": chi2_red,
@@ -600,12 +830,21 @@ def main() -> None:
         "note": "Atmospheric drag is fixed from this body model and is not estimated in the least-squares fit.",
     }
     payload["nominal_orbit_comparison"] = {
+        "trajectory_fit_version": TRAJECTORY_FIT_VERSION,
+        "trajectory_fit_version_description": TRAJECTORY_FIT_VERSION_DESCRIPTION,
         "method": "Astropy built-in Earth/Sun ephemeris plus two-body heliocentric elements; diagnostic only.",
         "old": nominal_orbit_elements(old_payload),
         "new": nominal_orbit_elements(payload),
     }
     (args.out_dir / "ballistic_head_trail_correlated_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    write_initial_state_json(args.out_dir / "ballistic_initial_state_correlated.json", xhat, cov_params, t_ref)
+    write_initial_state_json(
+        args.out_dir / "ballistic_initial_state_correlated.json",
+        xhat,
+        cov_params,
+        t_ref,
+        trajectory_fit_version=TRAJECTORY_FIT_VERSION,
+        trajectory_fit_version_description=TRAJECTORY_FIT_VERSION_DESCRIPTION,
+    )
 
     tx0, rot = transmitter_local_frame(geom)
     impact_plot = args.out_dir / "ballistic_head_trail_correlated_impact_map.png"
@@ -617,15 +856,20 @@ def main() -> None:
     range_doppler_plot = args.out_dir / "ballistic_head_trail_correlated_range_doppler_fit.png"
     altitude_plot = args.out_dir / "ballistic_head_trail_correlated_altitude_enu.png"
     lonlat_plot = args.out_dir / "ballistic_head_trail_correlated_lonlat_height.png"
+    correlation_plot = args.out_dir / "measurement_overlap_correlation_overview.png"
+    head_snr_plot = args.out_dir / "head_echo_snr_error_model.png"
     trail_error_plot = args.out_dir / "trail_position_correlated_error_vs_snr.png"
     trail_angle_plot = args.out_dir / "trail_aod_correlated_angle_error_vs_snr.png"
     plot_correlated_range_doppler(range_doppler_plot, xhat, cov_params, obs, t_ref, density_profile, args)
+    payload["head_snr_error_models"] = plot_head_snr_error_model(head_snr_plot, xhat, obs, t_ref, density_profile, args)
+    (args.out_dir / "ballistic_head_trail_correlated_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     plot_station_measurement_ballistic_overview(overview_plot, xhat, obs, trail_rows, geom, t_ref, density_profile, impact_payload, args)
+    plot_measurement_correlation_overview(correlation_plot, xhat, obs, trail_rows, geom, t_ref, density_profile, args)
     plot_altitude_enu(altitude_plot, payload, trail_rows, tx0, rot, t_ref, impact_payload=impact_payload, params=xhat, cov=cov_params, obs=obs, density_profile=density_profile, args=args)
     plot_lonlat_height(lonlat_plot, payload, xhat, cov_params, obs, trail_rows, t_ref, t_model, density_profile, args)
     plot_trail_position_error_debug(trail_error_plot, payload, trail_rows, t_ref, tx0, rot)
     plot_trail_aod_angle_error_debug(trail_angle_plot, payload, trail_rows, t_ref, tx0, rot)
-    for plot in [impact_plot, overview_plot, range_doppler_plot, altitude_plot, lonlat_plot, trail_error_plot, trail_angle_plot]:
+    for plot in [impact_plot, overview_plot, range_doppler_plot, altitude_plot, lonlat_plot, correlation_plot, head_snr_plot, trail_error_plot, trail_angle_plot]:
         shutil.copy2(plot, Path(args.report_fig_dir) / plot.name)
 
     write_appendix_summary(Path(args.report_table_dir) / "correlated_ballistic_fit_summary.tex", payload, old_payload, cov_meta)

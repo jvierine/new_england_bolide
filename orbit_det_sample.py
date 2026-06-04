@@ -54,6 +54,8 @@ def load_trajectory_state(path: Path) -> dict:
             "mean_state": np.asarray(payload["state"], dtype=float),
             "cov_state": clean_covariance(np.asarray(payload["covariance"], dtype=float)),
             "fit_state_frame": payload.get("frame", "GCRS"),
+            "trajectory_fit_version": payload.get("trajectory_fit_version", "unspecified"),
+            "trajectory_fit_version_description": payload.get("trajectory_fit_version_description", "unspecified"),
             "used_stations": ["beverly"],
         }
     params = payload["fit_parameters_enu_at_tx"]
@@ -173,6 +175,8 @@ def write_results(
         h.create_dataset("haystack_gps_tx_lat_lon_alt", data=gps_tx)
         h.attrs["source_kind"] = trajectory["source_kind"]
         h.attrs["fit_state_frame"] = trajectory["fit_state_frame"]
+        h.attrs["trajectory_fit_version"] = trajectory.get("trajectory_fit_version", "unspecified")
+        h.attrs["trajectory_fit_version_description"] = trajectory.get("trajectory_fit_version_description", "unspecified")
         if "mean_enu" in trajectory:
             h.create_dataset("fit_mean_enu", data=trajectory["mean_enu"])
             h.create_dataset("fit_covariance_enu", data=trajectory["cov_enu"])

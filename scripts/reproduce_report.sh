@@ -104,17 +104,6 @@ run python estimate_head_echo_trajectory.py \
 
 run python reports/generate_trajectory_report_assets.py
 
-run python aod_position_from_merged.py \
-  --merged-dir "$MERGED_DIR" \
-  --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json \
-  --head-linear-trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
-  --trail-positions-json products/specular_trail_positions/specular_trail_position_summary.json \
-  --stations beverly clinton pomfret amherstnh siena \
-  --min-snr-db 0 \
-  --trail-min-snr-db 0 \
-  --robust-fit-scale-km 4 \
-  --out-dir products/aod_position_from_merged
-
 run python specular_trail_positions_from_merged.py \
   --annotations annotations/trail_echo_rois.json \
   --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
@@ -130,6 +119,18 @@ run python trail_echo_roi.py \
 
 run python fit_combined_head_trail_eci.py
 run python fit_ballistic_head_trail.py
+run python fit_ballistic_head_trail_correlated_appendix.py
+
+run python aod_position_from_merged.py \
+  --merged-dir "$MERGED_DIR" \
+  --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json \
+  --head-linear-trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --trail-positions-json products/specular_trail_positions/specular_trail_position_summary.json \
+  --stations beverly clinton pomfret amherstnh siena \
+  --min-snr-db 0 \
+  --trail-min-snr-db 0 \
+  --robust-fit-scale-km 4 \
+  --out-dir products/aod_position_from_merged
 
 run python plot_interferometric_echo_geometry.py
 
@@ -137,19 +138,12 @@ run python tests/coordinate_sanity_checks.py \
   --tex-out reports/coordinate_sanity_table.tex
 
 run python orbit_det_sample.py \
-  --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_initial_state_correlated.json \
   --data-dir 2026_05_30_bolide \
   --kernel data/de440s.bsp \
-  --samples 200 \
+  --samples 2000 \
   --plot \
   --out "$ORBIT_DIR/best_fit_orbit.h5"
-
-run python orbit_det_sample.py \
-  --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
-  --data-dir 2026_05_30_bolide \
-  --kernel data/de440s.bsp \
-  --samples 40 \
-  --out "$ORBIT_DIR/orbit_mc_40.h5"
 
 run python nea_jopek_search.py
 run python comet_jopek_search.py
