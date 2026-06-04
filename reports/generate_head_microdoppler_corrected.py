@@ -209,7 +209,7 @@ def plot_corrected(results: list[dict], out_fig: Path) -> Path:
         t = res["time_rel"]
         f = res["rel_freqs"]
         z = res["spec_db"].T
-        mappable = ax.pcolormesh(t, f, z, shading="auto", cmap="inferno", vmin=0.0, vmax=18.0)
+        mappable = ax.pcolormesh(t, f, z, shading="auto", cmap="inferno", vmin=0.0, vmax=6.0)
         ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.65)
         ax.set_ylabel("$f-f_{D,Gaussian}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo")
