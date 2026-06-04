@@ -107,7 +107,12 @@ run python reports/generate_trajectory_report_assets.py
 run python aod_position_from_merged.py \
   --merged-dir "$MERGED_DIR" \
   --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json \
+  --head-linear-trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --trail-positions-json products/specular_trail_positions/specular_trail_position_summary.json \
+  --stations beverly clinton pomfret amherstnh siena \
   --min-snr-db 0 \
+  --trail-min-snr-db 0 \
+  --robust-fit-scale-km 4 \
   --out-dir products/aod_position_from_merged
 
 run python specular_trail_positions_from_merged.py \
