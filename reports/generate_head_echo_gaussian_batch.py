@@ -92,6 +92,7 @@ def plot_patch(out: Path, station: str, obs: dict, patch: dict | None, fit: dict
 
     range_km = patch["range_m"] / 1000.0
     rel_hz = patch["rel_freqs"]
+    raw_rel_hz = patch.get("raw_rel_freqs", rel_hz)
     seed_range_km = float(obs["range_m"]) / 1000.0
     seed_rel_hz = float(obs["doppler_hz"]) - float(patch["model_doppler_hz"])
     raw = patch["raw_db"]
@@ -131,12 +132,16 @@ def plot_patch(out: Path, station: str, obs: dict, patch: dict | None, fit: dict
     plt.rcParams.update({"font.size": 9})
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.3), sharex=True, sharey=True, constrained_layout=True)
     theta = np.linspace(0.0, 2.0 * np.pi, 256)
-    for ax, title, img in zip(axes, ("Raw matched filter", "2D FFT notch filtered"), (raw, filtered), strict=True):
+    images = [
+        ("Raw matched filter", raw, raw_rel_hz),
+        (f"2D FFT notch filtered, {int(patch.get('frequency_bin_average', 8))}-bin avg", filtered, rel_hz),
+    ]
+    for ax, (title, img, img_rel_hz) in zip(axes, images, strict=True):
         show = (
             (range_km[:, None] >= y_min)
             & (range_km[:, None] <= y_max)
-            & (rel_hz[None, :] >= x_min)
-            & (rel_hz[None, :] <= x_max)
+            & (img_rel_hz[None, :] >= x_min)
+            & (img_rel_hz[None, :] <= x_max)
         )
         finite = img[show & np.isfinite(img)]
         if finite.size:
@@ -144,7 +149,7 @@ def plot_patch(out: Path, station: str, obs: dict, patch: dict | None, fit: dict
             vmax = float(np.nanpercentile(finite, 99.6))
         else:
             vmin, vmax = float(np.nanpercentile(img, 3.0)), float(np.nanpercentile(img, 99.6))
-        mappable = ax.pcolormesh(rel_hz, range_km, img, shading="auto", cmap="inferno", vmin=vmin, vmax=vmax)
+        mappable = ax.pcolormesh(img_rel_hz, range_km, img, shading="auto", cmap="inferno", vmin=vmin, vmax=vmax)
         ax.plot(seed_rel_hz, seed_range_km, marker="+", ms=9, mew=1.4, color="#9be7ff", linestyle="none")
         if fit is not None:
             fit_range_km = float(fit["range_km"])

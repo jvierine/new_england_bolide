@@ -16,6 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from reports.generate_head_echo_gaussian_example import fit_gaussian_patch  # noqa: E402
+from reports.fit_head_echo_gaussian_patches import (  # noqa: E402
+    coherent_center_time,
+    incoherent_average_frequency_bins_db,
+)
 from reports.generate_head_microdoppler import (  # noqa: E402
     FIG_DIR,
     STATIONS,
@@ -69,11 +73,17 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
         patch_time = float(patch_group.attrs["time_unix"])
         if abs(patch_time - float(obs["unix_time"])) > args.max_time_mismatch_s:
             continue
+        fit_time = coherent_center_time(patch_time, args.n_coh, args.code_period_s)
 
         range_m = patch_group["range_m"][()].astype(float)
         rel_freqs = patch_group["rel_freqs"][()].astype(float)
         raw_db = patch_group["raw_db"][()].astype(float)
         filtered_db = notch_2d_doppler_repetition(raw_db, args.n_coh, args.notch_half_width)
+        filtered_db, rel_freqs = incoherent_average_frequency_bins_db(
+            filtered_db,
+            rel_freqs,
+            args.frequency_bin_average,
+        )
         model = float(patch_group.attrs["model_doppler_hz"])
         seed_range_m = float(patch_group.attrs["seed_range_m"])
         seed_doppler_value_hz = float(patch_group.attrs["picked_doppler_hz"])
@@ -96,8 +106,13 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
             rows.append(
                 {
                     "station": station,
-                    "time_unix": obs["unix_time"],
-                    "time_rel_s": float(obs["unix_time"]) - EVENT_T0,
+                    "time_unix": fit_time,
+                    "time_rel_s": fit_time - EVENT_T0,
+                    "patch_time_unix": patch_time,
+                    "patch_time_rel_s": patch_time - EVENT_T0,
+                    "patch_time_offset_s": patch_time - float(obs["unix_time"]),
+                    "frequency_bin_average": int(args.frequency_bin_average),
+                    "code_period_s": float(args.code_period_s),
                     "success": False,
                     "error": str(exc),
                 }
@@ -107,7 +122,7 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
         fit_range_m = 1000.0 * fit["range_km"]
         row = interpolate_range_row(range_m, filtered_db, fit_range_m)
         spectra.append(np.interp(rel_freqs, rel_freqs - fit["rel_doppler_hz"], row, left=np.nan, right=np.nan))
-        times.append(float(obs["unix_time"]))
+        times.append(fit_time)
         ranges_km.append(fit["range_km"])
         fit_doppler_hz.append(model + fit["rel_doppler_hz"])
         seed_doppler_hz.append(seed_doppler_value_hz)
@@ -117,10 +132,13 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
         rows.append(
             {
                 "station": station,
-                "time_unix": float(obs["unix_time"]),
-                "time_rel_s": float(obs["unix_time"]) - EVENT_T0,
+                "time_unix": fit_time,
+                "time_rel_s": fit_time - EVENT_T0,
                 "patch_time_unix": patch_time,
+                "patch_time_rel_s": patch_time - EVENT_T0,
                 "patch_time_offset_s": patch_time - float(obs["unix_time"]),
+                "frequency_bin_average": int(args.frequency_bin_average),
+                "code_period_s": float(args.code_period_s),
                 "seed_range_m": seed_range_m,
                 "fit_range_m": fit_range_m,
                 "range_correction_m": fit_range_m - seed_range_m,
@@ -165,7 +183,10 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "time_unix",
         "time_rel_s",
         "patch_time_unix",
+        "patch_time_rel_s",
         "patch_time_offset_s",
+        "frequency_bin_average",
+        "code_period_s",
         "seed_range_m",
         "fit_range_m",
         "range_correction_m",
@@ -241,6 +262,8 @@ def main() -> None:
     p.add_argument("--stations", nargs="+", default=list(STATIONS))
     p.add_argument("--n-coh", type=int, default=16)
     p.add_argument("--notch-half-width", type=int, default=1)
+    p.add_argument("--frequency-bin-average", type=int, default=8)
+    p.add_argument("--code-period-s", type=float, default=0.01)
     p.add_argument("--max-time-mismatch-s", type=float, default=0.006)
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
