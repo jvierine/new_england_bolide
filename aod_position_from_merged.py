@@ -489,12 +489,12 @@ def plot_map(rows, fit, sites, tx_ecef, rot, line_fit, out_png, uncertainty_samp
 def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, combined_line_fit, summary, out_png):
     rows = figure_geo_filtered(rows)
     trail_rows = figure_geo_filtered(trail_rows)
-    all_rows = rows + trail_rows
-    if len(all_rows) < 2:
+    fit_rows = rows + trail_rows
+    if len(fit_rows) < 2:
         raise ValueError("Too few AoD+delay measurements remain after the figure geographic filter")
-    lat = np.array([r["lat_deg"] for r in all_rows], dtype=float)
-    lon = np.array([r["lon_deg"] for r in all_rows], dtype=float)
-    height_km = np.array([r["alt_m"] for r in all_rows], dtype=float) / 1000.0
+    lat = np.array([r["lat_deg"] for r in fit_rows], dtype=float)
+    lon = np.array([r["lon_deg"] for r in fit_rows], dtype=float)
+    height_km = np.array([r["alt_m"] for r in fit_rows], dtype=float) / 1000.0
 
     def robust_line_fit(x, y, f_scale=5.0, max_iter=40):
         a = np.column_stack((x, np.ones_like(x)))
@@ -530,7 +530,7 @@ def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, comb
             ax.scatter(x, y, s=18, alpha=0.42, color="0.25", marker="x", linewidths=0.8, label="Trail")
         x_min, x_max = np.nanpercentile(x_all, [5.0, 95.0])
         x_grid = np.linspace(float(x_min), float(x_max), 240)
-        ax.plot(x_grid, fit_coef[0] * x_grid + fit_coef[1], color="k", lw=2.2, label="Robust linear fit")
+        ax.plot(x_grid, fit_coef[0] * x_grid + fit_coef[1], color="k", lw=2.2, label="Head+trail robust fit")
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Height (km)")
         ax.grid(alpha=0.25)
