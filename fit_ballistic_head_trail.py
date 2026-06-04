@@ -40,7 +40,6 @@ from fit_combined_head_trail_eci import (
     pre_head_reference_time,
     predict_head,
     split_trail_display_rows,
-    state_constant_gravity,
     trail_row_key,
     transmitter_local_frame,
 )
@@ -282,9 +281,10 @@ def parameters_from_delta(delta: np.ndarray, base_state: np.ndarray) -> np.ndarr
     return np.r_[base_state[:3] + delta[:3], base_state[3:6] + delta[3:6], delta[6]]
 
 
-def shift_eci_state_constant_gravity(state: np.ndarray, source_t_ref: float, target_t_ref: float) -> np.ndarray:
-    pos, vel = state_constant_gravity(np.asarray(state[:6], dtype=float), target_t_ref, source_t_ref)
-    return np.r_[pos, vel]
+def shift_eci_state_linear(state: np.ndarray, source_t_ref: float, target_t_ref: float) -> np.ndarray:
+    state = np.asarray(state[:6], dtype=float)
+    dt = float(target_t_ref) - float(source_t_ref)
+    return np.r_[state[:3] + dt * state[3:6], state[3:6]]
 
 
 def residuals_delta(delta, base_state, obs, trail_rows, t_ref, t_model, density_profile, args):
@@ -1586,7 +1586,7 @@ def main():
     x_line = params_from_head_fit(args.head_fit_json, t_ref)
     try:
         combined = json.loads(args.combined_fit_json.read_text())
-        x_line = shift_eci_state_constant_gravity(
+        x_line = shift_eci_state_linear(
             np.asarray(combined["fit_parameters_gcrs"], dtype=float),
             float(combined["t_ref_unix"]),
             t_ref,
