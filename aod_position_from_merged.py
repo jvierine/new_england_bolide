@@ -472,140 +472,56 @@ def plot_map(rows, fit, sites, tx_ecef, rot, line_fit, out_png, uncertainty_samp
 
 
 def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, combined_line_fit, summary, out_png):
-    fig_filter = summary["figure_outlier_filter"]
-    plot_rows = [r for r, keep in zip(rows, fig_filter["keep_mask"]) if keep]
-    trail_plot_cutoff_m = 6000.0
-    trail_plot_rows = trail_rows
-    if trail_rows and combined_line_fit.get("fit_kind") == "spatial_line":
-        trail_pos = np.array([r["position_enu_m"] for r in trail_rows], dtype=float)
-        trail_pred = closest_points_on_spatial_line(combined_line_fit, trail_pos)
-        trail_residual_m = np.linalg.norm(trail_pos - trail_pred, axis=1)
-        trail_plot_rows = [r for r, keep in zip(trail_rows, trail_residual_m <= trail_plot_cutoff_m) if keep]
-    stations = sorted(set(r["station"] for r in plot_rows))
+    all_rows = rows + trail_rows
+    lat = np.array([r["lat_deg"] for r in all_rows], dtype=float)
+    lon = np.array([r["lon_deg"] for r in all_rows], dtype=float)
+    height_km = np.array([r["alt_m"] for r in all_rows], dtype=float) / 1000.0
+
+    def robust_line_fit(x, y, f_scale=5.0, max_iter=40):
+        a = np.column_stack((x, np.ones_like(x)))
+        weights = np.ones_like(y)
+        coef = np.linalg.lstsq(a, y, rcond=None)[0]
+        for _ in range(max_iter):
+            sw = np.sqrt(weights)
+            coef = np.linalg.lstsq(a * sw[:, None], y * sw, rcond=None)[0]
+            residual = y - a @ coef
+            new_weights = 1.0 / np.sqrt(1.0 + (residual / f_scale) ** 2)
+            if np.max(np.abs(new_weights - weights)) < 1e-4:
+                break
+            weights = new_weights
+        return coef
+
+    lat_fit = robust_line_fit(lat, height_km)
+    lon_fit = robust_line_fit(lon, height_km)
+
+    stations = sorted(set(r["station"] for r in rows))
     colors = dict(zip(stations, plt.cm.tab10(np.linspace(0, 1, len(stations)))))
-    times = np.array([r["unix_time"] for r in plot_rows], dtype=float)
-    t0 = float(fit["t_ref_unix"])
-    t_rel = times - t0
-    pos = np.array([r["position_enu_m"] for r in plot_rows], dtype=float)
-    tri = np.array([model_fit_enu(fit, t) for t in times])
-    if is_ballistic_fit(fit):
-        tri_velocity = model_velocity_enu(fit, float(np.median(times)))
-    else:
-        tri_velocity = np.asarray(fit["fit_parameters_enu_at_tx"]["velocity_mps"], dtype=float)
-    ground_track = tri_velocity[:2]
-    ground_track_norm = np.linalg.norm(ground_track)
-    if ground_track_norm > 0.0:
-        cross_track_unit = np.array([-ground_track[1], ground_track[0], 0.0]) / ground_track_norm
-    else:
-        cross_track_unit = np.array([1.0, 0.0, 0.0])
-    signed_cross_track_km = ((pos - tri) @ cross_track_unit) / 1000.0
+    fig, axes = plt.subplots(1, 2, figsize=(12.0, 5.0), constrained_layout=True)
 
-    all_fit_rows = plot_rows + trail_plot_rows
-    all_times = np.array([r["unix_time"] for r in all_fit_rows], dtype=float)
-    t_grid = np.linspace(all_times.min(), all_times.max(), 300)
-    tri_grid = np.array([model_fit_enu(fit, t) for t in t_grid])
-    aod_fit_grid = line_fit["position_ref_enu_m"] + (t_grid - t0)[:, None] * line_fit["velocity_enu_mps"]
-    all_positions = np.array([r["position_enu_m"] for r in all_fit_rows], dtype=float)
-    combined_point = np.asarray(combined_line_fit["position_ref_enu_m"], dtype=float)
-    combined_direction = np.asarray(combined_line_fit["direction_enu_unit"], dtype=float)
-    combined_along = (all_positions - combined_point) @ combined_direction
-    s_pad = 0.08 * max(float(np.ptp(combined_along)), 1.0)
-    s_grid = np.linspace(combined_along.min() - s_pad, combined_along.max() + s_pad, 300)
-    combined_fit_grid = combined_point + s_grid[:, None] * combined_direction
-    _, tri_llh = enu_series_to_geodetic(tx_ecef, rot, tri_grid)
-    _, aod_llh = enu_series_to_geodetic(tx_ecef, rot, aod_fit_grid)
-    _, combined_llh = enu_series_to_geodetic(tx_ecef, rot, combined_fit_grid)
+    def draw_panel(ax, x_name, fit_coef, xlabel):
+        x_all = lat if x_name == "lat" else lon
+        for station in stations:
+            rr = [r for r in rows if r["station"] == station]
+            x = np.array([r[f"{x_name}_deg"] for r in rr], dtype=float)
+            y = np.array([r["alt_m"] for r in rr], dtype=float) / 1000.0
+            ax.scatter(x, y, s=24, alpha=0.74, color=colors[station], label=f"{station_label(station)} head")
+        if trail_rows:
+            x = np.array([r[f"{x_name}_deg"] for r in trail_rows], dtype=float)
+            y = np.array([r["alt_m"] for r in trail_rows], dtype=float) / 1000.0
+            ax.scatter(x, y, s=18, alpha=0.42, color="0.25", marker="x", linewidths=0.8, label="Trail")
+        x_min, x_max = np.nanpercentile(x_all, [5.0, 95.0])
+        x_grid = np.linspace(float(x_min), float(x_max), 240)
+        ax.plot(x_grid, fit_coef[0] * x_grid + fit_coef[1], color="k", lw=2.2, label="Robust linear fit")
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("Height (km)")
+        ax.grid(alpha=0.25)
+        ax.legend(loc="best", fontsize=8)
 
-    fig, axes = plt.subplots(
-        1,
-        3,
-        figsize=(15.0, 4.7),
-        constrained_layout=True,
-        gridspec_kw={"width_ratios": [1.25, 1.0, 0.9]},
-    )
-
-    ax = axes[0]
-    for station in stations:
-        rr = [r for r in plot_rows if r["station"] == station]
-        ax.scatter(
-            [r["lon_deg"] for r in rr],
-            [r["lat_deg"] for r in rr],
-            s=24,
-            alpha=0.72,
-            color=colors[station],
-            label=f"{station_label(station)} AoD + delay",
-        )
-    if trail_plot_rows:
-        ax.scatter(
-            [r["lon_deg"] for r in trail_plot_rows],
-            [r["lat_deg"] for r in trail_plot_rows],
-            s=16,
-            alpha=0.34,
-            color="0.25",
-            marker="x",
-            linewidths=0.8,
-            label="Trail AoD + range",
-        )
-    ax.plot(tri_llh[:, 1], tri_llh[:, 0], color="k", lw=2.4, label="Head range-Doppler fit")
-    ax.plot(aod_llh[:, 1], aod_llh[:, 0], color="C1", lw=2.0, ls="--", label="Head AoD + range fit")
-    ax.plot(combined_llh[:, 1], combined_llh[:, 0], color="C4", lw=2.2, ls="-.", label="Head+trail AoD + range line")
-    ax.set_xlabel("Longitude (deg)")
-    ax.set_ylabel("Latitude (deg)")
-    ax.set_title("Head-echo position solutions")
-    ax.grid(alpha=0.25)
-    ax.legend(loc="best", fontsize=8)
-    ax.set_aspect("equal", adjustable="datalim")
-
-    ax = axes[1]
-    for station in stations:
-        mask = np.array([r["station"] == station for r in plot_rows])
-        ax.scatter(
-            t_rel[mask],
-            signed_cross_track_km[mask],
-            s=24,
-            alpha=0.75,
-            color=colors[station],
-            label=station_label(station),
-        )
-    ax.axhline(0.0, color="0.15", lw=1.2, label="Tri-static trajectory")
-    ax.axhline(np.median(signed_cross_track_km), color="0.25", lw=1.6, ls=":", label="Median signed residual")
-    ax.set_xlabel("Time from trajectory reference (s)")
-    ax.set_ylabel("Signed cross-track residual (km)")
-    ax.set_title("Signed residuals")
-    ax.grid(alpha=0.25)
-    ax.legend(loc="best", fontsize=8)
-
-    ax = axes[2]
-    lim = max(1.0, np.nanpercentile(np.abs(signed_cross_track_km), 97.0))
-    bins = np.linspace(-lim, lim, 19)
-    ax.hist(signed_cross_track_km, bins=bins, color="0.45", alpha=0.82, edgecolor="white")
-    ax.axvline(0.0, color="0.15", lw=1.5, label="Zero")
-    ax.axvline(np.median(signed_cross_track_km), color="k", lw=2.0, label="Median")
-    ax.axvline(np.sqrt(np.mean(signed_cross_track_km**2)), color="C3", lw=2.0, ls="--", label="Signed RMS")
-    ax.axvline(-np.sqrt(np.mean(signed_cross_track_km**2)), color="C3", lw=2.0, ls="--")
-    ax.text(
-        0.98,
-        0.96,
-        (
-            f"n = {fig_filter['n_used']}\n"
-            f"omitted = {fig_filter['n_rejected']}\n"
-            f"signed median = {np.median(signed_cross_track_km):.1f} km\n"
-            f"signed RMS = {np.sqrt(np.mean(signed_cross_track_km**2)):.1f} km\n"
-            f"3D median = {fig_filter['median_position_error_vs_tristatic_m']/1000.0:.1f} km"
-        ),
-        transform=ax.transAxes,
-        ha="right",
-        va="top",
-        fontsize=9,
-        bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.92},
-    )
-    ax.set_xlabel("Signed cross-track residual (km)")
-    ax.set_ylabel("Count")
-    ax.set_title("Signed residual distribution")
-    ax.grid(alpha=0.2)
-    ax.legend(loc="upper left", fontsize=8)
-
-    fig.suptitle("Range-Doppler And Interferometric AoD+Range Linear Trajectory Comparison")
+    draw_panel(axes[0], "lat", lat_fit, "Latitude (deg)")
+    draw_panel(axes[1], "lon", lon_fit, "Longitude (deg)")
+    axes[0].set_title("Latitude versus height")
+    axes[1].set_title("Longitude versus height")
+    fig.suptitle("Interferometric AoD+Delay Head And Trail Position Fits")
     out_png = Path(out_png)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=240, bbox_inches="tight")
