@@ -128,6 +128,12 @@ def main() -> None:
         action="store_true",
         help="Use retained head-echo observation times, but seed range/Doppler from the same trajectory prediction used in trail_echo_roi.py.",
     )
+    p.add_argument(
+        "--retained-time-extension-s",
+        type=float,
+        default=0.0,
+        help="When using retained head times, replace each station's retained times with a regular grid expanded by this many seconds before and after that station's retained time span.",
+    )
     p.add_argument("--workers", type=int, default=64)
     p.add_argument("--range-half-width-km", type=float, default=40.0)
     p.add_argument("--doppler-half-width-hz", type=float, default=1800.0)
@@ -146,6 +152,11 @@ def main() -> None:
         common_times = []
         for station in stations:
             times = np.asarray([float(obs["unix_time"]) for obs in manual_observations[station]], dtype=float)
+            if args.retained_time_extension_s > 0.0:
+                start = float(np.min(times)) - args.retained_time_extension_s
+                stop = float(np.max(times)) + args.retained_time_extension_s
+                n = int(np.floor((stop - start) / args.time_step_s + 0.5)) + 1
+                times = start + args.time_step_s * np.arange(n, dtype=float)
             observations[station] = predicted_observations(payload, [station], times)[station]
             common_times.extend(times.tolist())
         times = np.asarray(sorted(set(common_times)), dtype=float)
@@ -160,6 +171,7 @@ def main() -> None:
         h.attrs["time_pad_s"] = args.time_pad_s
         h.attrs["time_step_s"] = args.time_step_s
         h.attrs["retained_head_times"] = bool(args.retained_head_times)
+        h.attrs["retained_time_extension_s"] = float(args.retained_time_extension_s)
         h.attrs["n_coh"] = args.n_coh
         h.attrs["n_incoh"] = args.n_incoh
         h.attrs["step_codes"] = args.step_codes
