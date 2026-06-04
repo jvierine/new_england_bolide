@@ -287,7 +287,11 @@ def write_orbit_parameter_table(path: Path) -> None:
         )
 
     version, _description = trajectory_version(path)
-    version_label = f"Estimate (v{version})" if version and version != "unspecified" else "Estimate"
+    version_label = (
+        f"Estimate {{\\footnotesize (v{version})}}"
+        if version and version != "unspecified"
+        else "Estimate"
+    )
     lines = [
         *trajectory_version_comments(path),
         "\\begin{tabular}{llrl}\n",
