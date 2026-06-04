@@ -8,6 +8,7 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Rectangle
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -26,6 +27,7 @@ DEFAULT_ALTITUDE_OVERLAY_PLOT = "reports/figures/trail_echo_roi_trail_altitude.p
 DEFAULT_POINTS = "products/trail_echo_roi/trail_echo_roi_points.json"
 DEFAULT_TRAIL_SUMMARY = "products/specular_trail_positions/specular_trail_position_summary.json"
 DEFAULT_HEIGHT_LABELS = "annotations/trail_height_annotations.json"
+DEFAULT_HEAD_ROIS = "annotations/head_echo_rois.json"
 ALTITUDE_TICKS_KM = np.array([85.0, 80.0, 75.0])
 HEIGHT_LABELS_KM = (90.0, 72.0, 35.0, 10.0)
 REPORT_RANGE_WINDOWS_KM = {
@@ -317,6 +319,34 @@ def load_height_label_annotations(path):
     return labels
 
 
+def load_head_roi_annotations(path):
+    path = Path(path)
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload.get("stations", {})
+
+
+def draw_head_roi_box(ax, head_roi, t_ref):
+    if not head_roi or not head_roi.get("has_head_echo"):
+        return
+    t0 = float(head_roi["time_range"]["start_unix"]) - t_ref
+    t1 = float(head_roi["time_range"]["end_unix"]) - t_ref
+    r0 = float(head_roi["range_km"]["min"])
+    r1 = float(head_roi["range_km"]["max"])
+    rect = Rectangle(
+        (min(t0, t1), min(r0, r1)),
+        abs(t1 - t0),
+        abs(r1 - r0),
+        facecolor="cyan",
+        edgecolor="cyan",
+        linewidth=1.1,
+        alpha=0.5,
+        zorder=4,
+    )
+    ax.add_patch(rect)
+
+
 def annotate_manual_height_labels(ax, track, station_labels, label_size):
     for label in height_label_positions(np.asarray(track["t_rel"], dtype=float), track):
         height_km = label["height_km"]
@@ -361,6 +391,7 @@ def draw_roi_figure(
     trajectory_json,
     altitude_points=None,
     height_labels=None,
+    head_rois=None,
 ):
     axis_label_size = 10 * REPORT_FONT_SCALE
     tick_label_size = 10 * REPORT_FONT_SCALE
@@ -374,6 +405,7 @@ def draw_roi_figure(
         if station in head_echo_range_tracks:
             head_echo_range_tracks[station]["t_rel"] = data["t_unix"] - t_ref
     height_labels = height_labels or {}
+    head_rois = head_rois or {}
     t_max = max(float(data["t_unix"][-1]) for data in datasets) - t_ref
     snr_all = []
     for data in datasets:
@@ -411,6 +443,7 @@ def draw_roi_figure(
                 alpha=0.3,
                 zorder=5,
             )
+        draw_head_roi_box(ax, head_rois.get(station), t_ref)
         ax.set_ylabel(f"{short_station_name(station)}\nrange (km)", fontsize=axis_label_size)
         ax.tick_params(axis="both", labelsize=tick_label_size)
 
@@ -479,6 +512,7 @@ def main():
     p.add_argument("--altitude-overlay-plot", default=None)
     p.add_argument("--trail-summary", default=DEFAULT_TRAIL_SUMMARY)
     p.add_argument("--height-labels", default=DEFAULT_HEIGHT_LABELS)
+    p.add_argument("--head-rois", default=DEFAULT_HEAD_ROIS)
     p.add_argument("--overlay-only", action="store_true")
     p.add_argument("--trajectory-json", default=DEFAULT_TRAJECTORY_JSON)
     args = p.parse_args()
@@ -497,6 +531,7 @@ def main():
             args.trajectory_json,
             altitude_points=load_trail_altitude_points(args.trail_summary),
             height_labels=load_height_label_annotations(args.height_labels),
+            head_rois=load_head_roi_annotations(args.head_rois),
         )
         print(f"Wrote {args.altitude_overlay_plot}")
         return
@@ -558,6 +593,7 @@ def main():
         args.max_abs_doppler_hz,
         args.trajectory_json,
         height_labels=load_height_label_annotations(args.height_labels),
+        head_rois=load_head_roi_annotations(args.head_rois),
     )
     if args.altitude_overlay_plot:
         draw_roi_figure(
@@ -569,6 +605,7 @@ def main():
             args.trajectory_json,
             altitude_points=load_trail_altitude_points(args.trail_summary),
             height_labels=load_height_label_annotations(args.height_labels),
+            head_rois=load_head_roi_annotations(args.head_rois),
         )
     print(f"Wrote {out}")
     print(f"Wrote {points_out}")
