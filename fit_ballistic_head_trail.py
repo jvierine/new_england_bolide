@@ -37,8 +37,10 @@ from fit_combined_head_trail_eci import (
     load_head_data,
     load_trail_positions,
     params_from_head_fit,
+    pre_head_reference_time,
     predict_head,
     split_trail_display_rows,
+    state_constant_gravity,
     trail_row_key,
     transmitter_local_frame,
 )
@@ -274,6 +276,11 @@ def low_altitude_trail_timing_residuals(trail_rows: list[dict], model_time: np.n
 
 def parameters_from_delta(delta: np.ndarray, base_state: np.ndarray) -> np.ndarray:
     return np.r_[base_state[:3] + delta[:3], base_state[3:6] + delta[3:6], delta[6]]
+
+
+def shift_eci_state_constant_gravity(state: np.ndarray, source_t_ref: float, target_t_ref: float) -> np.ndarray:
+    pos, vel = state_constant_gravity(np.asarray(state[:6], dtype=float), target_t_ref, source_t_ref)
+    return np.r_[pos, vel]
 
 
 def residuals_delta(delta, base_state, obs, trail_rows, t_ref, t_model, density_profile, args):
@@ -1478,7 +1485,7 @@ def main():
     print("Loading head and trail constraints", flush=True)
     annotations, obs, used_stations, rejected_head, geom = load_head_data(args)
     obs = cache_head_station_states(obs, geom)
-    t_ref = float(np.median([o["unix_time"] for o in obs]))
+    t_ref = pre_head_reference_time(obs)
     all_trail = load_all_trail_positions(args.trail_json)
     trail_rows = load_trail_positions(args.trail_json, args.trail_min_snr_db, args.max_aod_offset_deg, args.min_trail_alt_km, args.max_trail_alt_km)
     before_exclude = len(trail_rows)
@@ -1486,11 +1493,15 @@ def main():
     if len(trail_rows) != before_exclude:
         print(f"Excluded {before_exclude - len(trail_rows)} manually flagged trail position(s)", flush=True)
     for row in all_trail + trail_rows:
-        row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], t_ref)
+        row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], row["unix_time"])
     x_line = params_from_head_fit(args.head_fit_json, t_ref)
     try:
         combined = json.loads(args.combined_fit_json.read_text())
-        x_line = np.asarray(combined["fit_parameters_gcrs"], dtype=float)
+        x_line = shift_eci_state_constant_gravity(
+            np.asarray(combined["fit_parameters_gcrs"], dtype=float),
+            float(combined["t_ref_unix"]),
+            t_ref,
+        )
     except Exception:
         pass
     q0 = np.r_[np.full(3, 1.0), np.full(3, 0.01), math.log10(args.initial_cd_area_over_mass)]

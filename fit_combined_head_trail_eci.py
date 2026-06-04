@@ -39,6 +39,8 @@ DEFAULT_DATA_DIR = ROOT / "2026_05_30_bolide"
 DEFAULT_OUT_DIR = ROOT / "products" / "combined_head_trail_eci_fit"
 DEFAULT_REPORT_DIR = ROOT / "reports" / "figures"
 OMEGA_EARTH = 7.2921150e-5
+MU_EARTH = 3.986004418e14
+PRE_HEAD_REFERENCE_OFFSET_S = 4.0
 
 
 def iso_utc(t: float) -> str:
@@ -93,6 +95,10 @@ def geodetic_to_gcrs_posvel(lat_deg: float, lon_deg: float, alt_m: float, t_unix
 
 def gcrs_to_ecef(gcrs_m: np.ndarray, t_unix: float) -> np.ndarray:
     return eci_to_ecef_position(gcrs_m, t_unix)
+
+
+def pre_head_reference_time(obs: list[dict], offset_s: float = PRE_HEAD_REFERENCE_OFFSET_S) -> float:
+    return float(min(o["unix_time"] for o in obs) - offset_s)
 
 
 def load_head_data(args):
@@ -199,6 +205,8 @@ def params_from_head_fit(path: Path, t_ref: float) -> np.ndarray:
     fit = json.loads(path.read_text(encoding="utf-8"))
     p_ref_ecef = np.asarray(fit["position_ref_ecef_m"], dtype=float)
     v_ref_ecef = np.asarray(fit["velocity_ecef_mps"], dtype=float)
+    fit_t_ref = float(fit.get("t_ref_unix", t_ref))
+    p_ref_ecef = p_ref_ecef + v_ref_ecef * (float(t_ref) - fit_t_ref)
     p_ref = ecef_to_gcrs(p_ref_ecef, t_ref)
     # Transform velocity by finite differencing the existing head-only path in fast ECI.
     p1_ecef = p_ref_ecef + v_ref_ecef
@@ -206,15 +214,28 @@ def params_from_head_fit(path: Path, t_ref: float) -> np.ndarray:
     return np.r_[p_ref, v_ref]
 
 
+def gravity_accel_eci(pos_eci: np.ndarray) -> np.ndarray:
+    r = float(np.linalg.norm(pos_eci))
+    return -MU_EARTH * np.asarray(pos_eci, dtype=float) / (r**3)
+
+
+def state_constant_gravity(params: np.ndarray, t_abs: float | np.ndarray, t_ref: float) -> tuple[np.ndarray, np.ndarray]:
+    t_abs = np.asarray(t_abs, dtype=float)
+    dt = t_abs - float(t_ref)
+    r0 = np.asarray(params[:3], dtype=float)
+    v0 = np.asarray(params[3:6], dtype=float)
+    g0 = gravity_accel_eci(r0)
+    pos = r0 + dt[..., None] * v0 + 0.5 * dt[..., None] ** 2 * g0
+    vel = v0 + dt[..., None] * g0
+    return pos, vel
+
+
 def predict_head(params: np.ndarray, obs: list[dict], geom: dict, t_ref: float):
-    r0 = params[:3]
-    v = params[3:6]
     ranges = np.empty(len(obs), dtype=float)
     dopplers = np.empty(len(obs), dtype=float)
     for i, ob in enumerate(obs):
         t = float(ob["unix_time"])
-        dt = t - t_ref
-        x = r0 + v * dt
+        x, v = state_constant_gravity(params, t, t_ref)
         if "tx_gcrs_m" in ob:
             tx = np.asarray(ob["tx_gcrs_m"], dtype=float)
             rx = np.asarray(ob["rx_gcrs_m"], dtype=float)
@@ -237,13 +258,27 @@ def predict_head(params: np.ndarray, obs: list[dict], geom: dict, t_ref: float):
     return ranges, dopplers
 
 
-def trail_line_residual_vectors(params: np.ndarray, trail_gcrs: np.ndarray):
-    r0 = params[:3]
-    v = params[3:6]
-    vv = float(np.dot(v, v))
-    tau = ((trail_gcrs - r0[None, :]) @ v) / vv
-    closest = r0[None, :] + tau[:, None] * v[None, :]
-    return closest - trail_gcrs, tau
+def trail_model_time_grid(trail_rows: list[dict], t_ref: float, padding_s: float = 1.0, dt_s: float = 0.05) -> np.ndarray:
+    times = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
+    if times.size == 0:
+        return np.array([float(t_ref)], dtype=float)
+    return np.arange(float(np.min(times)) - padding_s, float(np.max(times)) + padding_s + 0.5 * dt_s, dt_s)
+
+
+def trail_line_residual_vectors(
+    params: np.ndarray,
+    trail_gcrs: np.ndarray,
+    *,
+    t_ref: float,
+    trail_rows: list[dict],
+    model_dt_s: float = 0.05,
+) -> tuple[np.ndarray, np.ndarray]:
+    t_grid = trail_model_time_grid(trail_rows, t_ref, dt_s=model_dt_s)
+    curve, _vel = state_constant_gravity(params, t_grid, t_ref)
+    diff = curve[None, :, :] - trail_gcrs[:, None, :]
+    d2 = np.sum(diff * diff, axis=2)
+    idx = np.argmin(d2, axis=1)
+    return curve[idx] - trail_gcrs, t_grid[idx] - float(t_ref)
 
 
 def low_altitude_trail_timing_residuals(params, trail_rows: list[dict], tau: np.ndarray, t_ref: float, args) -> np.ndarray:
@@ -264,14 +299,14 @@ def combined_residuals(params, head_obs, trail_rows, trail_gcrs, geom, t_ref, he
     meas_doppler = np.array([o["doppler_hz"] for o in head_obs], dtype=float)
     r_head = (pred_range - meas_range) / head_range_sigma
     d_head = (pred_doppler - meas_doppler) / head_doppler_sigma
-    trail_vec, tau = trail_line_residual_vectors(params, trail_gcrs)
+    trail_vec, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
     r_trail = (trail_vec / trail_sigma[:, None]).ravel()
     r_trail_time = low_altitude_trail_timing_residuals(params, trail_rows, tau, t_ref, args)
     return np.r_[r_head, d_head, r_trail, r_trail_time]
 
 
-def robust_reject_trail(params, trail_rows, trail_gcrs, max_sigma=3.5, min_threshold_m=4500.0):
-    vec, tau = trail_line_residual_vectors(params, trail_gcrs)
+def robust_reject_trail(params, trail_rows, trail_gcrs, t_ref: float, max_sigma=3.5, min_threshold_m=4500.0):
+    vec, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
     dist = np.linalg.norm(vec, axis=1)
     med = float(np.median(dist))
     mad = float(np.median(np.abs(dist - med)))
@@ -440,7 +475,7 @@ def empirical_measurement_sigmas(params: np.ndarray, obs: list[dict], trail_rows
     pr, pd = predict_head(params, obs, geom, t_ref)
     mr = np.array([o["range_m"] for o in obs], dtype=float)
     md = np.array([o["doppler_hz"] for o in obs], dtype=float)
-    trail_vec, tau = trail_line_residual_vectors(params, trail_gcrs)
+    trail_vec, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
     alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
     echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
     low = np.isfinite(alt_km) & np.isfinite(echo_time) & (alt_km <= 60.0)
@@ -465,7 +500,7 @@ def summarize_fit(params, cov, obs, trail_rows, trail_gcrs, geom, t_ref):
     pr, pd = predict_head(params, obs, geom, t_ref)
     mr = np.array([o["range_m"] for o in obs], dtype=float)
     md = np.array([o["doppler_hz"] for o in obs], dtype=float)
-    tv, tau = trail_line_residual_vectors(params, trail_gcrs)
+    tv, tau = trail_line_residual_vectors(params, trail_gcrs, t_ref=t_ref, trail_rows=trail_rows)
     trail_dist = np.linalg.norm(tv, axis=1)
     trail_alt_km = np.array([float(r["alt_m"]) / 1000.0 for r in trail_rows], dtype=float)
     trail_echo_time = np.array([float(r["unix_time"]) for r in trail_rows], dtype=float)
@@ -560,8 +595,10 @@ def write_json(out_dir, args, params, cov, s2, summary, obs, trail_rows, rejecte
 
 def state_llh(params, t_grid, t_ref):
     llh = []
-    for t in t_grid:
-        ecef = gcrs_to_ecef(params[:3] + params[3:6] * (t - t_ref), t)
+    t_arr = np.atleast_1d(np.asarray(t_grid, dtype=float))
+    pos, _vel = state_constant_gravity(params, t_arr, t_ref)
+    for t in t_arr:
+        ecef = gcrs_to_ecef(pos[len(llh)], t)
         llh.append(ecef_to_geodetic_wgs84(ecef))
     return np.asarray(llh)
 
@@ -583,8 +620,10 @@ def transmitter_local_frame(geom: dict) -> tuple[np.ndarray, np.ndarray]:
 
 def state_enu_km(params: np.ndarray, t_grid, t_ref: float, tx0: np.ndarray, rot: np.ndarray) -> np.ndarray:
     enu = []
-    for t in t_grid:
-        ecef = gcrs_to_ecef(params[:3] + params[3:6] * (float(t) - t_ref), float(t))
+    t_arr = np.atleast_1d(np.asarray(t_grid, dtype=float))
+    pos, _vel = state_constant_gravity(params, t_arr, t_ref)
+    for t in t_arr:
+        ecef = gcrs_to_ecef(pos[len(enu)], float(t))
         enu.append((ecef - tx0) @ rot)
     return np.asarray(enu, dtype=float) / 1000.0
 
@@ -734,27 +773,27 @@ def split_trail_display_rows(all_trail_rows: list[dict], used_rows: list[dict], 
     return used_rows, rejected_rows, excluded_rows
 
 
-def trail_projected_time_and_alt(params: np.ndarray, rows: list[dict]) -> tuple[np.ndarray, np.ndarray]:
+def trail_projected_time_and_alt(params: np.ndarray, rows: list[dict], t_ref: float) -> tuple[np.ndarray, np.ndarray]:
     if not rows:
         return np.array([], dtype=float), np.array([], dtype=float)
-    tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in rows]))[1]
+    tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in rows]), t_ref=t_ref, trail_rows=rows)[1]
     alt_km = np.array([r["alt_m"] for r in rows], dtype=float) / 1000.0
     return tau, alt_km
 
 
-def trail_projected_time_and_enu(params: np.ndarray, rows: list[dict]) -> tuple[np.ndarray, np.ndarray]:
+def trail_projected_time_and_enu(params: np.ndarray, rows: list[dict], t_ref: float) -> tuple[np.ndarray, np.ndarray]:
     if not rows:
         return np.array([], dtype=float), np.empty((0, 3), dtype=float)
-    tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in rows]))[1]
+    tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in rows]), t_ref=t_ref, trail_rows=rows)[1]
     enu_km = np.array([r["position_enu_m"] for r in rows], dtype=float) / 1000.0
     return tau, enu_km
 
 
-def scatter_trail_panels(axes, params: np.ndarray, used_rows: list[dict], rejected_rows: list[dict], excluded_rows: list[dict]) -> None:
+def scatter_trail_panels(axes, params: np.ndarray, used_rows: list[dict], rejected_rows: list[dict], excluded_rows: list[dict], t_ref: float) -> None:
     panel_values = [
-        lambda rows: trail_projected_time_and_alt(params, rows),
-        lambda rows: (trail_projected_time_and_enu(params, rows)[0], trail_projected_time_and_enu(params, rows)[1][:, 0]),
-        lambda rows: (trail_projected_time_and_enu(params, rows)[0], trail_projected_time_and_enu(params, rows)[1][:, 1]),
+        lambda rows: trail_projected_time_and_alt(params, rows, t_ref),
+        lambda rows: (trail_projected_time_and_enu(params, rows, t_ref)[0], trail_projected_time_and_enu(params, rows, t_ref)[1][:, 0]),
+        lambda rows: (trail_projected_time_and_enu(params, rows, t_ref)[0], trail_projected_time_and_enu(params, rows, t_ref)[1][:, 1]),
     ]
     for ai, (ax, values_for_rows) in enumerate(zip(axes, panel_values, strict=True)):
         if excluded_rows:
@@ -808,7 +847,7 @@ def scatter_head_position_panels(axes, params: np.ndarray, obs: list[dict], t_re
 
 def plot_altitude(out, params, cov, obs, trail_rows, t_ref, geom, all_trail_rows=None, rejected_trail=None):
     t_head = np.array([o["unix_time"] for o in obs], dtype=float)
-    trail_tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in trail_rows]))[1] if trail_rows else np.array([], dtype=float)
+    trail_tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in trail_rows]), t_ref=t_ref, trail_rows=trail_rows)[1] if trail_rows else np.array([], dtype=float)
     t0 = min(float(np.min(t_head)), float(t_ref + np.min(trail_tau)) if trail_tau.size else float(np.min(t_head)))
     t1 = max(float(np.max(t_head)), float(t_ref + np.max(trail_tau)) if trail_tau.size else float(np.max(t_head)))
     t = np.linspace(t0, t1, 160)
@@ -832,7 +871,7 @@ def plot_altitude(out, params, cov, obs, trail_rows, t_ref, geom, all_trail_rows
             ax.plot(tr, sample_enu[:, idx], color="C0", alpha=0.055, lw=0.8)
         ax.plot(tr, enu_fit[:, idx], color="C0", lw=2.2)
     used_rows, rejected_rows, excluded_rows = split_trail_display_rows(all_trail_rows or trail_rows, trail_rows, rejected_trail or [])
-    scatter_trail_panels(axes, params, used_rows, rejected_rows, excluded_rows)
+    scatter_trail_panels(axes, params, used_rows, rejected_rows, excluded_rows, t_ref)
     scatter_head_position_panels(axes, params, obs, t_ref, tx0, rot)
     axes[0].set_ylabel("Altitude (km)")
     axes[1].set_ylabel("East offset (km)")
@@ -860,7 +899,7 @@ def plot_map(out, params, cov, obs, trail_rows, t_ref, all_trail_rows=None, reje
         ccrs = None
         cfeature = None
     t_head = np.array([o["unix_time"] for o in obs], dtype=float)
-    tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in trail_rows]))[1]
+    tau = trail_line_residual_vectors(params, np.array([r["gcrs_ref_m"] for r in trail_rows]), t_ref=t_ref, trail_rows=trail_rows)[1]
     t = np.linspace(min(np.min(t_head), t_ref + np.min(tau)) - 0.5, max(np.max(t_head), t_ref + np.max(tau)) + 0.5, 80)
     llh = state_llh(params, t, t_ref)
     samples = sample_params(params, cov, n=25)
@@ -947,14 +986,14 @@ def run(args):
     annotations, obs, used_stations, rejected_head, geom = load_head_data(args)
     print("Caching station ECI states", flush=True)
     obs = cache_head_station_states(obs, geom)
-    t_ref = float(np.median([o["unix_time"] for o in obs]))
+    t_ref = pre_head_reference_time(obs)
     print("Loading trail positions", flush=True)
     all_trail_rows = load_all_trail_positions(Path(args.trail_json))
     trail_rows = load_trail_positions(Path(args.trail_json), args.trail_min_snr_db, args.max_aod_offset_deg, args.min_trail_alt_km, args.max_trail_alt_km)
     for row in all_trail_rows:
-        row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], t_ref)
+        row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], row["unix_time"])
     for row in trail_rows:
-        row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], t_ref)
+        row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], row["unix_time"])
     x0 = params_from_head_fit(Path(args.head_fit_json), t_ref)
     trail_gcrs = np.array([r["gcrs_ref_m"] for r in trail_rows])
     trail_sigma = np.array([r["sigma_m"] for r in trail_rows])
@@ -968,7 +1007,7 @@ def run(args):
         max_nfev=args.max_nfev,
     )
     print("Rejecting trail outliers", flush=True)
-    kept_rows, rejected_trail, reject_threshold, _dist = robust_reject_trail(res1.x, trail_rows, trail_gcrs)
+    kept_rows, rejected_trail, reject_threshold, _dist = robust_reject_trail(res1.x, trail_rows, trail_gcrs, t_ref)
     trail_rows = kept_rows
     trail_gcrs = np.array([r["gcrs_ref_m"] for r in trail_rows])
     trail_sigma = np.array([r["sigma_m"] for r in trail_rows])
