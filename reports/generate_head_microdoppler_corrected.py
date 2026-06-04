@@ -76,9 +76,9 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
         filtered_db = notch_2d_doppler_repetition(raw_db, args.n_coh, args.notch_half_width)
         model = float(patch_group.attrs["model_doppler_hz"])
         seed_range_m = float(patch_group.attrs["seed_range_m"])
-        seed_doppler_hz = float(patch_group.attrs["picked_doppler_hz"])
+        seed_doppler_value_hz = float(patch_group.attrs["picked_doppler_hz"])
         seed_range_km = seed_range_m / 1000.0
-        seed_rel_hz = seed_doppler_hz - model
+        seed_rel_hz = seed_doppler_value_hz - model
 
         try:
             fit = fit_gaussian_patch(
@@ -110,7 +110,7 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
         times.append(float(obs["unix_time"]))
         ranges_km.append(fit["range_km"])
         fit_doppler_hz.append(model + fit["rel_doppler_hz"])
-        seed_doppler_hz.append(seed_doppler_hz)
+        seed_doppler_hz.append(seed_doppler_value_hz)
         model_doppler_hz.append(model)
         fit_rel_hz.append(fit["rel_doppler_hz"])
         rel_axis = rel_freqs.copy()
@@ -125,9 +125,9 @@ def corrected_station(station: str, observations: list[dict], group: h5py.Group,
                 "fit_range_m": fit_range_m,
                 "range_correction_m": fit_range_m - seed_range_m,
                 "model_doppler_hz": model,
-                "seed_doppler_hz": seed_doppler_hz,
+                "seed_doppler_hz": seed_doppler_value_hz,
                 "fit_doppler_hz": model + fit["rel_doppler_hz"],
-                "doppler_correction_hz": model + fit["rel_doppler_hz"] - seed_doppler_hz,
+                "doppler_correction_hz": model + fit["rel_doppler_hz"] - seed_doppler_value_hz,
                 "fit_rel_doppler_hz": fit["rel_doppler_hz"],
                 "sigma_range_m": 1000.0 * fit["sigma_range_km"],
                 "sigma_doppler_hz": fit["sigma_doppler_hz"],
