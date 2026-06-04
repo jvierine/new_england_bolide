@@ -486,7 +486,7 @@ def plot_map(rows, fit, sites, tx_ecef, rot, line_fit, out_png, uncertainty_samp
     plt.close(fig)
 
 
-def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, combined_line_fit, summary, out_png):
+def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, combined_line_fit, summary, out_png, ballistic_fit=None):
     rows = figure_geo_filtered(rows)
     trail_rows = figure_geo_filtered(trail_rows)
     fit_rows = rows + trail_rows
@@ -512,6 +512,12 @@ def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, comb
 
     lat_fit = robust_line_fit(lat, height_km)
     lon_fit = robust_line_fit(lon, height_km)
+    ballistic_llh = None
+    if ballistic_fit is not None:
+        t = np.array([r["unix_time"] for r in fit_rows], dtype=float)
+        t_grid = np.linspace(float(np.nanmin(t)), float(np.nanmax(t)), 240)
+        ballistic_enu = np.array([model_fit_enu(ballistic_fit, ti) for ti in t_grid])
+        _, ballistic_llh = enu_series_to_geodetic(tx_ecef, rot, ballistic_enu)
 
     stations = sorted(set(r["station"] for r in rows))
     colors = dict(zip(stations, plt.cm.tab10(np.linspace(0, 1, len(stations)))))
@@ -531,6 +537,10 @@ def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, comb
         x_min, x_max = np.nanpercentile(x_all, [5.0, 95.0])
         x_grid = np.linspace(float(x_min), float(x_max), 240)
         ax.plot(x_grid, fit_coef[0] * x_grid + fit_coef[1], color="k", lw=2.2, label="Head+trail robust fit")
+        if ballistic_llh is not None:
+            bx = ballistic_llh[:, 0] if x_name == "lat" else ballistic_llh[:, 1]
+            by = ballistic_llh[:, 2] / 1000.0
+            ax.plot(bx, by, "--", color="C2", lw=2.0, label="Ballistic fit")
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Height (km)")
         ax.grid(alpha=0.25)
@@ -925,6 +935,7 @@ def main():
         combined_line_fit,
         summary,
         args.report_fig,
+        ballistic_fit=fit,
     )
     write_report_summary(summary, args.report_tex, fit=reference_fit)
 
