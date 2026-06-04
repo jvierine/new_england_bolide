@@ -141,7 +141,10 @@ This workflow was created as appendix/debug material only. It uses manually
 selected Gaussian-refined head-echo measurements plus retained trail positions,
 with block covariance terms for overlapping coherent integrations: 16 code
 periods for head echoes and 8 code periods for trail echoes, stepped by one
-code period. Because atmospheric drag is no longer to be estimated, update this
+code period. Trail interferometric-position covariance is additionally gated by
+the raw 3 km range gate: measurements in different raw range gates are treated
+as uncorrelated even when their coherent integrations overlap in time. Because
+atmospheric drag is no longer to be estimated, update this
 workflow before using it again: remove the fitted \(C_D A/m\) state and use the
 fixed 1.6 m, 5 metric ton spherical-body assumption instead.
 

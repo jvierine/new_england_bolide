@@ -161,14 +161,32 @@ def fill_correlated_block(
     *,
     n_codes: int,
     code_period_s: float,
+    corr_mask: np.ndarray | None = None,
 ) -> None:
     if len(indices) == 0:
         return
     times = np.asarray(times, dtype=float)
     sigma = np.asarray(sigma, dtype=float)
     corr = overlap_corr(times[:, None] - times[None, :], code_period_s, n_codes)
+    if corr_mask is not None:
+        corr = corr * np.asarray(corr_mask, dtype=float)
     block = corr * sigma[:, None] * sigma[None, :]
     cov[np.ix_(indices, indices)] = block
+
+
+def trail_range_gate_ids(rows: list[dict], gate_m: float) -> np.ndarray:
+    ids = []
+    for row in rows:
+        raw_idx = row.get("raw_range_index")
+        if raw_idx is not None and np.isfinite(float(raw_idx)):
+            ids.append(int(round(float(raw_idx))))
+            continue
+        range_km = row.get("range_km")
+        if range_km is not None and np.isfinite(float(range_km)):
+            ids.append(int(round(1000.0 * float(range_km) / gate_m)))
+            continue
+        ids.append(0)
+    return np.asarray(ids, dtype=int)
 
 
 def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) -> tuple[np.ndarray, dict]:
@@ -200,11 +218,20 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
         )
 
     trail_base = 2 * n_head
+    trail_offdiag_correlated = 0
+    trail_offdiag_same_time_different_gate = 0
     for comp in range(3):
         for station in sorted(set(r["station"] for r in trail_rows)):
             idx_rows = [i for i, r in enumerate(trail_rows) if r["station"] == station]
             times = np.array([trail_rows[i]["unix_time"] for i in idx_rows], dtype=float)
             sigma = np.array([trail_rows[i]["sigma_m"] for i in idx_rows], dtype=float)
+            gate_ids = trail_range_gate_ids([trail_rows[i] for i in idx_rows], args.trail_correlation_range_gate_m)
+            time_corr = overlap_corr(times[:, None] - times[None, :], args.code_period_s, args.trail_coherent_codes) > 0.0
+            same_gate = gate_ids[:, None] == gate_ids[None, :]
+            corr_mask = same_gate
+            upper = np.triu(np.ones_like(time_corr, dtype=bool), k=1)
+            trail_offdiag_correlated += int(np.count_nonzero(time_corr & same_gate & upper))
+            trail_offdiag_same_time_different_gate += int(np.count_nonzero(time_corr & ~same_gate & upper))
             indices = [trail_base + 3 * i + comp for i in idx_rows]
             fill_correlated_block(
                 cov,
@@ -213,6 +240,7 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
                 sigma,
                 n_codes=args.trail_coherent_codes,
                 code_period_s=args.code_period_s,
+                corr_mask=corr_mask,
             )
 
     diag_floor = np.maximum(np.abs(np.diag(cov)) * 1e-8, 1e-6)
@@ -224,7 +252,10 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
         "head_coherent_codes": int(args.head_coherent_codes),
         "trail_coherent_codes": int(args.trail_coherent_codes),
         "code_period_s": float(args.code_period_s),
-        "description": "Block covariance with triangular coherent-integration overlap correlation within each station and observable.",
+        "trail_correlation_range_gate_m": float(args.trail_correlation_range_gate_m),
+        "trail_offdiag_correlated_pairs": int(trail_offdiag_correlated),
+        "trail_offdiag_time_overlap_different_gate_pairs": int(trail_offdiag_same_time_different_gate),
+        "description": "Block covariance with triangular coherent-integration overlap correlation within each station and observable; trail interferometric position correlations are retained only for measurements in the same raw range gate.",
     }
     return cov, meta
 
@@ -290,6 +321,11 @@ def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_met
         f"\\newcommand{{\\CorrFitNTrail}}{{{payload['n_trail_positions']}}}\n",
         f"\\newcommand{{\\CorrFitNResiduals}}{{{cov_meta['n_residuals']}}}\n",
         f"\\newcommand{{\\CorrFitReducedChiSq}}{{{fmt(payload['correlated_covariance']['reduced_chi2'], 2)}}}\n",
+        f"\\newcommand{{\\CorrFitHeadCoherentCodes}}{{{cov_meta['head_coherent_codes']}}}\n",
+        f"\\newcommand{{\\CorrFitTrailCoherentCodes}}{{{cov_meta['trail_coherent_codes']}}}\n",
+        f"\\newcommand{{\\CorrFitTrailCorrelationGateKm}}{{{fmt(cov_meta['trail_correlation_range_gate_m'] / 1000.0, 1)}}}\n",
+        f"\\newcommand{{\\CorrFitTrailSameGatePairs}}{{{cov_meta['trail_offdiag_correlated_pairs']}}}\n",
+        f"\\newcommand{{\\CorrFitTrailDifferentGateOverlapPairs}}{{{cov_meta['trail_offdiag_time_overlap_different_gate_pairs']}}}\n",
         f"\\newcommand{{\\CorrFitDeltaPositionKm}}{{{fmt(np.linalg.norm(dp) / 1000.0, 2)}}}\n",
         f"\\newcommand{{\\CorrFitDeltaVelocityMps}}{{{fmt(np.linalg.norm(dv), 1)}}}\n",
         f"\\newcommand{{\\CorrFitCdAreaMass}}{{{payload['cd_area_over_mass_m2_kg']:.3e}}}\n",
@@ -553,7 +589,7 @@ def main() -> None:
     payload["correlated_covariance"] = {
         **cov_meta,
         "reduced_chi2": chi2_red,
-        "covariance_model": "Sigma blocks use triangular overlap autocorrelation; parameter covariance is the standard linearized GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters.",
+        "covariance_model": "Sigma blocks use triangular overlap autocorrelation. Trail interferometric-position off-diagonal terms are retained only for same-station measurements in the same raw range gate; overlapping measurements in different raw 3 km range gates are treated as uncorrelated. Parameter covariance is the standard linearized GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters.",
     }
     payload["fixed_body"] = {
         "diameter_m": float(args.body_diameter_m),
@@ -613,6 +649,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--head-coherent-codes", type=int, default=16)
     p.add_argument("--trail-coherent-codes", type=int, default=8)
     p.add_argument("--code-period-s", type=float, default=0.01)
+    p.add_argument("--trail-correlation-range-gate-m", type=float, default=3000.0)
     p.add_argument("--trail-min-snr-db", type=float, default=8.0)
     p.add_argument("--max-aod-offset-deg", type=float, default=35.0)
     p.add_argument("--min-trail-alt-km", type=float, default=20.0)
