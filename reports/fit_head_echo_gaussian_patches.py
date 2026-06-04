@@ -15,7 +15,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from reports.generate_head_echo_gaussian_batch import display_path, plot_patch, safe_name  # noqa: E402
+from reports.generate_head_echo_gaussian_batch import display_path, plot_patch, safe_name, smooth_power_db  # noqa: E402
 from reports.generate_head_echo_gaussian_example import fit_gaussian_patch  # noqa: E402
 from reports.generate_head_microdoppler import STATION_LABELS  # noqa: E402
 from reports.generate_head_microdoppler_2dfft_notched import EVENT_T0, notch_2d_doppler_repetition  # noqa: E402
@@ -27,25 +27,6 @@ DEFAULT_SUMMARY = ROOT / "reports" / "head_echo_gaussian_fit_summary.csv"
 
 def coherent_center_time(start_time_unix: float, n_coh: int, code_period_s: float) -> float:
     return float(start_time_unix) + 0.5 * float(n_coh) * float(code_period_s)
-
-
-def incoherent_average_frequency_bins_db(image_db: np.ndarray, rel_hz: np.ndarray, n_bins: int) -> tuple[np.ndarray, np.ndarray]:
-    if n_bins <= 1:
-        return np.asarray(image_db, dtype=float), np.asarray(rel_hz, dtype=float)
-    image_db = np.asarray(image_db, dtype=float)
-    rel_hz = np.asarray(rel_hz, dtype=float)
-    n_freq = image_db.shape[1]
-    n_group = n_freq // n_bins
-    if n_group < 1:
-        return image_db, rel_hz
-    keep = n_group * n_bins
-    start = (n_freq - keep) // 2
-    stop = start + keep
-    power = 10.0 ** (image_db[:, start:stop] / 10.0)
-    avg_power = power.reshape(image_db.shape[0], n_group, n_bins).mean(axis=2)
-    avg_db = 10.0 * np.log10(np.maximum(avg_power, 1e-30))
-    avg_rel_hz = rel_hz[start:stop].reshape(n_group, n_bins).mean(axis=1)
-    return avg_db, avg_rel_hz
 
 
 def fit_cached_patch(station: str, patch_group: h5py.Group, args: argparse.Namespace) -> tuple[dict, dict | None, dict | None, str | None]:
@@ -72,13 +53,14 @@ def fit_cached_patch(station: str, patch_group: h5py.Group, args: argparse.Names
         "raw_db": patch_group["raw_db"][()].astype(float),
     }
     patch["raw_rel_freqs"] = patch["rel_freqs"].copy()
-    patch["filtered_db"] = notch_2d_doppler_repetition(patch["raw_db"], args.n_coh, args.notch_half_width)
-    patch["filtered_db"], patch["rel_freqs"] = incoherent_average_frequency_bins_db(
-        patch["filtered_db"],
-        patch["rel_freqs"],
-        args.frequency_bin_average,
+    patch["filtered_unsmoothed_db"] = notch_2d_doppler_repetition(patch["raw_db"], args.n_coh, args.notch_half_width)
+    patch["filtered_db"] = smooth_power_db(
+        patch["filtered_unsmoothed_db"],
+        args.smooth_range_pixels,
+        args.smooth_frequency_pixels,
     )
-    patch["frequency_bin_average"] = int(args.frequency_bin_average)
+    patch["smooth_range_pixels"] = float(args.smooth_range_pixels)
+    patch["smooth_frequency_pixels"] = float(args.smooth_frequency_pixels)
     try:
         seed_range_km = obs["range_m"] / 1000.0
         seed_rel_hz = obs["doppler_hz"] - patch["model_doppler_hz"]
@@ -129,6 +111,7 @@ def summary_row(station: str, obs: dict, patch: dict | None, fit: dict | None, e
                 "fit_rel_doppler_hz": fit["rel_doppler_hz"],
                 "sigma_range_m": 1000.0 * fit["sigma_range_km"],
                 "sigma_doppler_hz": fit["sigma_doppler_hz"],
+                "range_doppler_correlation": fit["range_doppler_correlation"],
                 "amplitude_db": fit["amplitude_db"],
                 "cost": fit["cost"],
             }
@@ -154,6 +137,7 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "fit_rel_doppler_hz",
         "sigma_range_m",
         "sigma_doppler_hz",
+        "range_doppler_correlation",
         "amplitude_db",
         "cost",
         "success",
@@ -162,7 +146,8 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "n_incoh",
         "step_codes",
         "notch_half_width",
-        "frequency_bin_average",
+        "smooth_range_pixels",
+        "smooth_frequency_pixels",
         "code_period_s",
         "figure",
     ]
@@ -184,7 +169,8 @@ def main() -> None:
     p.add_argument("--n-incoh", type=int, default=16)
     p.add_argument("--step-codes", type=int, default=1)
     p.add_argument("--notch-half-width", type=int, default=1)
-    p.add_argument("--frequency-bin-average", type=int, default=8)
+    p.add_argument("--smooth-range-pixels", type=float, default=4.0)
+    p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
     p.add_argument("--code-period-s", type=float, default=0.01)
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
@@ -198,7 +184,8 @@ def main() -> None:
         "n_incoh": args.n_incoh,
         "step_codes": args.step_codes,
         "notch_half_width": args.notch_half_width,
-        "frequency_bin_average": args.frequency_bin_average,
+        "smooth_range_pixels": args.smooth_range_pixels,
+        "smooth_frequency_pixels": args.smooth_frequency_pixels,
         "code_period_s": args.code_period_s,
     }
     rows = []

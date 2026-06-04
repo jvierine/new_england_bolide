@@ -15,7 +15,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from reports.generate_head_echo_gaussian_example import fit_gaussian_patch, gaussian2d  # noqa: E402
+from reports.generate_head_echo_gaussian_example import (  # noqa: E402
+    correlated_ellipse_points,
+    fit_gaussian_patch,
+    gaussian2d,
+    smooth_power_db,
+)
 from reports.generate_head_microdoppler import STATION_LABELS, STATIONS, load_station_observations  # noqa: E402
 from reports.generate_head_microdoppler_2dfft_notched import (  # noqa: E402
     EVENT_T0,
@@ -66,6 +71,14 @@ def process_item(item: tuple[int, dict]) -> tuple[dict | None, dict | None, str 
         patch = compute_filtered_patch((idx, obs))
         if patch is None:
             return None, None, "outside RF span"
+        patch["filtered_unsmoothed_db"] = patch["filtered_db"]
+        patch["filtered_db"] = smooth_power_db(
+            patch["filtered_unsmoothed_db"],
+            G_ARGS.smooth_range_pixels,
+            G_ARGS.smooth_frequency_pixels,
+        )
+        patch["smooth_range_pixels"] = float(G_ARGS.smooth_range_pixels)
+        patch["smooth_frequency_pixels"] = float(G_ARGS.smooth_frequency_pixels)
         fit = fit_patch(patch, obs, G_ARGS)
         return patch, fit, None
     except Exception as exc:
@@ -110,6 +123,7 @@ def plot_patch(out: Path, station: str, obs: dict, patch: dict | None, fit: dict
                     float(fit["rel_doppler_hz"]),
                     float(fit["sigma_range_km"]),
                     float(fit["sigma_doppler_hz"]),
+                    float(fit.get("range_doppler_correlation", 0.0)),
                 ]
             ),
             rr,
@@ -130,12 +144,17 @@ def plot_patch(out: Path, station: str, obs: dict, patch: dict | None, fit: dict
         y_max = max(seed_range_km, fit_range_km) + y_pad
 
     plt.rcParams.update({"font.size": 9})
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.3), sharex=True, sharey=True, constrained_layout=True)
-    theta = np.linspace(0.0, 2.0 * np.pi, 256)
+    filtered_unsmoothed = patch.get("filtered_unsmoothed_db", filtered)
     images = [
         ("Raw matched filter", raw, raw_rel_hz),
-        (f"2D FFT notch filtered, {int(patch.get('frequency_bin_average', 8))}-bin avg", filtered, rel_hz),
+        ("2D FFT notch filtered", filtered_unsmoothed, rel_hz),
+        (
+            f"2D FFT filtered + smoothed ({patch.get('smooth_range_pixels', 4):g}, {patch.get('smooth_frequency_pixels', 16):g}) px",
+            filtered,
+            rel_hz,
+        ),
     ]
+    fig, axes = plt.subplots(1, 3, figsize=(10.8, 3.3), sharex=True, sharey=True, constrained_layout=True)
     for ax, (title, img, img_rel_hz) in zip(axes, images, strict=True):
         show = (
             (range_km[:, None] >= y_min)
@@ -156,9 +175,11 @@ def plot_patch(out: Path, station: str, obs: dict, patch: dict | None, fit: dict
             fit_rel_hz = float(fit["rel_doppler_hz"])
             sig_r = float(fit["sigma_range_km"])
             sig_f = float(fit["sigma_doppler_hz"])
+            rho = float(fit.get("range_doppler_correlation", 0.0))
             ax.plot([seed_rel_hz, fit_rel_hz], [seed_range_km, fit_range_km], color="white", lw=0.9, alpha=0.9)
             ax.plot(fit_rel_hz, fit_range_km, marker="x", ms=8, mew=1.4, color="#42ff9f", linestyle="none")
-            ax.plot(fit_rel_hz + sig_f * np.cos(theta), fit_range_km + sig_r * np.sin(theta), color="#42ff9f", lw=1.2)
+            ell_x, ell_y = correlated_ellipse_points(fit_range_km, fit_rel_hz, sig_r, sig_f, rho)
+            ax.plot(ell_x, ell_y, color="#42ff9f", lw=1.2)
             if fit_model is not None:
                 ax.contour(
                     rel_hz,
@@ -210,6 +231,7 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "fit_rel_doppler_hz",
         "sigma_range_m",
         "sigma_doppler_hz",
+        "range_doppler_correlation",
         "amplitude_db",
         "cost",
         "success",
@@ -218,6 +240,8 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "n_incoh",
         "step_codes",
         "notch_half_width",
+        "smooth_range_pixels",
+        "smooth_frequency_pixels",
         "figure",
     ]
     with path.open("w", newline="", encoding="utf-8") as fh:
@@ -263,6 +287,8 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                     "n_incoh": args.n_incoh,
                     "step_codes": args.step_codes,
                     "notch_half_width": args.notch_half_width,
+                    "smooth_range_pixels": args.smooth_range_pixels,
+                    "smooth_frequency_pixels": args.smooth_frequency_pixels,
                     "figure": display_path(fig_path),
                 }
             )
@@ -283,6 +309,7 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                 "fit_rel_doppler_hz": fit["rel_doppler_hz"],
                 "sigma_range_m": 1000.0 * fit["sigma_range_km"],
                 "sigma_doppler_hz": fit["sigma_doppler_hz"],
+                "range_doppler_correlation": fit["range_doppler_correlation"],
                 "amplitude_db": fit["amplitude_db"],
                 "cost": fit["cost"],
                 "success": fit["success"],
@@ -291,6 +318,8 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                 "n_incoh": args.n_incoh,
                 "step_codes": args.step_codes,
                 "notch_half_width": args.notch_half_width,
+                "smooth_range_pixels": args.smooth_range_pixels,
+                "smooth_frequency_pixels": args.smooth_frequency_pixels,
                 "figure": display_path(fig_path),
             }
         )
@@ -316,6 +345,8 @@ def main() -> None:
     p.add_argument("--n-incoh", type=int, default=16)
     p.add_argument("--step-codes", type=int, default=1)
     p.add_argument("--notch-half-width", type=int, default=1)
+    p.add_argument("--smooth-range-pixels", type=float, default=4.0)
+    p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
     p.add_argument("--dc-cancel", action="store_true")
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)

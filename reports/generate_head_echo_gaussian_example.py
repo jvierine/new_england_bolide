@@ -10,6 +10,7 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import gaussian_filter
 from scipy.optimize import least_squares
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,10 +34,43 @@ def closest_observation(observations: list[dict], time_rel: float) -> tuple[int,
 
 
 def gaussian2d(params: np.ndarray, range_km: np.ndarray, rel_hz: np.ndarray) -> np.ndarray:
-    offset, amp, r0, f0, sig_r, sig_f = params
+    offset, amp, r0, f0, sig_r, sig_f, rho = params
     rr = (range_km - r0) / sig_r
     ff = (rel_hz - f0) / sig_f
-    return offset + amp * np.exp(-0.5 * (rr * rr + ff * ff))
+    one_minus_rho2 = np.maximum(1.0 - rho * rho, 1e-6)
+    exponent = -0.5 * (rr * rr - 2.0 * rho * rr * ff + ff * ff) / one_minus_rho2
+    return offset + amp * np.exp(exponent)
+
+
+def smooth_power_db(image_db: np.ndarray, range_sigma_px: float, frequency_sigma_px: float) -> np.ndarray:
+    if range_sigma_px <= 0.0 and frequency_sigma_px <= 0.0:
+        return np.asarray(image_db, dtype=float)
+    power = 10.0 ** (np.asarray(image_db, dtype=float) / 10.0)
+    smoothed = gaussian_filter(power, sigma=(range_sigma_px, frequency_sigma_px), mode="nearest")
+    return 10.0 * np.log10(np.maximum(smoothed, 1e-30))
+
+
+def correlated_ellipse_points(
+    range_km: float,
+    rel_hz: float,
+    sigma_range_km: float,
+    sigma_doppler_hz: float,
+    rho: float,
+    n: int = 256,
+) -> tuple[np.ndarray, np.ndarray]:
+    cov = np.array(
+        [
+            [sigma_range_km * sigma_range_km, rho * sigma_range_km * sigma_doppler_hz],
+            [rho * sigma_range_km * sigma_doppler_hz, sigma_doppler_hz * sigma_doppler_hz],
+        ],
+        dtype=float,
+    )
+    vals, vecs = np.linalg.eigh(cov)
+    vals = np.maximum(vals, 0.0)
+    theta = np.linspace(0.0, 2.0 * np.pi, n)
+    unit = np.vstack([np.cos(theta), np.sin(theta)])
+    pts = np.array([range_km, rel_hz])[:, None] + (vecs @ (np.sqrt(vals)[:, None] * unit))
+    return pts[1], pts[0]
 
 
 def fit_gaussian_patch(
@@ -78,7 +112,7 @@ def fit_gaussian_patch(
     floor = float(np.nanpercentile(y, 20.0))
     peak = float(np.nanmax(y))
     amp0 = max(peak - floor, 1.0)
-    p0 = np.array([floor, amp0, peak_range_km, peak_rel_hz, 1.2, 80.0], dtype=float)
+    p0 = np.array([floor, amp0, peak_range_km, peak_rel_hz, 1.2, 80.0, 0.0], dtype=float)
     lower = np.array(
         [
             floor - 30.0,
@@ -87,6 +121,7 @@ def fit_gaussian_patch(
             peak_rel_hz - fit_doppler_half_width_hz,
             max(float(np.nanmedian(np.diff(range_km))), 0.05),
             max(float(np.nanmedian(np.diff(rel_hz))), 1.0),
+            -0.95,
         ],
         dtype=float,
     )
@@ -98,6 +133,7 @@ def fit_gaussian_patch(
             peak_rel_hz + fit_doppler_half_width_hz,
             fit_range_half_width_km,
             fit_doppler_half_width_hz,
+            0.95,
         ],
         dtype=float,
     )
@@ -108,7 +144,7 @@ def fit_gaussian_patch(
         return (gaussian2d(params, x_r, x_f) - y) / scale
 
     result = least_squares(residual, p0, bounds=(lower, upper), loss="soft_l1", f_scale=1.0, max_nfev=3000)
-    offset, amp, r0, f0, sig_r, sig_f = result.x
+    offset, amp, r0, f0, sig_r, sig_f, rho = result.x
     return {
         "success": bool(result.success),
         "message": result.message,
@@ -119,6 +155,7 @@ def fit_gaussian_patch(
         "rel_doppler_hz": float(f0),
         "sigma_range_km": float(sig_r),
         "sigma_doppler_hz": float(sig_f),
+        "range_doppler_correlation": float(rho),
         "peak_range_km": peak_range_km,
         "peak_rel_doppler_hz": peak_rel_hz,
     }
@@ -134,7 +171,9 @@ def save_example(path: Path, patch: dict, fit: dict, station: str, obs: dict) ->
         h.attrs["seed_range_m"] = float(obs["range_m"])
         h.attrs["seed_doppler_hz"] = float(obs["doppler_hz"])
         h.attrs["model_doppler_hz"] = float(patch["model_doppler_hz"])
-        for key in ("range_m", "rel_freqs", "raw_db", "filtered_db"):
+        for key in ("range_m", "rel_freqs", "raw_db", "filtered_db", "filtered_unsmoothed_db"):
+            if key not in patch:
+                continue
             h[key] = patch[key]
         g = h.create_group("gaussian_fit")
         for key, val in fit.items():
@@ -155,6 +194,8 @@ def load_example(path: Path) -> tuple[dict, dict, str, dict]:
             "filtered_db": h["filtered_db"][()],
             "model_doppler_hz": float(h.attrs["model_doppler_hz"]),
         }
+        if "filtered_unsmoothed_db" in h:
+            patch["filtered_unsmoothed_db"] = h["filtered_unsmoothed_db"][()]
         fit = dict(h["gaussian_fit"].attrs.items())
         station = str(h.attrs["station"])
         obs = {
@@ -175,9 +216,11 @@ def plot_example(path: Path, out: Path) -> None:
     fit_rel_hz = float(fit["rel_doppler_hz"])
     sig_r = float(fit["sigma_range_km"])
     sig_f = float(fit["sigma_doppler_hz"])
+    rho = float(fit.get("range_doppler_correlation", 0.0))
 
     raw = patch["raw_db"]
     filtered = patch["filtered_db"]
+    filtered_unsmoothed = patch.get("filtered_unsmoothed_db", filtered)
     rr, ff = np.meshgrid(range_km, rel_hz, indexing="ij")
     fit_model = gaussian2d(
         np.array(
@@ -188,6 +231,7 @@ def plot_example(path: Path, out: Path) -> None:
                 fit_rel_hz,
                 sig_r,
                 sig_f,
+                rho,
             ]
         ),
         rr,
@@ -201,10 +245,14 @@ def plot_example(path: Path, out: Path) -> None:
     y_max = max(seed_range_km, fit_range_km) + y_pad
 
     plt.rcParams.update({"font.size": 9})
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.3), sharex=True, sharey=True, constrained_layout=True)
-    images = [("Raw matched filter", raw), ("2D FFT notch filtered", filtered)]
-    theta = np.linspace(0.0, 2.0 * np.pi, 256)
-    for ax, (title, img) in zip(axes, images):
+    fig, axes = plt.subplots(1, 3, figsize=(10.8, 3.3), sharex=True, sharey=True, constrained_layout=True)
+    images = [
+        ("Raw matched filter", raw),
+        ("2D FFT notch filtered", filtered_unsmoothed),
+        ("2D FFT filtered + smoothed", filtered),
+    ]
+    ell_x, ell_y = correlated_ellipse_points(fit_range_km, fit_rel_hz, sig_r, sig_f, rho)
+    for ax, (title, img) in zip(axes, images, strict=True):
         show = (
             (range_km[:, None] >= y_min)
             & (range_km[:, None] <= y_max)
@@ -218,12 +266,7 @@ def plot_example(path: Path, out: Path) -> None:
         ax.plot([seed_rel_hz, fit_rel_hz], [seed_range_km, fit_range_km], color="white", lw=0.9, alpha=0.9)
         ax.plot(seed_rel_hz, seed_range_km, marker="+", ms=9, mew=1.4, color="#9be7ff", linestyle="none")
         ax.plot(fit_rel_hz, fit_range_km, marker="x", ms=8, mew=1.4, color="#42ff9f", linestyle="none")
-        ax.plot(
-            fit_rel_hz + sig_f * np.cos(theta),
-            fit_range_km + sig_r * np.sin(theta),
-            color="#42ff9f",
-            lw=1.2,
-        )
+        ax.plot(ell_x, ell_y, color="#42ff9f", lw=1.2)
         ax.contour(
             rel_hz,
             range_km,
@@ -273,6 +316,8 @@ def main() -> None:
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
     p.add_argument("--fit-range-half-width-km", type=float, default=5.0)
     p.add_argument("--fit-doppler-half-width-hz", type=float, default=300.0)
+    p.add_argument("--smooth-range-pixels", type=float, default=4.0)
+    p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
     p.add_argument("--cache", type=Path, default=OUT_CACHE)
     p.add_argument("--out", type=Path, default=OUT_FIG)
     p.add_argument("--plot-only", action="store_true")
@@ -287,6 +332,12 @@ def main() -> None:
         patch = compute_filtered_patch((idx, obs))
         if patch is None:
             raise RuntimeError("Selected observation is outside the available RF span")
+        patch["filtered_unsmoothed_db"] = patch["filtered_db"]
+        patch["filtered_db"] = smooth_power_db(
+            patch["filtered_unsmoothed_db"],
+            args.smooth_range_pixels,
+            args.smooth_frequency_pixels,
+        )
         seed_range_km = float(obs["range_m"]) / 1000.0
         seed_rel_hz = float(obs["doppler_hz"]) - float(patch["model_doppler_hz"])
         fit = fit_gaussian_patch(
