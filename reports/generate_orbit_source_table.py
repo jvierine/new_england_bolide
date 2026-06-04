@@ -149,12 +149,26 @@ def main() -> None:
             kep = h["kepler_HeliocentricMeanEcliptic_final_mean"][()]
         else:
             kep = h["kepler_HeliocentricMeanEcliptic_final"][:, 0]
+        kep_samples = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
     ra_deg, dec_deg = corrected_radiant(ORBIT_H5)
-    a_au = float(kep[0] / AU)
-    e = float(kep[1])
-    q_au = a_au * (1.0 - e)
+    finite = np.all(np.isfinite(kep_samples), axis=0)
+    if np.any(finite):
+        kep_finite = kep_samples[:, finite]
+        a_au = float(np.nanmean(kep_finite[0] / AU))
+        e = float(np.nanmean(kep_finite[1]))
+        q_au = float(np.nanmean((kep_finite[0] / AU) * (1.0 - kep_finite[1])))
+        inc = circular_mean_deg(kep_finite[2])
+        omega = circular_mean_deg(kep_finite[3])
+        node = circular_mean_deg(kep_finite[4])
+    else:
+        a_au = float(kep[0] / AU)
+        e = float(kep[1])
+        q_au = a_au * (1.0 - e)
+        inc = float(kep[2])
+        omega = float(kep[3])
+        node = float(kep[4])
     orbit_rows = [
-        ("Bolide best fit", a_au, q_au, e, float(kep[2]), float(kep[3]), float(kep[4]), ra_deg, dec_deg, "", "", ""),
+        ("Bolide orbit sample mean", a_au, q_au, e, inc, omega, node, ra_deg, dec_deg, "", "", ""),
     ]
 
     nea_rows = []
