@@ -268,13 +268,45 @@ def finite_difference_physical_jacobian(params, obs, geom, t_ref, tx0, rot, use_
     return jac
 
 
-def sandwich_parameter_covariance(obs, fit, use_doppler):
+def overlap_correlation(times, code_period_s, n_codes):
+    dt_codes = np.rint(np.abs(times[:, None] - times[None, :]) / code_period_s).astype(int)
+    return np.maximum(0.0, 1.0 - dt_codes / float(n_codes))
+
+
+def build_range_doppler_covariance(obs, fit, use_doppler, coherent_codes=16, code_period_s=0.01):
     range_sigma = np.asarray(fit["fit_weighting"]["range_sigma_m"], dtype=float)
     doppler_sigma = np.asarray(fit["fit_weighting"]["doppler_sigma_hz"], dtype=float)
-    sigma = range_sigma if not use_doppler else np.r_[range_sigma, doppler_sigma]
-    residual = np.asarray(fit["range_residual_m"], dtype=float)
+    n_obs = len(obs)
+    n_rows = n_obs * (2 if use_doppler else 1)
+    cov = np.zeros((n_rows, n_rows), dtype=float)
+    times = np.array([o["unix_time"] for o in obs], dtype=float)
+    stations = np.array([o["station"] for o in obs])
+    for station in sorted(set(stations)):
+        idx = np.flatnonzero(stations == station)
+        corr = overlap_correlation(times[idx], code_period_s, coherent_codes)
+        cov[np.ix_(idx, idx)] = corr * np.outer(range_sigma[idx], range_sigma[idx])
+        if use_doppler:
+            didx = idx + n_obs
+            cov[np.ix_(didx, didx)] = corr * np.outer(doppler_sigma[idx], doppler_sigma[idx])
+    cov = 0.5 * (cov + cov.T)
+    cov += np.eye(n_rows) * 1e-9
+    return cov
+
+
+def linearized_correlated_parameter_covariance(obs, fit, use_doppler, coherent_codes=16, code_period_s=0.01):
+    meas_cov = build_range_doppler_covariance(
+        obs,
+        fit,
+        use_doppler,
+        coherent_codes=coherent_codes,
+        code_period_s=code_period_s,
+    )
     if use_doppler:
-        residual = np.r_[residual, np.asarray(fit["doppler_residual_hz"], dtype=float)]
+        range_sigma = fit["fit_weighting"]["range_sigma_m"]
+        doppler_sigma = fit["fit_weighting"]["doppler_sigma_hz"]
+    else:
+        range_sigma = fit["fit_weighting"]["range_sigma_m"]
+        doppler_sigma = []
     jac = finite_difference_physical_jacobian(
         fit["result"].x,
         obs,
@@ -284,19 +316,20 @@ def sandwich_parameter_covariance(obs, fit, use_doppler):
         fit["rot"],
         use_doppler,
     )
-    w = 1.0 / np.maximum(sigma, 1e-12) ** 2
-    normal = jac.T @ (w[:, None] * jac)
-    bread = np.linalg.pinv(normal)
-    meat = (jac * w[:, None]).T @ ((residual * residual)[:, None] * (jac * w[:, None]))
+    sigma_inv_jac = np.linalg.solve(meas_cov, jac)
+    normal = jac.T @ sigma_inv_jac
     n_meas, n_par = jac.shape
-    covariance = bread @ meat @ bread
+    covariance = np.linalg.pinv(normal)
     covariance = 0.5 * (covariance + covariance.T)
     details = {
-        "covariance_model": "heteroskedasticity-robust sandwich covariance using finite-difference physical Jacobian, final range/Doppler residuals, and fixed nominal range/Doppler weights",
+        "covariance_model": "standard linearized GLS covariance (J^T Sigma^-1 J)^-1 using finite-difference physical Jacobian and triangular coherent-integration overlap correlations within each station and observable",
         "n_measurements": int(n_meas),
         "n_parameters": int(n_par),
-        "range_sigma_m": range_sigma.tolist(),
-        "doppler_sigma_hz": doppler_sigma.tolist() if use_doppler else [],
+        "head_coherent_codes": int(coherent_codes),
+        "code_period_s": float(code_period_s),
+        "range_sigma_m": list(range_sigma),
+        "doppler_sigma_hz": list(doppler_sigma) if use_doppler else [],
+        "measurement_covariance_model": "range and Doppler are independent to first order; neighboring samples from the same station and observable have correlation max(0, 1 - lag_codes / coherent_codes)",
     }
     return covariance, details
 
@@ -598,13 +631,21 @@ def write_outputs(
     use_doppler,
     covariance_samples=800,
     station_start_trims=None,
+    coherent_codes=16,
+    code_period_s=0.01,
 ):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     res = fit["result"]
     speed = float(np.linalg.norm(res.x[3:6]))
     formal_covariance, residual_variance = fit_parameter_covariance(res)
-    covariance, covariance_details = sandwich_parameter_covariance(obs, fit, use_doppler)
+    covariance, covariance_details = linearized_correlated_parameter_covariance(
+        obs,
+        fit,
+        use_doppler,
+        coherent_codes=coherent_codes,
+        code_period_s=code_period_s,
+    )
     t_obs = np.array([o["unix_time"] for o in obs])
     model_time = np.linspace(float(np.min(t_obs)), float(np.max(t_obs)), 200)
     model = model_state_series(res.x, model_time, fit["t_ref"], fit["tx0"], fit["rot"])
@@ -644,7 +685,7 @@ def write_outputs(
             "covariance_model": covariance_details["covariance_model"],
             "nominal_range_sigma_m": 750.0,
             "nominal_doppler_sigma_hz": 500.0,
-            "sandwich_covariance_details": covariance_details,
+            "correlated_covariance_details": covariance_details,
             "covariance_samples_for_map": covariance_samples,
         },
         "cartopy_trajectory_uncertainty_plot": str(cartopy_file) if cartopy_file is not None else None,
@@ -810,6 +851,8 @@ def main():
         help="Trim this many seconds from the start of a station's retained ROI picks; repeatable.",
     )
     p.add_argument("--covariance-samples", type=int, default=800)
+    p.add_argument("--coherent-codes", type=int, default=16)
+    p.add_argument("--code-period-s", type=float, default=0.01)
     p.add_argument("--no-show", action="store_true")
     args = p.parse_args()
 
@@ -838,6 +881,8 @@ def main():
         use_doppler,
         covariance_samples=args.covariance_samples,
         station_start_trims=station_start_trims,
+        coherent_codes=args.coherent_codes,
+        code_period_s=args.code_period_s,
     )
     print(f"Used stations: {', '.join(used_stations)}")
     print(f"Observations: {payload['n_observations']}")
