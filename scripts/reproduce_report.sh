@@ -106,7 +106,8 @@ run python reports/generate_trajectory_report_assets.py
 
 run python aod_position_from_merged.py \
   --merged-dir "$MERGED_DIR" \
-  --trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
+  --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json \
+  --min-snr-db 0 \
   --out-dir products/aod_position_from_merged
 
 run python specular_trail_positions_from_merged.py \
