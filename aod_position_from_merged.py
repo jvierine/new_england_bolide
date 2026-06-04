@@ -474,6 +474,13 @@ def plot_map(rows, fit, sites, tx_ecef, rot, line_fit, out_png, uncertainty_samp
 def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, combined_line_fit, summary, out_png):
     fig_filter = summary["figure_outlier_filter"]
     plot_rows = [r for r, keep in zip(rows, fig_filter["keep_mask"]) if keep]
+    trail_plot_cutoff_m = 6000.0
+    trail_plot_rows = trail_rows
+    if trail_rows and combined_line_fit.get("fit_kind") == "spatial_line":
+        trail_pos = np.array([r["position_enu_m"] for r in trail_rows], dtype=float)
+        trail_pred = closest_points_on_spatial_line(combined_line_fit, trail_pos)
+        trail_residual_m = np.linalg.norm(trail_pos - trail_pred, axis=1)
+        trail_plot_rows = [r for r, keep in zip(trail_rows, trail_residual_m <= trail_plot_cutoff_m) if keep]
     stations = sorted(set(r["station"] for r in plot_rows))
     colors = dict(zip(stations, plt.cm.tab10(np.linspace(0, 1, len(stations)))))
     times = np.array([r["unix_time"] for r in plot_rows], dtype=float)
@@ -493,7 +500,7 @@ def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, comb
         cross_track_unit = np.array([1.0, 0.0, 0.0])
     signed_cross_track_km = ((pos - tri) @ cross_track_unit) / 1000.0
 
-    all_fit_rows = rows + trail_rows
+    all_fit_rows = plot_rows + trail_plot_rows
     all_times = np.array([r["unix_time"] for r in all_fit_rows], dtype=float)
     t_grid = np.linspace(all_times.min(), all_times.max(), 300)
     tri_grid = np.array([model_fit_enu(fit, t) for t in t_grid])
@@ -528,10 +535,10 @@ def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, comb
             color=colors[station],
             label=f"{station_label(station)} AoD + delay",
         )
-    if trail_rows:
+    if trail_plot_rows:
         ax.scatter(
-            [r["lon_deg"] for r in trail_rows],
-            [r["lat_deg"] for r in trail_rows],
+            [r["lon_deg"] for r in trail_plot_rows],
+            [r["lat_deg"] for r in trail_plot_rows],
             s=16,
             alpha=0.34,
             color="0.25",
