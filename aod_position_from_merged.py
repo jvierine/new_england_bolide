@@ -30,6 +30,8 @@ DEFAULT_TRAIL_POSITIONS = "products/specular_trail_positions/specular_trail_posi
 DEFAULT_OUT_DIR = "products/aod_position_from_merged"
 DEFAULT_REPORT_FIG = "reports/figures/head_echo_aod_tristatic_comparison.png"
 DEFAULT_REPORT_TEX = "reports/aod_tristatic_comparison_summary.tex"
+FIGURE_LAT_RANGE_DEG = (41.8, 42.05)
+FIGURE_LON_RANGE_DEG = (-70.8, -70.4)
 
 
 def load_rdmf_station(path):
@@ -234,6 +236,19 @@ def closest_points_on_spatial_line(line_fit, points_enu):
     points = np.asarray(points_enu, dtype=float)
     along = (points - point) @ direction
     return point + along[:, None] * direction
+
+
+def in_figure_geo_window(row):
+    lat = float(row["lat_deg"])
+    lon = float(row["lon_deg"])
+    return (
+        FIGURE_LAT_RANGE_DEG[0] <= lat <= FIGURE_LAT_RANGE_DEG[1]
+        and FIGURE_LON_RANGE_DEG[0] <= lon <= FIGURE_LON_RANGE_DEG[1]
+    )
+
+
+def figure_geo_filtered(rows):
+    return [r for r in rows if in_figure_geo_window(r)]
 
 
 def is_ballistic_fit(fit):
@@ -472,7 +487,11 @@ def plot_map(rows, fit, sites, tx_ecef, rot, line_fit, out_png, uncertainty_samp
 
 
 def plot_appendix_comparison(rows, trail_rows, fit, tx_ecef, rot, line_fit, combined_line_fit, summary, out_png):
+    rows = figure_geo_filtered(rows)
+    trail_rows = figure_geo_filtered(trail_rows)
     all_rows = rows + trail_rows
+    if len(all_rows) < 2:
+        raise ValueError("Too few AoD+delay measurements remain after the figure geographic filter")
     lat = np.array([r["lat_deg"] for r in all_rows], dtype=float)
     lon = np.array([r["lon_deg"] for r in all_rows], dtype=float)
     height_km = np.array([r["alt_m"] for r in all_rows], dtype=float) / 1000.0
@@ -561,7 +580,10 @@ def write_report_summary(summary, out_tex, fit=None):
         f"\\newcommand{{\\AodTriPomfretMedianKm}}{{{by_station['pomfret']['median_position_error_vs_tristatic_m']/1000.0:.1f}}}",
         f"\\newcommand{{\\AodTriFigN}}{{{fig_filter['n_used']}}}",
         f"\\newcommand{{\\AodTriFigNRejected}}{{{fig_filter['n_rejected']}}}",
-        f"\\newcommand{{\\AodTriFigOutlierCutoffKm}}{{{fig_filter['cutoff_m']/1000.0:.1f}}}",
+        f"\\newcommand{{\\AodTriFigLatMin}}{{{fig_filter['lat_range_deg'][0]:.2f}}}",
+        f"\\newcommand{{\\AodTriFigLatMax}}{{{fig_filter['lat_range_deg'][1]:.2f}}}",
+        f"\\newcommand{{\\AodTriFigLonMin}}{{{fig_filter['lon_range_deg'][0]:.2f}}}",
+        f"\\newcommand{{\\AodTriFigLonMax}}{{{fig_filter['lon_range_deg'][1]:.2f}}}",
         f"\\newcommand{{\\AodTriFigMedianPointKm}}{{{fig_filter['median_position_error_vs_tristatic_m']/1000.0:.1f}}}",
         f"\\newcommand{{\\AodTriFigRmsPointKm}}{{{fig_filter['rms_position_error_vs_tristatic_m']/1000.0:.1f}}}",
         f"\\newcommand{{\\AodTriFigMedianCrossTrackKm}}{{{fig_filter['median_signed_cross_track_km']:.1f}}}",
@@ -617,8 +639,7 @@ def summarize(rows, line_fit, fit, combined_line_fit=None, combined_rows=None):
     else:
         cross_track_unit = np.array([1.0, 0.0, 0.0])
     signed_cross_track_km = ((pos - tri) @ cross_track_unit) / 1000.0
-    cutoff_m = 4000.0
-    keep = np.abs(signed_cross_track_km) <= cutoff_m / 1000.0
+    keep = np.array([in_figure_geo_window(r) for r in rows], dtype=bool)
     filtered_err = err[keep]
     filtered_signed_cross_track_km = signed_cross_track_km[keep]
     fit_pred = line_fit["predicted_enu_m"]
@@ -669,8 +690,9 @@ def summarize(rows, line_fit, fit, combined_line_fit=None, combined_rows=None):
             "tristatic_speed_mps": float(np.linalg.norm(tri_velocity)),
         },
         "figure_outlier_filter": {
-            "method": "abs_signed_cross_track_residual_le_4_km",
-            "cutoff_m": float(cutoff_m),
+            "method": "geographic_lat_lon_window",
+            "lat_range_deg": list(FIGURE_LAT_RANGE_DEG),
+            "lon_range_deg": list(FIGURE_LON_RANGE_DEG),
             "n_used": int(np.sum(keep)),
             "n_rejected": int(np.sum(~keep)),
             "keep_mask": keep.astype(bool).tolist(),
