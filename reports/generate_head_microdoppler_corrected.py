@@ -211,9 +211,6 @@ def plot_corrected(results: list[dict], out_fig: Path) -> Path:
         z = res["spec_db"].T
         mappable = ax.pcolormesh(t, f, z, shading="auto", cmap="inferno", vmin=0.0, vmax=18.0)
         ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.65)
-        ax.scatter(t, np.zeros_like(t), s=9, marker="o", facecolor="#79e6ff", edgecolor="black", linewidth=0.25, zorder=3)
-        seed_residual = res["seed_dopplers_hz"] - res["fit_dopplers_hz"]
-        ax.scatter(t, seed_residual, s=8, marker=".", color="#c3c3c3", alpha=0.55, zorder=2)
         ax.set_ylabel("$f-f_{D,Gaussian}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo")
         ax.text(
