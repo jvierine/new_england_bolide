@@ -568,7 +568,7 @@ def write_initial_state_json(path: Path, params: np.ndarray, cov: np.ndarray, t_
         "time_utc": iso_utc(t_ref),
         "time_mjd2000_days_utc": mjd2000_days(t_ref),
         "time_scale": "UTC",
-        "frame": "GCRS/ECI_GMST",
+        "frame": "GCRS",
         "state_order": state_order,
         "state_units": state_units,
         "state": np.asarray(params[:6], dtype=float).tolist(),
@@ -594,7 +594,7 @@ def write_initial_state_table_from_json(json_path: Path, tex_path: Path) -> None
     lines = [
         "\\begin{table}\n",
         "  \\centering\n",
-        f"  \\caption{{Initial GCRS/ECI state used for orbit propagation at {time_utc} (MJD2000 UTC {mjd2000:.8f}), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}})$; covariance entries use the corresponding unit products.}}\n",
+        f"  \\caption{{Initial GCRS state used for orbit propagation at {time_utc} (MJD2000 UTC {mjd2000:.8f}), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}})$; covariance entries use the corresponding unit products.}}\n",
         "  \\label{tab:ballistic-initial-state}\n",
         "  \\begingroup\n",
         "  \\small\n",

@@ -3,7 +3,7 @@
 
 This adapts the workflow in ../meteor/orbit_det_sample.py to local trajectory
 products. It supports both the original head-echo ENU trajectory product and
-the ballistic GCRS/ECI initial-state JSON products.
+the ballistic GCRS initial-state JSON products.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def load_trajectory_state(path: Path) -> dict:
             "t_ref_unix": float(payload["time_unix"]),
             "mean_state": np.asarray(payload["state"], dtype=float),
             "cov_state": clean_covariance(np.asarray(payload["covariance"], dtype=float)),
-            "fit_state_frame": payload.get("frame", "GCRS/ECI_GMST"),
+            "fit_state_frame": payload.get("frame", "GCRS"),
             "used_stations": ["beverly"],
         }
     params = payload["fit_parameters_enu_at_tx"]
@@ -118,9 +118,9 @@ def eci_to_ecef_position(pos_eci: np.ndarray, unix_time: float | np.ndarray) -> 
 
 
 def gcrs_samples_to_itrf_states(samples_state: np.ndarray, t_ref_unix: float) -> np.ndarray:
-    """Convert ECI_GMST/GCRS-like inertial samples to ITRS position/velocity.
+    """Convert GCRS inertial samples to ITRS position/velocity.
 
-    The ballistic products use the repository's fast GMST inertial frame.  DASST
+    The ballistic products use the repository's GCRS state convention.  DASST
     expects ITRS states, including velocity in the rotating terrestrial frame,
     so the Earth-rotation term is removed from the rotated inertial velocity.
     """
