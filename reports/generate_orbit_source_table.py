@@ -233,17 +233,18 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     }
 
 
-def format_utc_pm(times_unix: np.ndarray) -> str:
+def format_utc_pm(times_unix: np.ndarray, include_utc_suffix: bool = True) -> str:
     times = np.asarray(times_unix, dtype=float)
     times = times[np.isfinite(times)]
     if times.size == 0:
         return "--"
     mean = float(np.nanmean(times))
     text = datetime.fromtimestamp(mean, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    suffix = " UTC" if include_utc_suffix else ""
     if times.size < 2:
-        return f"{text} UTC"
+        return f"{text}{suffix}"
     sigma = float(np.nanstd(times, ddof=1))
-    return f"{text} UTC $\\pm$ {fmt(sigma, decimals_for_sigma(sigma, 2))} s"
+    return f"{text}{suffix} $\\pm$ {fmt(sigma, decimals_for_sigma(sigma, 2))} s"
 
 
 def write_orbit_parameter_table(path: Path) -> None:
@@ -318,7 +319,9 @@ def write_orbit_parameter_table(path: Path) -> None:
             sigma = float(np.nanstd(finite_values, ddof=1)) if finite_values.size > 1 else math.nan
         lines.append(f"{name} & {symbol} & {unit} & {format_pm(mean, sigma, digits)} \\\\\n")
     if crossing:
-        lines.append(f"Entry epoch at 100 km & $t_{{100}}$ & UTC & {format_utc_pm(crossing['time_unix'])} \\\\\n")
+        lines.append(
+            f"Entry epoch at 100 km & $t_{{100}}$ & UTC & {format_utc_pm(crossing['time_unix'], include_utc_suffix=False)} \\\\\n"
+        )
     lines.extend(["\\bottomrule\n", "\\end{tabular}\n"])
     PARAM_OUT.write_text("".join(lines), encoding="utf-8")
 
