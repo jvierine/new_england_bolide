@@ -55,11 +55,13 @@ def classify(path: Path) -> tuple[list[dict[str, object]], dict[str, str]]:
     a = kep[0, good] / AU
     e = kep[1, good]
     inc = kep[2, good]
+    period_years = np.power(a, 1.5)
 
     criteria = [
         ("TJMinusI", "$T_J-i$", "Tisserand parameter with respect to Jupiter", ca_criteria.T_jupiter_i(a, e, inc)),
         ("KMinusI", "$K-i$", "Semimajor-axis--eccentricity criterion", ca_criteria.K_i(a, e, inc)),
         ("QMinusI", "$Q-i$", "Aphelion-distance criterion", ca_criteria.Q_i(a, e, inc)),
+        ("PMinusI", "$P-i$", "Orbital-period criterion", ca_criteria.P_i(period_years, e, inc)),
         ("EpsilonMinusI", "$\\varepsilon-i$", "Specific-orbital-energy criterion", ca_criteria.E_i(a, inc)),
     ]
     rows = []
