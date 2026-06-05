@@ -1,0 +1,28 @@
+{
+  "fit_json": "products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json",
+  "trajectory_fit_version": "0.2.1",
+  "n_head_observations": 213,
+  "n_trail_positions": 146,
+  "covariance": {
+    "n_residuals": 864,
+    "n_head_observations": 213,
+    "n_trail_positions": 146,
+    "head_coherent_codes": 16,
+    "trail_coherent_codes": 8,
+    "code_period_s": 0.01,
+    "trail_correlation_range_gate_m": 3000.0,
+    "trail_offdiag_correlated_pairs": 0,
+    "trail_offdiag_time_overlap_different_gate_pairs": 0,
+    "description": "Block covariance with triangular coherent-integration overlap correlation within each station and observable; trail interferometric position correlations are retained only for measurements in the same raw range gate."
+  },
+  "rms_growth_threshold": 0.1,
+  "threshold_found": true,
+  "threshold_scale": 125.89254117941675,
+  "threshold_cd_area_over_mass_m2_kg": 0.05062439456140877,
+  "threshold_diameter_m": 0.00987666132764287,
+  "threshold_mass_kg": 0.0015133882682783642,
+  "largest_unflagged_scale": 100.0,
+  "largest_unflagged_cd_area_over_mass_m2_kg": 0.04021238596594933,
+  "largest_unflagged_diameter_m": 0.01243397992905433,
+  "largest_unflagged_mass_kg": 0.0030196065796118353
+}
