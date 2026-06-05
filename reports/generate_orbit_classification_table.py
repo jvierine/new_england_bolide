@@ -11,7 +11,7 @@ from dasst.functions import ca_criteria
 
 ROOT = Path(__file__).resolve().parents[1]
 AU = 1.495978707e11
-ORBIT_H5 = ROOT / "products" / "orbit_determination" / "best_fit_orbit.h5"
+ORBIT_H5 = ROOT / "products" / "orbit_determination" / "orbit_classification_100.h5"
 VERSION_FALLBACK_H5 = ROOT / "products" / "orbit_determination" / "best_fit_orbit.h5"
 OUT = ROOT / "reports" / "orbit_classification_table.tex"
 MACRO_OUT = ROOT / "reports" / "orbit_classification_macros.tex"
