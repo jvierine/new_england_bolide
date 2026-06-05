@@ -60,7 +60,7 @@ def classify(path: Path) -> tuple[list[dict[str, object]], dict[str, str]]:
         ("TJMinusI", "$T_J-i$", "Tisserand parameter with respect to Jupiter", ca_criteria.T_jupiter_i(a, e, inc)),
         ("KMinusI", "$K-i$", "Semimajor-axis--eccentricity criterion", ca_criteria.K_i(a, e, inc)),
         ("QMinusI", "$Q-i$", "Aphelion-distance criterion", ca_criteria.Q_i(a, e, inc)),
-        ("EMinusI", "$E-i$", "Specific-orbital-energy criterion", ca_criteria.E_i(a, inc)),
+        ("EpsilonMinusI", "$\\varepsilon-i$", "Specific-orbital-energy criterion", ca_criteria.E_i(a, inc)),
     ]
     rows = []
     for key, symbol, name, cometary in criteria:
