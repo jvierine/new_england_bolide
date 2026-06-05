@@ -218,6 +218,8 @@ def plot_eccentricity(out_h5: Path, frame: str = "HeliocentricMeanEcliptic") -> 
 
     with h5py.File(out_h5, "r") as h:
         e = h[f"kepler_{frame}_final"][1, :]
+        version = str(h.attrs.get("trajectory_fit_version", "unspecified"))
+        n_samples = int(h.attrs.get("n_samples", len(e)))
     out_png = out_h5.with_name(out_h5.stem + f"_eccentricity_{frame}.png")
     fig, ax = plt.subplots(figsize=(7.0, 4.5), constrained_layout=True)
     ax.hist(e[np.isfinite(e)], bins=min(30, max(8, int(np.sqrt(len(e))))), color="C0", alpha=0.85)
@@ -225,6 +227,16 @@ def plot_eccentricity(out_h5: Path, frame: str = "HeliocentricMeanEcliptic") -> 
     ax.set_xlabel("Eccentricity")
     ax.set_ylabel("Monte Carlo count")
     ax.set_title("Cape Cod Bay bolide pre-encounter orbit sample")
+    ax.text(
+        0.99,
+        0.01,
+        f"fit v{version}; n={n_samples}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=8.5,
+        color="0.25",
+    )
     ax.grid(True, color="0.9")
     ax.legend()
     fig.savefig(out_png, dpi=220, bbox_inches="tight")
