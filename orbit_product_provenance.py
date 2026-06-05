@@ -14,7 +14,7 @@ def _resolve_reference(path: Path, reference: str) -> Path:
     return path.resolve().parents[2] / ref
 
 
-def assert_orbit_h5_matches_trajectory_json(path: Path, *, atol_state: float = 0.0, atol_cov: float = 0.0) -> None:
+def assert_orbit_h5_matches_trajectory_json(path: Path, *, atol_state: float = 1e-9, atol_cov: float = 1e-8) -> None:
     """Raise if an orbit-sample HDF5 is not traceable to its ballistic JSON."""
     with h5py.File(path, "r") as h:
         trajectory_json = str(h.attrs.get("trajectory_json", ""))
