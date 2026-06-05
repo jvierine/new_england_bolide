@@ -56,6 +56,22 @@ def read_bolide_samples(path: Path, nominal: dict[str, float]) -> dict[str, np.n
     return {"a_au": a[good], "q_au": q[good], "e": e[good], "i_deg": inc[good], "node_deg": node[good], "t_j": tj[good]}
 
 
+def read_orbit_metadata(path: Path) -> dict[str, str]:
+    with h5py.File(path, "r") as h:
+        return {
+            "trajectory_fit_version": str(h.attrs.get("trajectory_fit_version", "unspecified")),
+            "n_samples": str(int(h.attrs.get("n_samples", 0))),
+            "seed": str(int(h.attrs.get("seed", 0))),
+        }
+
+
+def version_stamp(metadata: dict[str, str]) -> str:
+    version = metadata.get("trajectory_fit_version", "unspecified")
+    n_samples = metadata.get("n_samples", "?")
+    seed = metadata.get("seed", "?")
+    return f"Derived from ballistic fit v{version}; orbit samples n={n_samples}; seed={seed}"
+
+
 def read_nea_records(path: Path) -> list[dict[str, float]]:
     rows: list[dict[str, float]] = []
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -156,6 +172,7 @@ def plot(args: argparse.Namespace) -> None:
     comets = numeric_catalog(read_comet_catalog(args.comets))
     bolide = orbit_to_record(read_bolide_orbit(args.orbit_h5))
     bolide_samples = read_bolide_samples(args.orbit_h5, bolide)
+    metadata = read_orbit_metadata(args.orbit_h5)
 
     panels = [
         ("a_au", "e", r"$a$ (AU)", r"$e$", (0.5, 5.2), (0.0, 1.0)),
@@ -176,8 +193,8 @@ def plot(args: argparse.Namespace) -> None:
     )
     fig, axs = plt.subplots(2, 2, figsize=(11.0, 9.0), constrained_layout=True)
     for ax, (x_key, y_key, x_label, y_label, xlim, ylim) in zip(axs.ravel(), panels, strict=True):
-        draw_density(ax, nea, x_key, y_key, xlim, ylim, "#2f6fb0", "NEA catalogue", 0.34, args.bins, args.sigma, 1)
-        draw_density(ax, comets, x_key, y_key, xlim, ylim, "#d95f02", "Comet catalogue", 0.32, args.bins, args.sigma, 2)
+        draw_density(ax, nea, x_key, y_key, xlim, ylim, "#2f6fb0", "MPC NEA catalogue", 0.34, args.bins, args.sigma, 1)
+        draw_density(ax, comets, x_key, y_key, xlim, ylim, "#d95f02", "MPC comet catalogue", 0.32, args.bins, args.sigma, 2)
         draw_sample_density(ax, bolide_samples, x_key, y_key, xlim, ylim, args.sample_bins, args.sample_sigma)
         ax.scatter(
             bolide[x_key],
@@ -199,7 +216,8 @@ def plot(args: argparse.Namespace) -> None:
     handles, labels = axs[0, 0].get_legend_handles_labels()
     by_label = dict(zip(labels, handles, strict=False))
     fig.legend(by_label.values(), by_label.keys(), loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.03))
-    fig.suptitle("Cape Cod Bay bolide orbital elements relative to local NEA and comet catalogues", y=1.075)
+    fig.suptitle("Cape Cod Bay bolide orbital elements relative to MPC NEA and MPC comet catalogues", y=1.075)
+    fig.text(0.5, -0.015, version_stamp(metadata), ha="center", va="top", fontsize=11.5, color="0.25")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=args.dpi, bbox_inches="tight")
