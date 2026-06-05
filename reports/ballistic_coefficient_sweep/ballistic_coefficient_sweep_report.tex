@@ -8,23 +8,23 @@
 \author{Generated analysis note}
 \maketitle
 \section*{Purpose}
-This test is separate from the manuscript draft.  It keeps the current fitted GCRS state fixed and reruns only the forward model while scaling the drag-area-to-mass parameter $C_D A/m$.  Increasing $C_D A/m$ corresponds to decreasing the conventional ballistic coefficient $m/(C_D A)$ and therefore to a smaller dynamically allowed mass for a fixed spherical density.  No least-squares refit is performed in this sweep.
+This test is separate from the manuscript draft.  For each fixed value of the drag-area-to-mass parameter $C_D A/m$, the six GCRS initial-state components are refit while $C_D A/m$ is held fixed.  Increasing $C_D A/m$ corresponds to decreasing the conventional ballistic coefficient $m/(C_D A)$ and therefore to a smaller dynamically allowed mass for a fixed spherical density.  The manuscript fit product is only read; it is not overwritten.
 
 \section*{Setup}
-The baseline fit product is \texttt{\detokenize{products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json}}.  The baseline version is \texttt{0.2.1}.  The nominal $C_D A/m$ is 4.021e-04 m$^2$ kg$^{-1}$, corresponding to the NASA-motivated 1.6 m, 5 ton body model used in the main fit.  For each scale factor, residuals are computed against the same retained head-echo range--Doppler measurements and trail-position measurements.
+The baseline fit product is \texttt{\detokenize{products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json}}.  The baseline version is \texttt{0.2.1}.  The nominal $C_D A/m$ is 4.021e-04 m$^2$ kg$^{-1}$, corresponding to the NASA-motivated 1.6 m, 5 ton body model used in the main fit.  For each scale factor, the same retained head-echo range--Doppler measurements and trail-position measurements are refit with a fixed drag parameter.
 
 \section*{Simple detectability rule}
-As a deliberately simple diagnostic, the first sweep point where either head-echo range RMS or Doppler RMS exceeds the nominal value by more than 10\% is flagged.  With this rule, the first flagged scale factor is 126, giving $C_D A/m=5.062e-02$ m$^2$ kg$^{-1}$.  For a spherical object with $C_D=1$ and density $3000$ kg m$^{-3}$, this corresponds to diameter 0.010 m and mass 0.0015 kg.  The largest unflagged scale factor is 100, corresponding to diameter 0.012 m and mass 0.003 kg; this is the sweep-grid estimate of the smallest mass that remains undetectable under the present rule.  This is a sensitivity test, not a final physical bound.
+As a deliberately simple diagnostic, the first sweep point where either head-echo range RMS or Doppler RMS exceeds the nominal value by more than 10\% is flagged.  With this rule, the first flagged scale factor is 251, giving $C_D A/m=1.010e-01$ m$^2$ kg$^{-1}$.  For a spherical object with $C_D=1$ and density $3000$ kg m$^{-3}$, this corresponds to diameter 0.005 m and mass 0.00019 kg.  The largest unflagged scale factor is 200, corresponding to diameter 0.006 m and mass 0.00038 kg; this is the sweep-grid estimate of the smallest mass that remains undetectable under the present rule.  This is a sensitivity test, not a final physical bound.
 
 \begin{figure}[ht]
 \centering
 \includegraphics[width=\linewidth]{figures/ballistic_coefficient_sweep.png}
-\caption{Residual growth when the current best-fit state is held fixed and only $C_D A/m$ is increased in the forward model.  The dashed vertical line marks the simple RMS-growth threshold used in this note.}
+\caption{Residual growth after refitting the six initial-state components at each fixed $C_D A/m$.  The dashed vertical line marks the simple RMS-growth threshold used in this note.}
 \end{figure}
 
 \begin{table}[ht]
 \centering
-\caption{Forward-model residuals for the ballistic-coefficient sweep.}
+\caption{Residuals for fixed-$C_D A/m$ refits in the ballistic-coefficient sweep.}
 \input{ballistic_coefficient_sweep_table.tex}
 \end{table}
 \end{document}

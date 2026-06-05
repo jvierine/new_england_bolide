@@ -17,12 +17,12 @@
   },
   "rms_growth_threshold": 0.1,
   "threshold_found": true,
-  "threshold_scale": 125.89254117941675,
-  "threshold_cd_area_over_mass_m2_kg": 0.05062439456140877,
-  "threshold_diameter_m": 0.00987666132764287,
-  "threshold_mass_kg": 0.0015133882682783642,
-  "largest_unflagged_scale": 100.0,
-  "largest_unflagged_cd_area_over_mass_m2_kg": 0.04021238596594933,
-  "largest_unflagged_diameter_m": 0.01243397992905433,
-  "largest_unflagged_mass_kg": 0.0030196065796118353
+  "threshold_scale": 251.18864315095823,
+  "threshold_cd_area_over_mass_m2_kg": 0.10100894668649447,
+  "threshold_diameter_m": 0.004950056568274789,
+  "threshold_mass_kg": 0.00019052429488467977,
+  "largest_unflagged_scale": 199.52623149688807,
+  "largest_unflagged_cd_area_over_mass_m2_kg": 0.0802342583128422,
+  "largest_unflagged_diameter_m": 0.006231752003619763,
+  "largest_unflagged_mass_kg": 0.0003801459456694199
 }

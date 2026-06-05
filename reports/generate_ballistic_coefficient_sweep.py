@@ -16,6 +16,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.optimize import least_squares
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -129,6 +130,60 @@ def summarize_residuals(raw: np.ndarray, obs: list[dict], trail_rows: list[dict]
     }
 
 
+def fixed_drag_whitened_delta(
+    delta: np.ndarray,
+    base_state: np.ndarray,
+    log10_cd_area_over_mass: float,
+    obs: list[dict],
+    trail_rows: list[dict],
+    t_ref: float,
+    t_model: np.ndarray,
+    density_profile: dict,
+    fit_args: SimpleNamespace,
+    chol: np.ndarray,
+) -> np.ndarray:
+    params = np.r_[base_state + delta, log10_cd_area_over_mass]
+    return whiten(raw_residuals(params, obs, trail_rows, t_ref, t_model, density_profile, fit_args), chol)
+
+
+def refit_state_for_drag(
+    q0: np.ndarray,
+    base_state: np.ndarray,
+    log10_cd_area_over_mass: float,
+    obs: list[dict],
+    trail_rows: list[dict],
+    t_ref: float,
+    t_model: np.ndarray,
+    density_profile: dict,
+    fit_args: SimpleNamespace,
+    chol: np.ndarray,
+    max_nfev: int,
+):
+    lower = np.r_[np.full(3, -30000.0), np.full(3, -4000.0)]
+    upper = np.r_[np.full(3, 30000.0), np.full(3, 4000.0)]
+    return least_squares(
+        fixed_drag_whitened_delta,
+        q0,
+        args=(
+            base_state,
+            log10_cd_area_over_mass,
+            obs,
+            trail_rows,
+            t_ref,
+            t_model,
+            density_profile,
+            fit_args,
+            chol,
+        ),
+        bounds=(lower, upper),
+        x_scale=np.r_[np.full(3, 3000.0), np.full(3, 500.0)],
+        diff_step=np.r_[np.full(3, 100.0), np.full(3, 10.0)],
+        loss="linear",
+        max_nfev=max_nfev,
+        verbose=0,
+    )
+
+
 def threshold_row(df: pd.DataFrame, tolerance: float) -> tuple[pd.Series, bool]:
     base = df.iloc[0]
     grown = (df["range_rms_km"] > base["range_rms_km"] * (1.0 + tolerance)) | (
@@ -159,19 +214,22 @@ def write_table(df: pd.DataFrame, path: Path) -> None:
         "doppler_rms_hz",
         "trail_median_km",
         "reduced_chi2",
+        "state_delta_pos_km",
+        "state_delta_vel_mps",
     ]
     lines = [
-        "\\begin{tabular}{rrrrrrrr}\n",
+        "\\begin{tabular}{rrrrrrrrrr}\n",
         "\\toprule\n",
-        "Scale & $C_D A/m$ & Mass & Diameter & Range RMS & Doppler RMS & Trail median & $\\chi^2_\\nu$ \\\\\n",
-        " & (m$^2$ kg$^{-1}$) & (kg) & (m) & (km) & (Hz) & (km) & \\\\\n",
+        "Scale & $C_D A/m$ & Mass & Diameter & Range RMS & Doppler RMS & Trail median & $\\chi^2_\\nu$ & $|\\Delta r_0|$ & $|\\Delta v_0|$ \\\\\n",
+        " & (m$^2$ kg$^{-1}$) & (kg) & (m) & (km) & (Hz) & (km) & & (km) & (m s$^{-1}$) \\\\\n",
         "\\midrule\n",
     ]
     for row in df[cols].itertuples(index=False):
         lines.append(
             f"{row.scale:.3g} & {row.cd_area_over_mass:.3e} & {row.mass_kg:.2g} & "
-            f"{row.diameter_m:.2f} & {row.range_rms_km:.2f} & {row.doppler_rms_hz:.0f} & "
-            f"{row.trail_median_km:.2f} & {row.reduced_chi2:.3f} \\\\\n"
+            f"{row.diameter_m:.3f} & {row.range_rms_km:.2f} & {row.doppler_rms_hz:.0f} & "
+            f"{row.trail_median_km:.2f} & {row.reduced_chi2:.3f} & "
+            f"{row.state_delta_pos_km:.2f} & {row.state_delta_vel_mps:.1f} \\\\\n"
         )
     lines.extend(["\\bottomrule\n", "\\end{tabular}\n"])
     path.write_text("".join(lines), encoding="utf-8")
@@ -196,7 +254,7 @@ def plot_sweep(df: pd.DataFrame, threshold: pd.Series, threshold_found: bool, ou
         ax.set_xlabel("$C_D A/m$ scale factor")
         ax.set_ylabel(ylabel)
         ax.grid(True, which="both", color="0.9", lw=0.6)
-    fig.suptitle("Forward-model-only sweep of drag-area-to-mass ratio")
+    fig.suptitle("Fixed-drag refit sweep of drag-area-to-mass ratio")
     fig.savefig(out, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
@@ -245,20 +303,20 @@ def write_report(
         "\\author{Generated analysis note}\n",
         "\\maketitle\n",
         "\\section*{Purpose}\n",
-        "This test is separate from the manuscript draft.  It keeps the current fitted GCRS state fixed and reruns only the forward model while scaling the drag-area-to-mass parameter $C_D A/m$.  Increasing $C_D A/m$ corresponds to decreasing the conventional ballistic coefficient $m/(C_D A)$ and therefore to a smaller dynamically allowed mass for a fixed spherical density.  No least-squares refit is performed in this sweep.\n\n",
+        "This test is separate from the manuscript draft.  For each fixed value of the drag-area-to-mass parameter $C_D A/m$, the six GCRS initial-state components are refit while $C_D A/m$ is held fixed.  Increasing $C_D A/m$ corresponds to decreasing the conventional ballistic coefficient $m/(C_D A)$ and therefore to a smaller dynamically allowed mass for a fixed spherical density.  The manuscript fit product is only read; it is not overwritten.\n\n",
         "\\section*{Setup}\n",
-        f"The baseline fit product is {fit_path_tex}.  The baseline version is \\texttt{{{fit_payload.get('trajectory_fit_version', 'unspecified')}}}.  The nominal $C_D A/m$ is {nominal['cd_area_over_mass']:.3e} m$^2$ kg$^{{-1}}$, corresponding to the NASA-motivated 1.6 m, 5 ton body model used in the main fit.  For each scale factor, residuals are computed against the same retained head-echo range--Doppler measurements and trail-position measurements.\n\n",
+        f"The baseline fit product is {fit_path_tex}.  The baseline version is \\texttt{{{fit_payload.get('trajectory_fit_version', 'unspecified')}}}.  The nominal $C_D A/m$ is {nominal['cd_area_over_mass']:.3e} m$^2$ kg$^{{-1}}$, corresponding to the NASA-motivated 1.6 m, 5 ton body model used in the main fit.  For each scale factor, the same retained head-echo range--Doppler measurements and trail-position measurements are refit with a fixed drag parameter.\n\n",
         "\\section*{Simple detectability rule}\n",
         f"As a deliberately simple diagnostic, the first sweep point where either head-echo range RMS or Doppler RMS exceeds the nominal value by more than {100.0 * args.rms_growth_threshold:.0f}\\% is flagged.  {threshold_text}  This is a sensitivity test, not a final physical bound.\n\n",
         "\\begin{figure}[ht]\n",
         "\\centering\n",
         "\\includegraphics[width=\\linewidth]{figures/ballistic_coefficient_sweep.png}\n",
-        "\\caption{Residual growth when the current best-fit state is held fixed and only $C_D A/m$ is increased in the forward model.  "
+        "\\caption{Residual growth after refitting the six initial-state components at each fixed $C_D A/m$.  "
         f"{threshold_caption}}}\n",
         "\\end{figure}\n\n",
         "\\begin{table}[ht]\n",
         "\\centering\n",
-        "\\caption{Forward-model residuals for the ballistic-coefficient sweep.}\n",
+        "\\caption{Residuals for fixed-$C_D A/m$ refits in the ballistic-coefficient sweep.}\n",
         "\\input{ballistic_coefficient_sweep_table.tex}\n",
         "\\end{table}\n",
         "\\end{document}\n",
@@ -286,6 +344,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scale-max", type=float, default=1000.0)
     parser.add_argument("--n-scales", type=int, default=31)
     parser.add_argument("--rms-growth-threshold", type=float, default=0.10)
+    parser.add_argument("--max-nfev", type=int, default=60)
     return parser.parse_args()
 
 
@@ -296,17 +355,37 @@ def main() -> None:
     fit_payload = json.loads(args.fit_json.read_text(encoding="utf-8"))
     fit_args, obs, trail_rows, t_ref, t_model, density_profile, chol, cov_meta = load_measurements(args, fit_payload)
     base_params = np.asarray(fit_payload["fit_parameters"], dtype=float)
+    base_state = base_params[:6].copy()
     nominal_cd_area_over_mass = float(fit_payload["cd_area_over_mass_m2_kg"])
     rows = []
     scales = np.geomspace(args.scale_min, args.scale_max, args.n_scales)
+    q0 = np.zeros(6, dtype=float)
     for scale in scales:
-        params = base_params.copy()
         cd_area_over_mass = nominal_cd_area_over_mass * float(scale)
-        params[6] = math.log10(cd_area_over_mass)
+        log_drag = math.log10(cd_area_over_mass)
+        res = refit_state_for_drag(
+            q0,
+            base_state,
+            log_drag,
+            obs,
+            trail_rows,
+            t_ref,
+            t_model,
+            density_profile,
+            fit_args,
+            chol,
+            args.max_nfev,
+        )
+        q0 = res.x.copy()
+        params = np.r_[base_state + res.x, log_drag]
         raw = raw_residuals(params, obs, trail_rows, t_ref, t_model, density_profile, fit_args)
         row = {
             "scale": float(scale),
             "cd_area_over_mass": float(cd_area_over_mass),
+            "success": bool(res.success),
+            "nfev": int(res.nfev),
+            "state_delta_pos_km": float(np.linalg.norm(res.x[:3]) / 1000.0),
+            "state_delta_vel_mps": float(np.linalg.norm(res.x[3:6])),
             **summarize_residuals(raw, obs, trail_rows, chol),
         }
         diameter_m, mass_kg = sphere_mass_from_cd_area_over_mass(cd_area_over_mass)
