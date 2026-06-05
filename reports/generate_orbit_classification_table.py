@@ -57,18 +57,19 @@ def classify(path: Path) -> tuple[list[dict[str, object]], dict[str, str]]:
     inc = kep[2, good]
 
     criteria = [
-        ("$T_i$", "Tisserand parameter with respect to Jupiter", ca_criteria.T_jupiter_i(a, e, inc)),
-        ("$K_i$", "Semimajor-axis--eccentricity criterion", ca_criteria.K_i(a, e, inc)),
-        ("$Q_i$", "Aphelion-distance criterion", ca_criteria.Q_i(a, e, inc)),
-        ("$E_i$", "Specific-orbital-energy criterion", ca_criteria.E_i(a, inc)),
+        ("TJMinusI", "$T_J-i$", "Tisserand parameter with respect to Jupiter", ca_criteria.T_jupiter_i(a, e, inc)),
+        ("KMinusI", "$K-i$", "Semimajor-axis--eccentricity criterion", ca_criteria.K_i(a, e, inc)),
+        ("QMinusI", "$Q-i$", "Aphelion-distance criterion", ca_criteria.Q_i(a, e, inc)),
+        ("EMinusI", "$E-i$", "Specific-orbital-energy criterion", ca_criteria.E_i(a, inc)),
     ]
     rows = []
-    for symbol, name, cometary in criteria:
+    for key, symbol, name, cometary in criteria:
         cometary = np.asarray(cometary, dtype=bool)
         n = int(cometary.size)
         p_comet = float(np.mean(cometary)) if n else np.nan
         rows.append(
             {
+                "key": key,
                 "symbol": symbol,
                 "name": name,
                 "n": n,
@@ -109,7 +110,7 @@ def write_table(path: Path = ORBIT_H5, out: Path = OUT) -> None:
         latex_macro("OrbitClassificationSeed", attrs["seed"]),
     ]
     for row in rows:
-        key = str(row["symbol"]).strip("$").replace("_", "")
+        key = str(row["key"])
         macro_lines.append(latex_macro(f"OrbitClassification{key}Cometary", fmt_prob(float(row["cometary"]))))
         macro_lines.append(latex_macro(f"OrbitClassification{key}Asteroidal", fmt_prob(float(row["asteroidal"]))))
     MACRO_OUT.write_text("".join(macro_lines), encoding="utf-8")
