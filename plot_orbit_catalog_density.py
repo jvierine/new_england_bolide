@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Ellipse
 from scipy.ndimage import gaussian_filter
 
 from comet_jopek_search import read_catalog as read_comet_catalog
@@ -18,6 +20,7 @@ DEFAULT_NEA = Path("data/NEA.txt")
 DEFAULT_COMETS = Path("data/CometEls.txt")
 DEFAULT_OUT = Path("reports/figures/orbit_catalog_density.png")
 JUPITER_A_AU = 5.20336301
+CHI2_95_2D = 5.991464547107979
 
 
 def tisserand_jupiter(a_au: np.ndarray, e: np.ndarray, inc_deg: np.ndarray) -> np.ndarray:
@@ -38,6 +41,21 @@ def orbit_to_record(orbit: Orbit) -> dict[str, float]:
         "node_deg": float(orbit.node_deg % 360.0),
         "t_j": float(tisserand_jupiter(np.array([a_au]), np.array([e]), np.array([inc]))[0]),
     }
+
+
+def read_bolide_samples(path: Path, nominal: dict[str, float]) -> dict[str, np.ndarray]:
+    with h5py.File(path, "r") as h:
+        samples = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
+    a = samples[0] / 1.495978707e11
+    e = samples[1]
+    inc = samples[2]
+    node_raw = samples[4] % 360.0
+    node = nominal["node_deg"] + ((node_raw - nominal["node_deg"] + 180.0) % 360.0 - 180.0)
+    q = a * (1.0 - e)
+    tj = tisserand_jupiter(a, e, inc)
+    good = np.isfinite(a) & np.isfinite(e) & np.isfinite(inc) & np.isfinite(node) & np.isfinite(q) & np.isfinite(tj)
+    good &= (a > 0.0) & (e >= 0.0) & (e < 1.0)
+    return {"a_au": a[good], "q_au": q[good], "e": e[good], "i_deg": inc[good], "node_deg": node[good], "t_j": tj[good]}
 
 
 def read_nea_records(path: Path) -> list[dict[str, float]]:
@@ -115,10 +133,57 @@ def draw_density(
     ax.plot([], [], color=color, lw=5, alpha=alpha + 0.1, label=label)
 
 
+def draw_uncertainty_ellipse(
+    ax,
+    samples: dict[str, np.ndarray],
+    nominal: dict[str, float],
+    x_key: str,
+    y_key: str,
+    xlim: tuple[float, float],
+    ylim: tuple[float, float],
+) -> None:
+    x = samples[x_key]
+    y = samples[y_key]
+    good = np.isfinite(x) & np.isfinite(y)
+    if np.count_nonzero(good) < 5:
+        return
+    xy = np.column_stack((x[good], y[good]))
+    cov = np.cov(xy, rowvar=False)
+    if not np.all(np.isfinite(cov)):
+        return
+    vals, vecs = np.linalg.eigh(cov)
+    vals = np.clip(vals, 0.0, None)
+    order = np.argsort(vals)[::-1]
+    vals = vals[order]
+    vecs = vecs[:, order]
+    width, height = 2.0 * np.sqrt(CHI2_95_2D * vals)
+    if not np.isfinite(width + height) or (width <= 0.0 and height <= 0.0):
+        return
+    angle = float(np.degrees(np.arctan2(vecs[1, 0], vecs[0, 0])))
+    center_x = nominal[x_key]
+    center_y = nominal[y_key]
+    if xlim[0] <= center_x <= xlim[1] and ylim[0] <= center_y <= ylim[1]:
+        ellipse = Ellipse(
+            (center_x, center_y),
+            width=width,
+            height=height,
+            angle=angle,
+            facecolor="none",
+            edgecolor="black",
+            linewidth=1.8,
+            linestyle="-",
+            alpha=0.9,
+            zorder=9,
+            label="Bolide 95% uncertainty",
+        )
+        ax.add_patch(ellipse)
+
+
 def plot(args: argparse.Namespace) -> None:
     nea = numeric_catalog(read_nea_records(args.nea))
     comets = numeric_catalog(read_comet_catalog(args.comets))
     bolide = orbit_to_record(read_bolide_orbit(args.orbit_h5))
+    bolide_samples = read_bolide_samples(args.orbit_h5, bolide)
 
     panels = [
         ("a_au", "e", r"$a$ (AU)", r"$e$", (0.5, 5.2), (0.0, 1.0)),
@@ -141,6 +206,7 @@ def plot(args: argparse.Namespace) -> None:
     for ax, (x_key, y_key, x_label, y_label, xlim, ylim) in zip(axs.ravel(), panels, strict=True):
         draw_density(ax, nea, x_key, y_key, xlim, ylim, "#2f6fb0", "NEA catalogue", 0.34, args.bins, args.sigma, 1)
         draw_density(ax, comets, x_key, y_key, xlim, ylim, "#d95f02", "Comet catalogue", 0.32, args.bins, args.sigma, 2)
+        draw_uncertainty_ellipse(ax, bolide_samples, bolide, x_key, y_key, xlim, ylim)
         ax.scatter(
             bolide[x_key],
             bolide[y_key],
