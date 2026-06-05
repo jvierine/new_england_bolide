@@ -149,6 +149,17 @@ def eci_velocity_to_ecef(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, t_unix: flo
     return vel_rotated - np.cross(omega, pos_ecef)
 
 
+def orbit_epoch_unix_from_h5(h: h5py.File) -> float:
+    t_ref_unix = float(h.attrs["t_ref_unix"])
+    if "propagation_time_s" not in h:
+        return t_ref_unix
+    propagation_time_s = np.asarray(h["propagation_time_s"][()], dtype=float)
+    finite = propagation_time_s[np.isfinite(propagation_time_s)]
+    if finite.size == 0:
+        return t_ref_unix
+    return t_ref_unix + float(finite[-1])
+
+
 def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     from angle_departure_estimator import enu_to_ecef_matrix
     from fit_ballistic_head_trail import (
@@ -239,7 +250,7 @@ def write_orbit_parameter_table(path: Path) -> None:
     with h5py.File(path, "r") as h:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         radiant = np.asarray(h["radiant_orbit_GCRS"][()], dtype=float)
-        t_ref_unix = float(h.attrs["t_ref_unix"])
+        orbit_epoch_unix = orbit_epoch_unix_from_h5(h)
     finite = np.all(np.isfinite(kep), axis=0)
     kep = kep[:, finite]
     a_au = kep[0] / AU
@@ -247,7 +258,7 @@ def write_orbit_parameter_table(path: Path) -> None:
     q_au = a_au * (1.0 - e)
     q_aphelion_au = a_au * (1.0 + e)
     tj = JUPITER_A_AU / a_au + 2.0 * np.cos(np.deg2rad(kep[2])) * np.sqrt((a_au / JUPITER_A_AU) * (1.0 - e * e))
-    vg_kmps = geocentric_speed_from_kepler(kep, t_ref_unix)
+    vg_kmps = geocentric_speed_from_kepler(kep, orbit_epoch_unix)
 
     quantities = [
         ("Semimajor axis", "$a$", "AU", a_au, False, 2),
@@ -317,7 +328,7 @@ def orbit_parameter_summary(path: Path) -> dict[str, float | int | str]:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         n_samples = int(h.attrs["n_samples"])
         version = str(h.attrs.get("trajectory_fit_version", "unspecified"))
-        t_ref_unix = float(h.attrs["t_ref_unix"])
+        orbit_epoch_unix = orbit_epoch_unix_from_h5(h)
     finite = np.all(np.isfinite(kep), axis=0)
     kep = kep[:, finite]
     a_au = kep[0] / AU
@@ -332,8 +343,8 @@ def orbit_parameter_summary(path: Path) -> dict[str, float | int | str]:
     return {
         "n_samples": n_samples,
         "version": version,
-        "epoch_utc": datetime.fromtimestamp(t_ref_unix, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
-        "epoch_mjd_utc": float(Time(t_ref_unix, scale="utc", format="unix").mjd),
+        "epoch_utc": datetime.fromtimestamp(orbit_epoch_unix, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+        "epoch_mjd_utc": float(Time(orbit_epoch_unix, scale="utc", format="unix").mjd),
         "a_mean": float(np.nanmean(a_au)),
         "a_sigma": float(np.nanstd(a_au, ddof=1)),
         "q_mean": float(np.nanmean(q_au)),
