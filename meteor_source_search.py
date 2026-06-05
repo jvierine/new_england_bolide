@@ -17,6 +17,7 @@ import h5py
 import numpy as np
 
 from nea_jopek_search import Orbit, jopek_dh, read_bolide_orbit, southworth_hawkins_dsh
+from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
 
 
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
@@ -65,6 +66,7 @@ def circular_mean_deg(values_deg: np.ndarray) -> float:
 
 def read_corrected_radiant(path: Path) -> tuple[float, float]:
     """Return mean zenithal-attraction-corrected radiant RA/Dec from the orbit HDF5."""
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         radiant = np.asarray(h["radiant_orbit_GCRS"][()], dtype=float)
     if radiant.ndim != 2 or radiant.shape[0] != 2:

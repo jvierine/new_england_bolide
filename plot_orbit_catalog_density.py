@@ -13,6 +13,7 @@ from scipy.ndimage import gaussian_filter
 
 from comet_jopek_search import read_catalog as read_comet_catalog
 from nea_jopek_search import DEFAULT_ORBIT, Orbit, parse_mpcorb_line, read_bolide_orbit
+from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
 
 
 DEFAULT_NEA = Path("data/NEA.txt")
@@ -42,6 +43,7 @@ def orbit_to_record(orbit: Orbit) -> dict[str, float]:
 
 
 def read_bolide_samples(path: Path, nominal: dict[str, float]) -> dict[str, np.ndarray]:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         samples = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
     a = samples[0] / 1.495978707e11
@@ -57,6 +59,7 @@ def read_bolide_samples(path: Path, nominal: dict[str, float]) -> dict[str, np.n
 
 
 def read_orbit_metadata(path: Path) -> dict[str, str]:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         return {
             "trajectory_fit_version": str(h.attrs.get("trajectory_fit_version", "unspecified")),

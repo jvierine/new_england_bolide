@@ -11,6 +11,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
+
 
 AU = 1.495978707e11
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
@@ -86,6 +88,7 @@ def southworth_hawkins_dsh(o1: Orbit, o2: Orbit) -> float:
 
 
 def read_bolide_orbit(path: Path) -> Orbit:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         if "kepler_HeliocentricMeanEcliptic_final_mean" in h:
             kep = h["kepler_HeliocentricMeanEcliptic_final_mean"][()]

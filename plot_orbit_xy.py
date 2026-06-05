@@ -14,6 +14,8 @@ import numpy as np
 import pyorb
 from astropy.time import Time
 
+from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
+
 
 AU = 1.495978707e11
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
@@ -128,6 +130,7 @@ def format_pm(mean: float, sigma: float, min_decimals: int = 0) -> str:
 
 
 def read_kepler(path: Path) -> tuple[np.ndarray, np.ndarray, str, float]:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kepler = h["kepler_HeliocentricMeanEcliptic_final"][()]
         if "kepler_HeliocentricMeanEcliptic_final_mean" in h:
@@ -140,6 +143,7 @@ def read_kepler(path: Path) -> tuple[np.ndarray, np.ndarray, str, float]:
 
 
 def read_orbit_metadata(path: Path) -> dict[str, str]:
+    assert_orbit_h5_matches_trajectory_json(path)
     try:
         with h5py.File(path, "r") as h:
             attrs = {

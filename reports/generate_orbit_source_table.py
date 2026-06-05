@@ -19,6 +19,9 @@ import dasst
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
+
 AU = 1.495978707e11
 JUPITER_A_AU = 5.203
 OMEGA_EARTH = 7.2921150e-5
@@ -43,6 +46,7 @@ def trajectory_version_comments(path: Path) -> list[str]:
 
 
 def trajectory_version(path: Path) -> tuple[str, str]:
+    assert_orbit_h5_matches_trajectory_json(path)
     version = "unspecified"
     description = "unspecified"
     try:
@@ -81,6 +85,7 @@ def angular_std_deg(values_deg: np.ndarray, mean_deg: float) -> float:
 
 
 def corrected_radiant(path: Path) -> tuple[float, float]:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         radiant = np.asarray(h["radiant_orbit_GCRS"][()], dtype=float)
     finite = np.isfinite(radiant[0]) & np.isfinite(radiant[1])
@@ -248,6 +253,7 @@ def format_utc_pm(times_unix: np.ndarray, include_utc_suffix: bool = True) -> st
 
 
 def write_orbit_parameter_table(path: Path) -> None:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         radiant = np.asarray(h["radiant_orbit_GCRS"][()], dtype=float)
@@ -327,6 +333,7 @@ def write_orbit_parameter_table(path: Path) -> None:
 
 
 def orbit_parameter_summary(path: Path) -> dict[str, float | int | str]:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         n_samples = int(h.attrs["n_samples"])
@@ -432,6 +439,7 @@ def write_orbit_analysis_macros(path: Path) -> None:
 
 
 def main() -> None:
+    assert_orbit_h5_matches_trajectory_json(ORBIT_H5)
     with h5py.File(ORBIT_H5, "r") as h:
         if "kepler_HeliocentricMeanEcliptic_final_mean" in h:
             kep = h["kepler_HeliocentricMeanEcliptic_final_mean"][()]

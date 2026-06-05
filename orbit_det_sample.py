@@ -47,6 +47,8 @@ def clean_covariance(covariance: np.ndarray) -> np.ndarray:
 def load_trajectory_state(path: Path) -> dict:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema") == "new_england_bolide.ballistic_initial_state.v1":
+        if payload.get("trajectory_fit_version", "unspecified") == "unspecified":
+            raise ValueError(f"Ballistic initial-state JSON has unspecified trajectory_fit_version: {path}")
         return {
             "payload": payload,
             "source_kind": "ballistic_initial_state",

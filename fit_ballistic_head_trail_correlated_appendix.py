@@ -71,7 +71,7 @@ DEFAULT_HEAD_SELECTION = (
 DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_appendix_fit"
 DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit"
 DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit"
-TRAJECTORY_FIT_VERSION = "2.0.0"
+TRAJECTORY_FIT_VERSION = "0.2.1"
 TRAJECTORY_FIT_VERSION_DESCRIPTION = (
     "Selected head-echo correlated ballistic fit with mutual correlations within "
     "head-echo and trail-echo measurements. Head-echo correlations follow "

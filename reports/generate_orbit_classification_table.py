@@ -7,8 +7,15 @@ import h5py
 import numpy as np
 from dasst.functions import ca_criteria
 
+import sys
+
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
+
 AU = 1.495978707e11
 ORBIT_H5 = ROOT / "products" / "orbit_determination" / "best_fit_orbit.h5"
 OUT = ROOT / "reports" / "orbit_classification_table.tex"
@@ -24,6 +31,7 @@ def latex_macro(name: str, value: str) -> str:
 
 
 def read_orbit_samples(path: Path) -> tuple[np.ndarray, dict[str, str]]:
+    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         attrs = {
