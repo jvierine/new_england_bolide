@@ -9,7 +9,6 @@ from pathlib import Path
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Ellipse
 from scipy.ndimage import gaussian_filter
 
 from comet_jopek_search import read_catalog as read_comet_catalog
@@ -20,7 +19,6 @@ DEFAULT_NEA = Path("data/NEA.txt")
 DEFAULT_COMETS = Path("data/CometEls.txt")
 DEFAULT_OUT = Path("reports/figures/orbit_catalog_density.png")
 JUPITER_A_AU = 5.20336301
-CHI2_95_2D = 5.991464547107979
 
 
 def tisserand_jupiter(a_au: np.ndarray, e: np.ndarray, inc_deg: np.ndarray) -> np.ndarray:
@@ -133,50 +131,24 @@ def draw_density(
     ax.plot([], [], color=color, lw=5, alpha=alpha + 0.1, label=label)
 
 
-def draw_uncertainty_ellipse(
+def draw_sample_density(
     ax,
     samples: dict[str, np.ndarray],
-    nominal: dict[str, float],
     x_key: str,
     y_key: str,
     xlim: tuple[float, float],
     ylim: tuple[float, float],
+    bins: int,
+    sigma: float,
 ) -> None:
-    x = samples[x_key]
-    y = samples[y_key]
-    good = np.isfinite(x) & np.isfinite(y)
-    if np.count_nonzero(good) < 5:
+    x, y = finite_pair(samples, x_key, y_key, xlim, ylim)
+    if x.size < 20:
         return
-    xy = np.column_stack((x[good], y[good]))
-    cov = np.cov(xy, rowvar=False)
-    if not np.all(np.isfinite(cov)):
-        return
-    vals, vecs = np.linalg.eigh(cov)
-    vals = np.clip(vals, 0.0, None)
-    order = np.argsort(vals)[::-1]
-    vals = vals[order]
-    vecs = vecs[:, order]
-    width, height = 2.0 * np.sqrt(CHI2_95_2D * vals)
-    if not np.isfinite(width + height) or (width <= 0.0 and height <= 0.0):
-        return
-    angle = float(np.degrees(np.arctan2(vecs[1, 0], vecs[0, 0])))
-    center_x = nominal[x_key]
-    center_y = nominal[y_key]
-    if xlim[0] <= center_x <= xlim[1] and ylim[0] <= center_y <= ylim[1]:
-        ellipse = Ellipse(
-            (center_x, center_y),
-            width=width,
-            height=height,
-            angle=angle,
-            facecolor="none",
-            edgecolor="black",
-            linewidth=1.8,
-            linestyle="-",
-            alpha=0.9,
-            zorder=9,
-            label="Bolide 95% uncertainty",
-        )
-        ax.add_patch(ellipse)
+    xx, yy, zz = smoothed_density(x, y, xlim, ylim, bins, sigma)
+    levels = np.array([0.08, 0.18, 0.34, 0.54, 0.78])
+    ax.contourf(xx, yy, zz, levels=levels, colors=["black"], alpha=0.13, antialiased=True, zorder=7)
+    ax.contour(xx, yy, zz, levels=levels[1:], colors=["black"], linewidths=1.1, alpha=0.86, zorder=8)
+    ax.plot([], [], color="black", lw=4, alpha=0.68, label="Bolide orbit samples")
 
 
 def plot(args: argparse.Namespace) -> None:
@@ -206,7 +178,7 @@ def plot(args: argparse.Namespace) -> None:
     for ax, (x_key, y_key, x_label, y_label, xlim, ylim) in zip(axs.ravel(), panels, strict=True):
         draw_density(ax, nea, x_key, y_key, xlim, ylim, "#2f6fb0", "NEA catalogue", 0.34, args.bins, args.sigma, 1)
         draw_density(ax, comets, x_key, y_key, xlim, ylim, "#d95f02", "Comet catalogue", 0.32, args.bins, args.sigma, 2)
-        draw_uncertainty_ellipse(ax, bolide_samples, bolide, x_key, y_key, xlim, ylim)
+        draw_sample_density(ax, bolide_samples, x_key, y_key, xlim, ylim, args.sample_bins, args.sample_sigma)
         ax.scatter(
             bolide[x_key],
             bolide[y_key],
@@ -247,6 +219,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--bins", type=int, default=220)
     parser.add_argument("--sigma", type=float, default=2.8)
+    parser.add_argument("--sample-bins", type=int, default=140)
+    parser.add_argument("--sample-sigma", type=float, default=1.5)
     parser.add_argument("--dpi", type=int, default=260)
     parser.add_argument("--pdf", action="store_true")
     return parser.parse_args()
