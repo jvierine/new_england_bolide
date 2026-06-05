@@ -88,6 +88,9 @@ def write_table(path: Path = ORBIT_H5, out: Path = OUT) -> None:
         f"% trajectory_json: {attrs['trajectory_json']}\n",
         "\\begin{tabular}{llrr}\n",
         "\\toprule\n",
+        f"\\multicolumn{{4}}{{l}}{{Fit version v{attrs['trajectory_fit_version']}; "
+        f"{attrs['n_finite']} finite orbit samples}} \\\\\n",
+        "\\midrule\n",
         "Criterion & Quantity & Cometary & Asteroidal \\\\\n",
         "\\midrule\n",
     ]
