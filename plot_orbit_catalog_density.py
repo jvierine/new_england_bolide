@@ -60,16 +60,12 @@ def read_orbit_metadata(path: Path) -> dict[str, str]:
     with h5py.File(path, "r") as h:
         return {
             "trajectory_fit_version": str(h.attrs.get("trajectory_fit_version", "unspecified")),
-            "n_samples": str(int(h.attrs.get("n_samples", 0))),
-            "seed": str(int(h.attrs.get("seed", 0))),
         }
 
 
 def version_stamp(metadata: dict[str, str]) -> str:
     version = metadata.get("trajectory_fit_version", "unspecified")
-    n_samples = metadata.get("n_samples", "?")
-    seed = metadata.get("seed", "?")
-    return f"Derived from ballistic fit v{version}; orbit samples n={n_samples}; seed={seed}"
+    return f"Version {version}"
 
 
 def read_nea_records(path: Path) -> list[dict[str, float]]:
@@ -217,7 +213,7 @@ def plot(args: argparse.Namespace) -> None:
     by_label = dict(zip(labels, handles, strict=False))
     fig.legend(by_label.values(), by_label.keys(), loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.03))
     fig.suptitle("Cape Cod Bay bolide orbital elements relative to MPC NEA and MPC comet catalogues", y=1.075)
-    fig.text(0.5, -0.015, version_stamp(metadata), ha="center", va="top", fontsize=11.5, color="0.25")
+    fig.text(0.5, -0.015, version_stamp(metadata), ha="center", va="top", fontsize=10.5, color="0.25")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=args.dpi, bbox_inches="tight")
