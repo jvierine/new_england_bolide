@@ -306,6 +306,8 @@ def write_orbit_parameter_table(path: Path) -> None:
             finite_values = values[np.isfinite(values)]
             sigma = float(np.nanstd(finite_values, ddof=1)) if finite_values.size > 1 else math.nan
         lines.append(f"{name} & {symbol} & {unit} & {format_pm(mean, sigma, digits)} \\\\\n")
+    if crossing:
+        lines.append(f"Entry epoch at 100 km & $t_{{100}}$ & UTC & {format_utc_pm(crossing['time_unix'])} \\\\\n")
     lines.extend(["\\bottomrule\n", "\\end{tabular}\n"])
     PARAM_OUT.write_text("".join(lines), encoding="utf-8")
 
