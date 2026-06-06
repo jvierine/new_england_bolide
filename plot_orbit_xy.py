@@ -399,11 +399,11 @@ def draw_orbits(
         ax.scatter(
             px,
             py,
-            marker="D",
-            s=78,
+            marker="o",
+            s=42,
             color="#1b9e77",
             edgecolor="white",
-            linewidth=0.8,
+            linewidth=0.5,
             zorder=9,
             label=nea_position_label,
         )
