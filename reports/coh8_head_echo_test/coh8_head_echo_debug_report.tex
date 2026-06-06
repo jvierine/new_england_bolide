@@ -49,6 +49,20 @@ seed and evaluates a single Clinton head-echo patch at 0.400 s after
   \label{fig:coh8-head-gaussian-example}
 \end{figure}
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/coh8_full_waveform_raw_match_clinton_t040.png}
+  \caption{Raw Clinton range--Doppler matched-filter power at 0.400 s after
+  18:06:20 UTC using the eight-code full-waveform matched-filter calculation.
+  No two-dimensional Fourier-domain notch, Gaussian smoothing, median division,
+  or background subtraction has been applied.  The blue plus marks the
+  range--Doppler seed from the existing linear head-echo trajectory selection.
+  The Doppler bin spacing is 12.5 Hz, so the repeated-code ambiguity period of
+  100 Hz corresponds to eight Doppler bins.}
+  \figsource{reports/plot_coh8_full_waveform_match_function.py}
+  \label{fig:coh8-raw-full-waveform-match}
+\end{figure}
+
 \section*{Single-Patch Result}
 
 For this Clinton test patch, the seed range is 263.250 km and the seed Doppler
