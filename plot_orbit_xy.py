@@ -78,6 +78,25 @@ def true_anomaly_from_mean(mean_anomaly_deg: float, eccentricity: float) -> floa
     return float(np.rad2deg(true_anomaly) % 360.0)
 
 
+def mpc_packed_epoch_to_time(epoch: str) -> Time | None:
+    """Decode a five-character MPC packed epoch such as K25BL."""
+    epoch = epoch.strip()
+    if len(epoch) != 5:
+        return None
+    century_codes = {"I": 1800, "J": 1900, "K": 2000}
+    month_codes = {str(i): i for i in range(1, 10)}
+    month_codes.update({"A": 10, "B": 11, "C": 12})
+    day_codes = {str(i): i for i in range(1, 10)}
+    day_codes.update({chr(ord("A") + i): 10 + i for i in range(22)})
+    try:
+        year = century_codes[epoch[0]] + int(epoch[1:3])
+        month = month_codes[epoch[3]]
+        day = day_codes[epoch[4]]
+        return Time(f"{year:04d}-{month:02d}-{day:02d}T00:00:00", scale="utc")
+    except (KeyError, ValueError):
+        return None
+
+
 def planet_kepler(name: str, epoch: Time) -> np.ndarray:
     elements = PLANETS[name]
     centuries = (epoch.tdb.jd - J2000.jd) / 36525.0
@@ -275,7 +294,7 @@ def kepler_annotation_from_macros(macros: dict[str, str]) -> str | None:
     return "\n".join(lines)
 
 
-def read_closest_nea(path: Path) -> tuple[np.ndarray, str] | None:
+def read_closest_nea(path: Path, target_epoch: Time) -> tuple[np.ndarray, str, str] | None:
     if not path.exists():
         return None
     with path.open("r", encoding="utf-8", newline="") as fh:
@@ -289,13 +308,18 @@ def read_closest_nea(path: Path) -> tuple[np.ndarray, str] | None:
         argp = float(row["omega_deg"])
         raan = float(row["node_deg"])
         mean_anomaly = float(row["M_deg"])
+        mean_motion = float(row["n_deg_day"])
         dh = float(row["D_H"])
     except (KeyError, TypeError, ValueError):
         return None
+    catalog_epoch = mpc_packed_epoch_to_time(row.get("epoch", ""))
+    if catalog_epoch is not None:
+        mean_anomaly = mean_anomaly + mean_motion * (target_epoch.utc.jd - catalog_epoch.utc.jd)
     true_anomaly = true_anomaly_from_mean(mean_anomaly, e)
     name = row.get("name", "").strip() or row.get("number", "").strip() or "catalogue NEA"
-    label = f"Closest NEA: {name} ($D_H={dh:.3f}$)"
-    return np.array([a_au * AU, e, inc, argp, raan, true_anomaly], dtype=float), label
+    orbit_label = f"Closest NEA: {name} ($D_H={dh:.3f}$)"
+    position_label = f"{name} at bolide epoch"
+    return np.array([a_au * AU, e, inc, argp, raan, true_anomaly], dtype=float), orbit_label, position_label
 
 
 def draw_orbits(
@@ -305,7 +329,7 @@ def draw_orbits(
     epoch: Time,
     limits: tuple[float, float],
     label_names: set[str],
-    closest_nea: tuple[np.ndarray, str] | None,
+    closest_nea: tuple[np.ndarray, str, str] | None,
 ) -> int:
     for name in PLANETS:
         color = PLANET_COLORS[name]
@@ -366,9 +390,23 @@ def draw_orbits(
         now = orb_now.cartesian[:2, 0] / AU
         ax.scatter(now[0], now[1], marker="*", s=145, color="#d62728", edgecolor="white", linewidth=0.8, zorder=9, label="Nominal epoch state")
     if closest_nea is not None:
-        nea_kep, nea_label = closest_nea
+        nea_kep, nea_label, nea_position_label = closest_nea
         nx, ny = kepler_to_xy(nea_kep, n_points=1000)
         ax.plot(nx, ny, color="#1b9e77", lw=1.9, ls="--", alpha=0.86, label=nea_label, zorder=7)
+        nea_now = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
+        nea_now.kepler = nea_kep[:, None]
+        px, py = nea_now.cartesian[:2, 0] / AU
+        ax.scatter(
+            px,
+            py,
+            marker="D",
+            s=78,
+            color="#1b9e77",
+            edgecolor="white",
+            linewidth=0.8,
+            zorder=9,
+            label=nea_position_label,
+        )
     ax.scatter(0.0, 0.0, s=140, color="gold", edgecolor="0.25", linewidth=0.8, zorder=10, label="Sun")
     return finite_samples
 
@@ -409,7 +447,7 @@ def plot(args: argparse.Namespace) -> None:
     metadata = read_orbit_metadata(args.orbit_h5)
     validate_macro_metadata(macros, metadata)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
-    closest_nea = read_closest_nea(args.nea_matches)
+    closest_nea = read_closest_nea(args.nea_matches, epoch)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update(
