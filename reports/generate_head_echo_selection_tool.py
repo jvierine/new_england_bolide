@@ -16,7 +16,7 @@ DEFAULT_OUT = ROOT / "reports" / "figures" / "head_echo_measurement_selector.htm
 STATION_LABELS = {
     "beverly": "Beverly, MA",
     "clinton": "Clinton, MA",
-    "pomfret": "Pomfret, CT",
+    "pomfret": "Pomfret, VT",
 }
 
 

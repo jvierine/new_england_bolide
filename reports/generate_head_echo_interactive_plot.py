@@ -17,7 +17,7 @@ DEFAULT_OUT = ROOT / "reports" / "figures" / "head_echo_range_doppler_interactiv
 STATION_LABELS = {
     "beverly": "Beverly, MA",
     "clinton": "Clinton, MA",
-    "pomfret": "Pomfret, CT",
+    "pomfret": "Pomfret, VT",
 }
 
 STATION_COLORS = {

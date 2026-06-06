@@ -35,7 +35,7 @@ DEFAULT_OUT_DIR = ROOT / "reports" / "head_echo_python_selection_ext0p5"
 STATION_LABELS = {
     "beverly": "Beverly, MA",
     "clinton": "Clinton, MA",
-    "pomfret": "Pomfret, CT",
+    "pomfret": "Pomfret, VT",
 }
 
 STATION_COLORS = {

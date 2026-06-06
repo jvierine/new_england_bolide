@@ -34,7 +34,7 @@ STATIONS = ("beverly", "clinton", "pomfret")
 STATION_LABELS = {
     "beverly": "Beverly, MA",
     "clinton": "Clinton, MA",
-    "pomfret": "Pomfret, CT",
+    "pomfret": "Pomfret, VT",
 }
 
 

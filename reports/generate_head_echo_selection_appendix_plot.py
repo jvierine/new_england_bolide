@@ -21,7 +21,7 @@ EVENT_SECOND_UNIX = 1780164380.0
 STATION_LABELS = {
     "beverly": "Beverly, MA",
     "clinton": "Clinton, MA",
-    "pomfret": "Pomfret, CT",
+    "pomfret": "Pomfret, VT",
 }
 
 STATION_COLORS = {
