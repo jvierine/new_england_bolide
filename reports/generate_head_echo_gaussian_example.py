@@ -112,15 +112,17 @@ def fit_gaussian_patch(
     floor = float(np.nanpercentile(y, 20.0))
     peak = float(np.nanmax(y))
     amp0 = max(peak - floor, 1.0)
-    p0 = np.array([floor, amp0, peak_range_km, peak_rel_hz, 1.2, 80.0, 0.0], dtype=float)
+    min_sig_r = max(float(np.nanmedian(np.diff(range_km))), 0.05)
+    min_sig_f = max(float(np.nanmedian(np.diff(rel_hz))), 1.0)
+    p0 = np.array([floor, amp0, peak_range_km, peak_rel_hz, max(1.2, min_sig_r), max(80.0, min_sig_f), 0.0], dtype=float)
     lower = np.array(
         [
             floor - 30.0,
             0.0,
             peak_range_km - fit_range_half_width_km,
             peak_rel_hz - fit_doppler_half_width_hz,
-            max(float(np.nanmedian(np.diff(range_km))), 0.05),
-            max(float(np.nanmedian(np.diff(rel_hz))), 1.0),
+            min_sig_r,
+            min_sig_f,
             -0.95,
         ],
         dtype=float,
