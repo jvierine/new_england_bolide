@@ -25,6 +25,8 @@ DEFAULT_HAYSTACK_LOGO = "/Users/j/Desktop/MIT_Haystack_Observatory_logo.svg"
 DEFAULT_UIT_LOGO = "/Users/j/Desktop/Screenshot 2026-06-05 at 22.28.53.png"
 DEFAULT_IAP_LOGO = "/Users/j/Desktop/logo_en.svg"
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
+CSS_VERSION = "2026.06.06.1"
+JS_VERSION = "2026.06.06.1"
 
 
 def read_rows(path: Path, key: str) -> list[dict]:
@@ -320,22 +322,31 @@ def build_html(asset: dict) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="bolide-css-version" content="{CSS_VERSION}">
+<meta name="bolide-js-version" content="{JS_VERSION}">
 <title>Cape Cod Bay Bolide May 30 2026</title>
-<style>
+<style data-version="{CSS_VERSION}">
 html,body{{margin:0;height:100%;overflow:hidden;background:#05070b;color:#eaf5ff;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}}
-canvas{{display:block;width:100vw;height:100vh;background:radial-gradient(circle at 50% 38%,#15202d 0,#05070b 58%,#020307 100%)}}
+*,*:before,*:after{{box-sizing:border-box}}
+canvas{{display:block;width:100vw;height:100vh;touch-action:none;background:radial-gradient(circle at 50% 38%,#15202d 0,#05070b 58%,#020307 100%)}}
 .hud{{position:fixed;left:16px;right:16px;top:14px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;pointer-events:none}}
 .panel{{pointer-events:auto;background:rgba(4,8,14,.72);border:1px solid rgba(150,210,255,.22);box-shadow:0 18px 55px rgba(0,0,0,.35);backdrop-filter:blur(10px);border-radius:8px;padding:12px 14px}}
-.titlepanel{{display:grid;grid-template-columns:minmax(280px,560px) auto;gap:16px;align-items:center}}
+.titlepanel{{display:grid;grid-template-columns:minmax(280px,560px) auto auto;gap:16px;align-items:center}}
 h1{{font-size:15px;line-height:1.15;margin:0 0 7px 0;font-weight:700;letter-spacing:0}}
 .meta{{color:#aac1d3;font-size:12px;max-width:560px}}
 .logos{{display:flex;gap:10px;align-items:center;justify-content:flex-end}}
 .logo{{height:46px;max-width:160px;object-fit:contain;background:rgba(255,255,255,.94);border:1px solid rgba(255,255,255,.28);border-radius:6px;padding:7px 9px;box-shadow:0 10px 26px rgba(0,0,0,.22)}}
 .logo.uit{{max-width:70px}}
 .logo.iap{{max-width:170px}}
-.controls{{display:grid;grid-template-columns:auto 220px 190px;gap:9px;align-items:center;min-width:535px}}
+.controls{{display:grid;grid-template-columns:auto auto 220px 190px;gap:9px;align-items:center;min-width:615px}}
 button{{height:30px;border-radius:6px;border:1px solid rgba(175,225,255,.3);background:#0f1b25;color:#eaf5ff;cursor:pointer}}
+button{{min-width:0}}
 button.active{{background:#1a5c7a;border-color:#57d0ff}}
+.menubtn{{width:34px;padding:0;font-size:18px;line-height:1;justify-self:end}}
+.hud.collapsed .controls,.hud.collapsed .meta,.hud.collapsed .logos{{display:none}}
+.hud.collapsed{{right:auto}}
+.hud.collapsed .titlepanel{{grid-template-columns:auto auto;min-width:0}}
+.hud.collapsed .titlepanel h1{{margin:0}}
 input[type=range]{{width:220px;accent-color:#58d7ff}}
 .readout{{font-variant-numeric:tabular-nums;color:#d6f4ff;min-width:184px;text-align:right}}
 .legend{{position:fixed;left:16px;bottom:16px;display:flex;gap:10px;align-items:center;pointer-events:none;background:rgba(4,8,14,.65);border:1px solid rgba(150,210,255,.16);border-radius:8px;padding:9px 11px;color:#bed3df}}
@@ -350,6 +361,31 @@ input[type=range]{{width:220px;accent-color:#58d7ff}}
 .barlabel{{display:flex;justify-content:space-between;font-size:11px;color:#aebfcb;margin-bottom:5px}}
 .bar{{position:relative;height:12px;border-radius:6px;background:linear-gradient(90deg,#30123b,#4662d7,#1bcfd4,#70e75f,#f9c63d,#e1442f);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 0 22px rgba(88,215,255,.12)}}
 .tick{{position:absolute;top:-4px;width:2px;height:20px;border-radius:2px;background:white;box-shadow:0 0 10px rgba(255,255,255,.8)}}
+@media (max-width: 820px){{
+  .hud{{left:10px;right:10px;top:10px;flex-direction:column;gap:8px;max-height:calc(100vh - 20px);overflow:auto}}
+  .panel{{padding:9px 10px;border-radius:8px}}
+  .titlepanel{{width:calc(100vw - 20px);grid-template-columns:minmax(0,1fr) auto;gap:8px}}
+  .titlepanel .logos{{grid-column:1 / -1;grid-row:2;justify-content:flex-start;gap:7px;flex-wrap:wrap}}
+  .titlepanel .menubtn{{grid-column:2;grid-row:1}}
+  h1{{font-size:14px;margin-bottom:5px}}
+  .meta{{font-size:11px;max-width:none}}
+  .logo{{height:31px;max-width:112px;padding:5px 6px}}
+  .logo.uit{{max-width:48px}}
+  .logo.iap{{max-width:120px}}
+  .controls{{width:calc(100vw - 20px);min-width:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}}
+  .controls button{{width:100%;padding:0 8px}}
+  .controls span{{display:none}}
+  .controls input[type=range]{{width:100%;min-width:0}}
+  .controls .readout{{grid-column:1 / -1;min-width:0;text-align:left;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+  .controls input#time,.controls input#window{{grid-column:1 / -1}}
+  .legend{{left:10px;right:10px;bottom:10px;flex-wrap:wrap;gap:7px;font-size:11px;padding:7px 8px}}
+  .colorbar{{left:10px;right:10px;bottom:62px;transform:none;width:auto;min-width:0;padding:7px 8px}}
+  .help{{left:10px;right:auto;bottom:154px;max-width:calc(100vw - 20px);font-size:11px;padding:7px 8px}}
+  .altitude{{left:10px;right:auto;bottom:112px;font-size:11px;padding:7px 8px}}
+  .station-label{{font-size:10px;padding:2px 5px}}
+  .hud.collapsed{{right:auto;max-height:none;overflow:visible}}
+  .hud.collapsed .titlepanel{{width:auto;grid-template-columns:auto auto}}
+}}
 </style>
 </head>
 <body>
@@ -358,33 +394,36 @@ input[type=range]{{width:220px;accent-color:#58d7ff}}
   <div class="panel titlepanel">
     <div>
       <h1>Cape Cod Bay Bolide May 30 2026</h1>
-      <div class="meta">Actual measurements of bolide-created plasma using the MIT Haystack Observatory multi-static radar system, painted onto the fitted ballistic path over a curved New England/Cape Cod map.</div>
+      <div class="meta">Actual measurements of bolide-created plasma using the MIT Haystack Observatory multi-static radar system, developed in collaboration with IAP Kühlungsborn, Germany and the University of Tromsø, Norway, painted onto the fitted ballistic path over a curved New England/Cape Cod map.</div>
     </div>
     <div class="logos">
       {f'<img class="logo haystack" src="{asset.get("logos", {}).get("haystack", "")}" alt="MIT Haystack Observatory">' if asset.get("logos", {}).get("haystack") else ""}
       {f'<img class="logo uit" src="{asset.get("logos", {}).get("uit", "")}" alt="UiT The Arctic University of Norway">' if asset.get("logos", {}).get("uit") else ""}
       {f'<img class="logo iap" src="{asset.get("logos", {}).get("iap", "")}" alt="Leibniz Institute of Atmospheric Physics">' if asset.get("logos", {}).get("iap") else ""}
     </div>
+    <button id="menu" class="menubtn" aria-label="Collapse menu">≡</button>
   </div>
   <div class="panel controls">
     <button id="play" class="active">Pause</button>
+    <button id="radar" class="active">Radar</button>
     <input id="time" type="range" min="0" max="1000" value="0">
     <div id="readout" class="readout">2026-05-30T18:06:19.150Z</div>
     <button id="density">Density</button>
+    <span></span>
     <input id="window" type="range" min="8" max="80" value="26">
     <div id="winread" class="readout">26 s loop</div>
   </div>
 </div>
-<div class="legend"><span style="color:#d8f5ff"><span class="dot"></span>plasma blobs</span><span style="color:#8b7460"><span class="dot"></span>meteoroid rock</span><span style="color:#ffffff"><span class="dot"></span>painted tail</span><span style="color:#c08a5a"><span class="dot"></span>falling/landed fragments</span></div>
+<div class="legend"><span style="color:#d8f5ff"><span class="dot"></span>plasma blobs</span><span style="color:#f6d56a"><span class="dot"></span>radar legs</span><span style="color:#8b7460"><span class="dot"></span>meteoroid rock</span><span style="color:#ffffff"><span class="dot"></span>painted tail</span><span style="color:#c08a5a"><span class="dot"></span>falling/landed fragments</span></div>
 <div class="colorbar">
   <div class="barlabel"><span id="barmin">-1.11 s</span><span>eased UTC playback</span><span id="barmax">3.29 s</span></div>
   <div class="bar"><div id="bartick" class="tick"></div></div>
 </div>
 <div id="altitude" class="altitude">viewer altitude 96.8 km</div>
-<div class="help">W/A/S/D fly · Q/E vertical · left drag look · right drag orbit · wheel zoom</div>
+<div class="help">W/A/S/D fly · Q/E vertical · left drag look · right drag orbit · wheel zoom · touch orbit · two-finger swipe/pinch zoom</div>
 <div id="labels" class="label-layer"></div>
 <script id="asset" type="application/json">{asset_json}</script>
-<script>
+<script data-version="{JS_VERSION}">
 const ASSET = JSON.parse(document.getElementById('asset').textContent);
 const canvas = document.getElementById('gl');
 const gl = canvas.getContext('webgl', {{antialias:true, alpha:false}});
@@ -525,6 +564,10 @@ for (const s of ASSET.stations) {{
 }}
 const stationBuf = buffer(stationPoints);
 const stationCount = stationPoints.length / 9;
+const txStation = ASSET.stations.find(s => s.kind === 'tx');
+const rxStations = ASSET.stations.filter(s => s.kind === 'rx');
+const txPos = txStation ? llh(txStation.lon, txStation.lat, Math.max(0.55, txStation.altKm + 0.55)) : null;
+const rxPositions = rxStations.map(s => llh(s.lon, s.lat, Math.max(0.55, s.altKm + 0.55)));
 const labelLayer = document.getElementById('labels');
 const stationLabels = ASSET.stations.map(s => {{
   const el = document.createElement('div');
@@ -546,8 +589,10 @@ const rockLumps = [
 ];
 const rockBuf = gl.createBuffer();
 const tailBuf = gl.createBuffer();
+const radarLegBuf = gl.createBuffer();
 const fragmentBuf = gl.createBuffer();
 let tailCount = 0;
+let radarLegCount = 0;
 let fragmentCount = 0;
 let rockCount = 0;
 function pathPoint(row) {{ return llh(row.lon,row.lat,row.altKm); }}
@@ -630,6 +675,25 @@ function updateTail(t) {{
   gl.bindBuffer(gl.ARRAY_BUFFER,tailBuf);
   gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);
 }}
+function updateRadarLegs(t) {{
+  const data=[];
+  if (txPos && rxPositions.length) {{
+    for (const p of ASSET.points) {{
+      if (p.t > t) continue;
+      const target = llh(p.lon, p.lat, p.altKm);
+      const head = p.kind === 'head';
+      const txAlpha = head ? 0.045 : 0.030;
+      const rxAlpha = head ? 0.036 : 0.024;
+      data.push(...txPos, 1.0,0.82,0.22,txAlpha, ...target, 1.0,0.74,0.18,txAlpha);
+      for (const rx of rxPositions) {{
+        data.push(...target, 0.30,0.86,1.0,rxAlpha, ...rx, 0.23,0.70,1.0,rxAlpha);
+      }}
+    }}
+  }}
+  radarLegCount = data.length / 7;
+  gl.bindBuffer(gl.ARRAY_BUFFER,radarLegBuf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);
+}}
 
 function pushLine(out, seg, col, alt=0.08) {{
   for (let i=1;i<seg.length;i++) {{
@@ -683,7 +747,7 @@ function updateStationLabels(mvp, w, h) {{
   }}
 }}
 
-let cam=[-32,72,96], yaw=0.34, pitch=-0.55, speed=35, playing=true, density=false, simT=tMin;
+let cam=[-46,95,138], yaw=0.34, pitch=-0.55, speed=35, playing=true, density=false, radarVisible=true, simT=tMin;
 const keys = new Set(), span=Math.max(0.001,tMax-tMin), slider=document.getElementById('time'), readout=document.getElementById('readout'), win=document.getElementById('window'), winread=document.getElementById('winread'), bartick=document.getElementById('bartick'), barmin=document.getElementById('barmin'), barmax=document.getElementById('barmax'), altitude=document.getElementById('altitude');
 const meteorEnd = Math.max(...ASSET.trajectory.map(p=>p.t));
 const meteorSplit = 0.55;
@@ -722,12 +786,24 @@ function orbitAround(target, dx, dy) {{
 }}
 document.getElementById('play').onclick=()=>{{playing=!playing; play.textContent=playing?'Pause':'Play'; play.classList.toggle('active',playing);}};
 document.getElementById('density').onclick=()=>{{density=!density; document.getElementById('density').classList.toggle('active',density);}};
+document.getElementById('radar').onclick=()=>{{radarVisible=!radarVisible; document.getElementById('radar').classList.toggle('active',radarVisible);}};
+document.getElementById('menu').onclick=()=>{{
+  const hud=document.querySelector('.hud');
+  hud.classList.toggle('collapsed');
+  document.getElementById('menu').setAttribute('aria-label', hud.classList.contains('collapsed') ? 'Expand menu' : 'Collapse menu');
+}};
+if (window.matchMedia('(max-width: 820px)').matches) {{
+  const hud=document.querySelector('.hud');
+  hud.classList.add('collapsed');
+  document.getElementById('menu').setAttribute('aria-label', 'Expand menu');
+}}
 slider.oninput=()=>{{playProgress=+slider.value/1000; simT=progressToTime(playProgress); playing=false; play.textContent='Play'; play.classList.remove('active');}};
 win.oninput=()=>{{winread.textContent=(+win.value).toFixed(0)+' s loop';}};
 barmin.textContent = tMin.toFixed(2) + ' s';
 barmax.textContent = tMax.toFixed(2) + ' s';
 addEventListener('keydown',e=>keys.add(e.key.toLowerCase())); addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
-let drag=false, orbitDrag=false, orbitFollow=false, lastX=0,lastY=0;
+let drag=false, orbitDrag=false, orbitFollow=true, lastX=0,lastY=0;
+aimAt(interpPath(simT));
 canvas.oncontextmenu=e=>e.preventDefault();
 canvas.onmousedown=e=>{{drag=true; orbitDrag=e.button===2; orbitFollow=orbitDrag; lastX=e.clientX; lastY=e.clientY; e.preventDefault();}};
 addEventListener('mouseup',()=>{{drag=false; orbitDrag=false;}});
@@ -750,6 +826,52 @@ canvas.onwheel=e=>{{
   const dolly = -e.deltaY * 0.035;
   for(let i=0;i<3;i++) cam[i]+=forward[i]*dolly;
 }};
+let touchMode='', touchX=0, touchY=0, touchDist=0, touchMidY=0;
+function touchMid(touches) {{
+  return [(touches[0].clientX + touches[1].clientX) * 0.5, (touches[0].clientY + touches[1].clientY) * 0.5];
+}}
+function touchDistance(touches) {{
+  return Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+}}
+canvas.addEventListener('touchstart', e=>{{
+  e.preventDefault();
+  orbitFollow=true;
+  if (e.touches.length === 1) {{
+    touchMode='orbit';
+    touchX=e.touches[0].clientX;
+    touchY=e.touches[0].clientY;
+  }} else if (e.touches.length >= 2) {{
+    touchMode='panzoom';
+    touchDist=touchDistance(e.touches);
+    touchMidY=touchMid(e.touches)[1];
+  }}
+}}, {{passive:false}});
+canvas.addEventListener('touchmove', e=>{{
+  e.preventDefault();
+  if (touchMode === 'orbit' && e.touches.length === 1) {{
+    const x=e.touches[0].clientX, y=e.touches[0].clientY;
+    orbitAround(interpPath(simT), x-touchX, y-touchY);
+    touchX=x; touchY=y;
+  }} else if (e.touches.length >= 2) {{
+    const dist=touchDistance(e.touches);
+    const mid=touchMid(e.touches);
+    const forward=[Math.sin(yaw)*Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw)*Math.cos(pitch)];
+    const dolly=(dist-touchDist)*0.045 + (touchMidY-mid[1])*0.070;
+    for(let i=0;i<3;i++) cam[i]+=forward[i]*dolly;
+    touchDist=dist;
+    touchMidY=mid[1];
+    aimAt(interpPath(simT));
+  }}
+}}, {{passive:false}});
+canvas.addEventListener('touchend', e=>{{
+  if (e.touches.length === 0) {{
+    touchMode='';
+  }} else if (e.touches.length === 1) {{
+    touchMode='orbit';
+    touchX=e.touches[0].clientX;
+    touchY=e.touches[0].clientY;
+  }}
+}}, {{passive:false}});
 let last=performance.now();
 function frame(now) {{
   const dt=Math.min(0.05,(now-last)/1000); last=now;
@@ -775,8 +897,12 @@ function frame(now) {{
   updateRock(simT);
   updateFragments(simT);
   updateTail(simT);
+  updateRadarLegs(simT);
   bind7(surfProg,surfBuf); gl.disable(gl.BLEND); gl.drawArrays(gl.TRIANGLES,0,surfCount);
   bind7(lineProg,lineBuf); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.drawArrays(gl.LINES,0,lineCount);
+  if (radarVisible) {{
+    bind7(lineProg,radarLegBuf); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.depthMask(false); gl.drawArrays(gl.LINES,0,radarLegCount); gl.depthMask(true);
+  }}
   bind7(lineProg,tailBuf); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.drawArrays(gl.LINES,0,tailCount);
   gl.useProgram(pointProg); gl.uniformMatrix4fv(gl.getUniformLocation(pointProg,'u_mvp'),false,mvp); gl.uniform1f(gl.getUniformLocation(pointProg,'u_time'),simT); gl.uniform1f(gl.getUniformLocation(pointProg,'u_span'),span); gl.uniform1f(gl.getUniformLocation(pointProg,'u_window'),+win.value/1000); gl.uniform1f(gl.getUniformLocation(pointProg,'u_density'),density?1:0);
   gl.bindBuffer(gl.ARRAY_BUFFER,pointBuf);
