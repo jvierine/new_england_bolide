@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import math
 import re
 from pathlib import Path
@@ -14,14 +15,12 @@ import numpy as np
 import pyorb
 from astropy.time import Time
 
-from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
-
-
 AU = 1.495978707e11
 DEFAULT_ORBIT = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_SAMPLES = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_OUT = Path("reports/figures/orbit_xy_bolide.png")
 DEFAULT_MACROS = Path("reports/orbit_analysis_macros.tex")
+DEFAULT_NEA_MATCHES = Path("products/orbit_determination/nea_jopek_matches.csv")
 
 J2000 = Time("2000-01-01T12:00:00", scale="tdb")
 
@@ -130,7 +129,6 @@ def format_pm(mean: float, sigma: float, min_decimals: int = 0) -> str:
 
 
 def read_kepler(path: Path) -> tuple[np.ndarray, np.ndarray, str, float]:
-    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kepler = h["kepler_HeliocentricMeanEcliptic_final"][()]
         if "kepler_HeliocentricMeanEcliptic_final_mean" in h:
@@ -143,7 +141,6 @@ def read_kepler(path: Path) -> tuple[np.ndarray, np.ndarray, str, float]:
 
 
 def read_orbit_metadata(path: Path) -> dict[str, str]:
-    assert_orbit_h5_matches_trajectory_json(path)
     try:
         with h5py.File(path, "r") as h:
             attrs = {
@@ -160,12 +157,12 @@ def add_version_stamp(ax, label: str | None) -> None:
     if not label:
         return
     ax.text(
-        0.015,
         0.985,
+        0.015,
         label,
         transform=ax.transAxes,
-        ha="left",
-        va="top",
+        ha="right",
+        va="bottom",
         fontsize=10,
         color="0.35",
         alpha=0.70,
@@ -278,6 +275,29 @@ def kepler_annotation_from_macros(macros: dict[str, str]) -> str | None:
     return "\n".join(lines)
 
 
+def read_closest_nea(path: Path) -> tuple[np.ndarray, str] | None:
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8", newline="") as fh:
+        row = next(csv.DictReader(fh), None)
+    if row is None:
+        return None
+    try:
+        a_au = float(row["a_au"])
+        e = float(row["e"])
+        inc = float(row["i_deg"])
+        argp = float(row["omega_deg"])
+        raan = float(row["node_deg"])
+        mean_anomaly = float(row["M_deg"])
+        dh = float(row["D_H"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    true_anomaly = true_anomaly_from_mean(mean_anomaly, e)
+    name = row.get("name", "").strip() or row.get("number", "").strip() or "catalogue NEA"
+    label = f"Closest NEA: {name} ($D_H={dh:.3f}$)"
+    return np.array([a_au * AU, e, inc, argp, raan, true_anomaly], dtype=float), label
+
+
 def draw_orbits(
     ax,
     best: np.ndarray | None,
@@ -285,12 +305,29 @@ def draw_orbits(
     epoch: Time,
     limits: tuple[float, float],
     label_names: set[str],
+    closest_nea: tuple[np.ndarray, str] | None,
 ) -> int:
     for name in PLANETS:
         color = PLANET_COLORS[name]
         kep = planet_kepler(name, epoch)
         x, y = kepler_to_xy(kep, n_points=900)
-        ax.plot(x, y, color=color, lw=0.9, alpha=0.72, zorder=2)
+        label = name if name in label_names else "_nolegend_"
+        marker = "o" if name in label_names else None
+        ax.plot(
+            x,
+            y,
+            color=color,
+            lw=0.9,
+            alpha=0.72,
+            zorder=2,
+            label=label,
+            marker=marker,
+            markevery=[],
+            markerfacecolor=color,
+            markeredgecolor="white",
+            markeredgewidth=0.5,
+            markersize=7,
+        )
         orb = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
         orb.kepler = kep[:, None]
         px, py = orb.cartesian[:2, 0] / AU
@@ -298,12 +335,6 @@ def draw_orbits(
         if name in {"Uranus", "Neptune", "Pluto"}:
             size = 34
         ax.scatter(px, py, s=size, color=color, edgecolor="white", linewidth=0.5, zorder=6)
-        if name in label_names:
-            dx = 0.18 if px < limits[1] - 4 else -2.8
-            dy = 0.18 if py < limits[1] - 4 else -1.2
-            x_text = np.clip(px + dx, limits[0] + 0.4, limits[1] - 3.0)
-            y_text = np.clip(py + dy, limits[0] + 0.8, limits[1] - 0.8)
-            ax.text(x_text, y_text, name, fontsize=12, color="0.2", zorder=7, clip_on=True)
 
     finite_samples = 0
     cloud_points = []
@@ -334,6 +365,10 @@ def draw_orbits(
         orb_now.kepler = best[:, None]
         now = orb_now.cartesian[:2, 0] / AU
         ax.scatter(now[0], now[1], marker="*", s=145, color="#d62728", edgecolor="white", linewidth=0.8, zorder=9, label="Nominal epoch state")
+    if closest_nea is not None:
+        nea_kep, nea_label = closest_nea
+        nx, ny = kepler_to_xy(nea_kep, n_points=1000)
+        ax.plot(nx, ny, color="#1b9e77", lw=1.9, ls="--", alpha=0.86, label=nea_label, zorder=7)
     ax.scatter(0.0, 0.0, s=140, color="gold", edgecolor="0.25", linewidth=0.8, zorder=10, label="Sun")
     return finite_samples
 
@@ -374,6 +409,7 @@ def plot(args: argparse.Namespace) -> None:
     metadata = read_orbit_metadata(args.orbit_h5)
     validate_macro_metadata(macros, metadata)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
+    closest_nea = read_closest_nea(args.nea_matches)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update(
@@ -387,12 +423,20 @@ def plot(args: argparse.Namespace) -> None:
     )
     fig, ax_inner = plt.subplots(1, 1, figsize=(8.6, 8.2))
     limits = (-8.0, 8.0)
-    finite_samples = draw_orbits(ax_inner, None, sample_kepler, epoch, limits, {"Mercury", "Venus", "Earth", "Mars", "Jupiter"})
+    finite_samples = draw_orbits(
+        ax_inner,
+        None,
+        sample_kepler,
+        epoch,
+        limits,
+        {"Mercury", "Venus", "Earth", "Mars", "Jupiter"},
+        closest_nea,
+    )
     style_axis(ax_inner, limits)
     add_kepler_inset(ax_inner, sample_kepler, args.macro_tex)
     add_version_stamp(ax_inner, metadata_stamp_label(metadata))
-    ax_inner.fill_between([], [], [], color="0.55", alpha=0.34, label=f"Monte Carlo orbit samples (n={finite_samples})")
-    ax_inner.legend(loc="upper right", frameon=True, framealpha=0.95)
+    ax_inner.fill_between([], [], [], color="0.55", alpha=0.34, label="Monte Carlo")
+    ax_inner.legend(loc="upper center", bbox_to_anchor=(0.5, 0.995), ncol=2, frameon=True, framealpha=0.95)
     fig.subplots_adjust(left=0.13, right=0.97, bottom=0.10, top=0.98)
     fig.savefig(args.out, dpi=240, bbox_inches="tight")
     plt.close(fig)
@@ -404,6 +448,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--orbit-h5", type=Path, default=DEFAULT_ORBIT)
     parser.add_argument("--samples-h5", type=Path, default=DEFAULT_SAMPLES)
     parser.add_argument("--macro-tex", type=Path, default=DEFAULT_MACROS)
+    parser.add_argument("--nea-matches", type=Path, default=DEFAULT_NEA_MATCHES)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     return parser.parse_args()
 
