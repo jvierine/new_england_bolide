@@ -63,11 +63,32 @@ seed and evaluates a single Clinton head-echo patch at 0.400 s after
   \label{fig:coh8-raw-full-waveform-match}
 \end{figure}
 
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\linewidth]{figures/coh8_whitened_match_clinton_t040_shrink002.png}
+  \caption{Eight-code generalized matched-filter whitening test for the same
+  Clinton head-echo patch.  The left panel repeats the raw full-waveform
+  matched-filter power.  The right panel estimates the complex Doppler-bin
+  covariance from off-head ranges at least 8 km away from the seed range and
+  applies the inverse square-root covariance before power formation.  The
+  covariance estimate uses 0.02 diagonal shrinkage.  This suppresses the
+  repeated-code vertical stripe mode while retaining the localized head-echo
+  blob near the trajectory seed.}
+  \figsource{reports/generate_coh8_whitened_match_diagnostic.py}
+  \label{fig:coh8-whitened-match}
+\end{figure}
+
 \section*{Single-Patch Result}
 
 For this Clinton test patch, the seed range is 263.250 km and the seed Doppler
 residual is \(-134.6\) Hz relative to the model.  The fitted center is
 261.983 km with residual Doppler \(-80.2\) Hz, corresponding to a correction of
 \(-1267\) m and \(+54.4\) Hz.
+
+For the off-head background ranges in the raw match function, the standard
+deviation of the column-median Doppler structure is 5.51 dB.  After covariance
+whitening with 0.02 diagonal shrinkage, the same column-median standard
+deviation is 0.33 dB.  Relative to the off-head residual image variation, the
+stripe ratio drops from 0.97 to 0.28.
 
 \end{document}
