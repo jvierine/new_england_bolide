@@ -750,7 +750,6 @@ def attach_analytical_doppler_widths(rows: list[dict], analytical_fit: dict, sta
         row[key] = float(doppler_hz)
     for row in rows:
         row["analytical_doppler_width_hz"] = abs(float(row["analytical_end_doppler_hz"]) - float(row["analytical_start_doppler_hz"]))
-        row["analytical_doppler_center_offset_hz"] = float(row["analytical_center_doppler_hz"]) - float(row["fit_doppler_hz"])
 
 
 def run_station_from_patch_cache(h: h5py.File, station: str, fit_rows: dict[int, dict], args: argparse.Namespace) -> tuple[dict, list[dict]]:
@@ -847,7 +846,6 @@ def save_patch_cache_results(results: list[dict], rows: list[dict], path: Path, 
                 "time_rel",
                 "ranges_km",
                 "fit_dopplers_hz",
-                "analytical_doppler_center_offsets_hz",
                 "analytical_doppler_widths_hz",
                 "coherent_window_s",
                 "rel_freqs",
@@ -915,11 +913,10 @@ def plot_results_plain(results: list[dict], out_fig: Path, args: argparse.Namesp
         )
         ax.axhline(0.0, color="white", alpha=0.5, linestyle="--", linewidth=0.8)
         fit_dopplers = np.asarray(res["fit_dopplers_hz"], dtype=float)
-        expected_center_hz = np.asarray(res["analytical_doppler_center_offsets_hz"], dtype=float)
         expected_width_hz = np.asarray(res["analytical_doppler_widths_hz"], dtype=float)
         if len(res["time_rel"]) > 1:
-            lo = expected_center_hz - 0.5 * expected_width_hz
-            hi = expected_center_hz + 0.5 * expected_width_hz
+            lo = -0.5 * expected_width_hz
+            hi = 0.5 * expected_width_hz
             ax.fill_between(
                 res["time_rel"],
                 lo,
@@ -967,10 +964,6 @@ def run_patch_cache_mode(args: argparse.Namespace) -> None:
         by_station[row["station"]].append(row)
     for res in results:
         station_rows = sorted(by_station[res["station"]], key=lambda row: row["time_rel_s"])
-        res["analytical_doppler_center_offsets_hz"] = np.asarray(
-            [row["analytical_doppler_center_offset_hz"] for row in station_rows],
-            dtype=float,
-        )
         res["analytical_doppler_widths_hz"] = np.asarray(
             [row["analytical_doppler_width_hz"] for row in station_rows],
             dtype=float,
