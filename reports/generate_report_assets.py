@@ -150,14 +150,12 @@ def beverly_range_doppler_snapshot(start_second=80.6):
     site = load_station_yaml(DATA_DIR, "beverly")
     range_interp = 4
     n_coh = 8
-    doppler_zero_pad_factor = 4
     codes_per_step = 1
     fmin, fmax = -50000.0, 50000.0
     code_len_i = site["code_len"] * range_interp
     sample_rate = 100000.0
     sample_rate_i = sample_rate * range_interp
     win_len = n_coh * code_len_i
-    fftlen = doppler_zero_pad_factor * win_len
     gate_km = site["range_resolution_m"] / range_interp / 1000.0
     rmax = int(round(600.0 / gate_km))
     range_idx = np.arange(0, rmax + 1, dtype=np.int64)
@@ -170,7 +168,7 @@ def beverly_range_doppler_snapshot(start_second=80.6):
         sample_rate = sr
         zc.append(interpolate_rect(z, range_interp))
     sample_rate_i = sample_rate * range_interp
-    fvec = np.fft.fftshift(np.fft.fftfreq(fftlen, d=1.0 / sample_rate_i))
+    fvec = np.fft.fftshift(np.fft.fftfreq(win_len, d=1.0 / sample_rate_i))
     fidx = np.where((fvec >= fmin) & (fvec <= fmax))[0]
     fvec0 = fvec[fidx]
     codes = get_codes(site["seeds"], site["code_len"], n_coh, range_interp=range_interp)
@@ -180,7 +178,7 @@ def beverly_range_doppler_snapshot(start_second=80.6):
         z0 = detrend_window(z[:read_len], spike_sigma=0.0)
         windows = np.lib.stride_tricks.sliding_window_view(z0, win_len)[range_idx, :]
         for code in codes:
-            Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), n=fftlen, axis=1), axes=1)[:, fidx]
+            Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), axis=1), axes=1)[:, fidx]
             S += np.abs(Z) ** 2
     S /= float(len(zc) * len(codes))
 

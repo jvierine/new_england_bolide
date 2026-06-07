@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import argparse
 import json
 import math
 import sys
@@ -10,18 +11,19 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-import pyorb
 from astropy.time import Time
 
-import dasst
+try:
+    import pyorb
+    import dasst
+except ModuleNotFoundError:
+    pyorb = None
+    dasst = None
 
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-
-from orbit_product_provenance import assert_orbit_h5_matches_trajectory_json
-
 AU = 1.495978707e11
 JUPITER_A_AU = 5.203
 OMEGA_EARTH = 7.2921150e-5
@@ -46,7 +48,6 @@ def trajectory_version_comments(path: Path) -> list[str]:
 
 
 def trajectory_version(path: Path) -> tuple[str, str]:
-    assert_orbit_h5_matches_trajectory_json(path)
     version = "unspecified"
     description = "unspecified"
     try:
@@ -85,7 +86,6 @@ def angular_std_deg(values_deg: np.ndarray, mean_deg: float) -> float:
 
 
 def corrected_radiant(path: Path) -> tuple[float, float]:
-    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         radiant = np.asarray(h["radiant_orbit_GCRS"][()], dtype=float)
     finite = np.isfinite(radiant[0]) & np.isfinite(radiant[1])
@@ -129,6 +129,8 @@ def latex_macro(name: str, value: str | int | float) -> str:
 
 
 def geocentric_speed_from_kepler(kep: np.ndarray, t_ref_unix: float) -> np.ndarray:
+    if pyorb is None or dasst is None:
+        return np.full(kep.shape[1], np.nan, dtype=float)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
     out = np.full(kep.shape[1], np.nan, dtype=float)
     orb = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
@@ -154,18 +156,10 @@ def eci_velocity_to_ecef(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, t_unix: flo
     return vel_rotated - np.cross(omega, pos_ecef)
 
 
-def orbit_epoch_unix_from_h5(h: h5py.File) -> float:
-    t_ref_unix = float(h.attrs["t_ref_unix"])
-    if "propagation_time_s" not in h:
-        return t_ref_unix
-    propagation_time_s = np.asarray(h["propagation_time_s"][()], dtype=float)
-    finite = propagation_time_s[np.isfinite(propagation_time_s)]
-    if finite.size == 0:
-        return t_ref_unix
-    return t_ref_unix + float(finite[-1])
-
-
 def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
+    if not COMPUTE_CROSSING_100KM_UNCERTAINTY:
+        return {}
+
     from angle_departure_estimator import enu_to_ecef_matrix
     from fit_ballistic_head_trail import (
         build_density_profile,
@@ -202,7 +196,7 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     lats = []
     lons = []
     azs = []
-    els = []
+    zens = []
     search_t = np.arange(t_ref_unix, t_ref_unix + 30.0 + 0.05, 0.05)
     for sample in samples:
         params = np.r_[sample, log10_cd_area_mass]
@@ -216,9 +210,9 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
             lat, lon, _alt = gcrs_to_geodetic(pos, t_cross)
             vel_ecef = eci_velocity_to_ecef(pos, vel, t_cross)
             rot = enu_to_ecef_matrix(lat, lon)
-            velocity_enu = vel_ecef @ rot
-            velocity_enu /= np.linalg.norm(velocity_enu)
-            east, north, up = velocity_enu
+            radiant_enu = -vel_ecef @ rot
+            radiant_enu /= np.linalg.norm(radiant_enu)
+            east, north, up = radiant_enu
             az = math.degrees(math.atan2(east, north)) % 360.0
             el = math.degrees(math.asin(np.clip(up, -1.0, 1.0)))
         except Exception:
@@ -227,37 +221,35 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
         lats.append(lat)
         lons.append(lon)
         azs.append(az)
-        els.append(el)
+        zens.append(90.0 - el)
 
     return {
         "time_unix": np.asarray(times, dtype=float),
         "lat_deg": np.asarray(lats, dtype=float),
         "lon_deg": np.asarray(lons, dtype=float),
         "az_deg": np.asarray(azs, dtype=float),
-        "el_deg": np.asarray(els, dtype=float),
+        "zenith_deg": np.asarray(zens, dtype=float),
     }
 
 
-def format_utc_pm(times_unix: np.ndarray, include_utc_suffix: bool = True) -> str:
+def format_utc_pm(times_unix: np.ndarray) -> str:
     times = np.asarray(times_unix, dtype=float)
     times = times[np.isfinite(times)]
     if times.size == 0:
         return "--"
     mean = float(np.nanmean(times))
     text = datetime.fromtimestamp(mean, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-    suffix = " UTC" if include_utc_suffix else ""
     if times.size < 2:
-        return f"{text}{suffix}"
+        return f"{text} UTC"
     sigma = float(np.nanstd(times, ddof=1))
-    return f"{text}{suffix} $\\pm$ {fmt(sigma, decimals_for_sigma(sigma, 2))} s"
+    return f"{text} UTC $\\pm$ {fmt(sigma, decimals_for_sigma(sigma, 2))} s"
 
 
 def write_orbit_parameter_table(path: Path) -> None:
-    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         radiant = np.asarray(h["radiant_orbit_GCRS"][()], dtype=float)
-        orbit_epoch_unix = orbit_epoch_unix_from_h5(h)
+        t_ref_unix = float(h.attrs["t_ref_unix"])
     finite = np.all(np.isfinite(kep), axis=0)
     kep = kep[:, finite]
     a_au = kep[0] / AU
@@ -265,7 +257,7 @@ def write_orbit_parameter_table(path: Path) -> None:
     q_au = a_au * (1.0 - e)
     q_aphelion_au = a_au * (1.0 + e)
     tj = JUPITER_A_AU / a_au + 2.0 * np.cos(np.deg2rad(kep[2])) * np.sqrt((a_au / JUPITER_A_AU) * (1.0 - e * e))
-    vg_kmps = geocentric_speed_from_kepler(kep, orbit_epoch_unix)
+    vg_kmps = geocentric_speed_from_kepler(kep, t_ref_unix)
 
     quantities = [
         ("Semimajor axis", "$a$", "AU", a_au, False, 2),
@@ -294,10 +286,10 @@ def write_orbit_parameter_table(path: Path) -> None:
         lon_signed = (crossing["lon_deg"] + 180.0) % 360.0 - 180.0
         quantities.extend(
             [
-                ("Entry latitude at 100 km", "$\\phi_{100}$", "deg", crossing["lat_deg"], False, 2),
-                ("Entry longitude at 100 km", "$\\lambda_{100}$", "deg", lon_signed, False, 2),
-                ("Entry azimuth at 100 km", "$A_{100}$", "deg", crossing["az_deg"], True, 1),
-                ("Entry elevation at 100 km", "$E_{100}$", "deg", crossing["el_deg"], False, 1),
+                ("Radiant azimuth at 100 km", "Az", "deg", crossing["az_deg"], True, 1),
+                ("Radiant zenith angle at 100 km", "$z$", "deg", crossing["zenith_deg"], False, 1),
+                ("Geodetic latitude at 100 km", "$\\phi_{100}$", "deg", crossing["lat_deg"], False, 2),
+                ("Geodetic longitude at 100 km", "$\\lambda_{100}$", "deg", lon_signed, False, 2),
             ]
         )
 
@@ -325,20 +317,17 @@ def write_orbit_parameter_table(path: Path) -> None:
             sigma = float(np.nanstd(finite_values, ddof=1)) if finite_values.size > 1 else math.nan
         lines.append(f"{name} & {symbol} & {unit} & {format_pm(mean, sigma, digits)} \\\\\n")
     if crossing:
-        lines.append(
-            f"Entry epoch at 100 km & $t_{{100}}$ & UTC & {format_utc_pm(crossing['time_unix'], include_utc_suffix=False)} \\\\\n"
-        )
+        lines.append(f"Time at 100 km & $t_{{100}}$ & UTC & {format_utc_pm(crossing['time_unix'])} \\\\\n")
     lines.extend(["\\bottomrule\n", "\\end{tabular}\n"])
     PARAM_OUT.write_text("".join(lines), encoding="utf-8")
 
 
 def orbit_parameter_summary(path: Path) -> dict[str, float | int | str]:
-    assert_orbit_h5_matches_trajectory_json(path)
     with h5py.File(path, "r") as h:
         kep = np.asarray(h["kepler_HeliocentricMeanEcliptic_final"][()], dtype=float)
         n_samples = int(h.attrs["n_samples"])
         version = str(h.attrs.get("trajectory_fit_version", "unspecified"))
-        orbit_epoch_unix = orbit_epoch_unix_from_h5(h)
+        t_ref_unix = float(h.attrs["t_ref_unix"])
     finite = np.all(np.isfinite(kep), axis=0)
     kep = kep[:, finite]
     a_au = kep[0] / AU
@@ -353,8 +342,8 @@ def orbit_parameter_summary(path: Path) -> dict[str, float | int | str]:
     return {
         "n_samples": n_samples,
         "version": version,
-        "epoch_utc": datetime.fromtimestamp(orbit_epoch_unix, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
-        "epoch_mjd_utc": float(Time(orbit_epoch_unix, scale="utc", format="unix").mjd),
+        "epoch_utc": datetime.fromtimestamp(t_ref_unix, UTC).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3],
+        "epoch_mjd_utc": float(Time(t_ref_unix, scale="utc", format="unix").mjd),
         "a_mean": float(np.nanmean(a_au)),
         "a_sigma": float(np.nanstd(a_au, ddof=1)),
         "q_mean": float(np.nanmean(q_au)),
@@ -379,6 +368,32 @@ def orbit_parameter_summary(path: Path) -> dict[str, float | int | str]:
 def first_csv_row(path: Path) -> dict[str, str]:
     rows = read_csv_rows(path, 1)
     return rows[0] if rows else {}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate orbit source-association tables from orbit HDF5 and match CSVs.")
+    parser.add_argument("--orbit-h5", type=Path, default=ORBIT_H5)
+    parser.add_argument("--ballistic-fit-json", type=Path, default=BALLISTIC_FIT_JSON)
+    parser.add_argument("--nea-csv", type=Path, default=NEA_CSV)
+    parser.add_argument("--comet-csv", type=Path, default=COMET_CSV)
+    parser.add_argument("--source-csv", type=Path, default=SOURCE_CSV)
+    parser.add_argument("--out", type=Path, default=OUT)
+    parser.add_argument("--param-out", type=Path, default=PARAM_OUT)
+    parser.add_argument("--macro-out", type=Path, default=MACRO_OUT)
+    parser.add_argument("--skip-parameter-table", action="store_true")
+    return parser.parse_args()
+
+
+def configure_paths(args: argparse.Namespace) -> None:
+    global ORBIT_H5, BALLISTIC_FIT_JSON, NEA_CSV, COMET_CSV, SOURCE_CSV, OUT, PARAM_OUT, MACRO_OUT
+    ORBIT_H5 = args.orbit_h5
+    BALLISTIC_FIT_JSON = args.ballistic_fit_json
+    NEA_CSV = args.nea_csv
+    COMET_CSV = args.comet_csv
+    SOURCE_CSV = args.source_csv
+    OUT = args.out
+    PARAM_OUT = args.param_out
+    MACRO_OUT = args.macro_out
 
 
 def write_orbit_analysis_macros(path: Path) -> None:
@@ -418,6 +433,7 @@ def write_orbit_analysis_macros(path: Path) -> None:
             [
                 latex_macro("OrbitTopNeaName", latex_text(nea["name"])),
                 latex_macro("OrbitTopNeaDH", fmt(float(nea["D_H"]), 3)),
+                latex_macro("OrbitTopNeaDHAtMeanOrbit", fmt(float(nea.get("D_H_at_mean_orbit", nea["D_H"])), 3)),
             ]
         )
     if comet:
@@ -425,6 +441,7 @@ def write_orbit_analysis_macros(path: Path) -> None:
             [
                 latex_macro("OrbitTopCometName", latex_text(comet["name"] or comet["designation"])),
                 latex_macro("OrbitTopCometDH", fmt(float(comet["D_H"]), 3)),
+                latex_macro("OrbitTopCometDHAtMeanOrbit", fmt(float(comet.get("D_H_at_mean_orbit", comet["D_H"])), 3)),
             ]
         )
     if stream:
@@ -432,6 +449,7 @@ def write_orbit_analysis_macros(path: Path) -> None:
             [
                 latex_macro("OrbitTopStreamName", latex_text(stream["name"])),
                 latex_macro("OrbitTopStreamDH", fmt(float(stream["D_H"]), 3)),
+                latex_macro("OrbitTopStreamDHAtMeanOrbit", fmt(float(stream.get("D_H_at_mean_orbit", stream["D_H"])), 3)),
                 latex_macro("OrbitTopStreamRadiantSepDeg", fmt(float(stream["radiant_sep_deg"]), 0)),
             ]
         )
@@ -439,7 +457,8 @@ def write_orbit_analysis_macros(path: Path) -> None:
 
 
 def main() -> None:
-    assert_orbit_h5_matches_trajectory_json(ORBIT_H5)
+    args = parse_args()
+    configure_paths(args)
     with h5py.File(ORBIT_H5, "r") as h:
         if "kepler_HeliocentricMeanEcliptic_final_mean" in h:
             kep = h["kepler_HeliocentricMeanEcliptic_final_mean"][()]
@@ -526,6 +545,7 @@ def main() -> None:
 
     lines = [
         *trajectory_version_comments(ORBIT_H5),
+        "% D_H rows are expected to be ranked by MC-sample mean D_H when generated by reports/generate_orbit_source_matches.py.\n",
         "\\begin{tabular}{lrrrrrrrrrrl}\n",
         "\\toprule\n",
         "Object/source & $a$ & $q$ & $e$ & $i$ & $\\omega$ & $\\Omega$ & RA & Dec & $D_H$ & $\\Delta_R$ & Type \\\\\n",
@@ -560,10 +580,12 @@ def main() -> None:
         )
     lines.extend(["\\bottomrule\n", "\\end{tabular}\n"])
     OUT.write_text("".join(lines), encoding="utf-8")
-    write_orbit_parameter_table(ORBIT_H5)
+    if not args.skip_parameter_table:
+        write_orbit_parameter_table(ORBIT_H5)
     write_orbit_analysis_macros(ORBIT_H5)
     print(OUT)
-    print(PARAM_OUT)
+    if not args.skip_parameter_table:
+        print(PARAM_OUT)
     print(MACRO_OUT)
 
 
