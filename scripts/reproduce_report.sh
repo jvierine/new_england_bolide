@@ -156,6 +156,10 @@ run python reports/generate_orbit_source_table.py
 run python reports/generate_orbit_classification_table.py
 run python plot_orbit_xy.py --out reports/figures/orbit_xy_bolide.png
 run python plot_shower_radiants.py
+run python reports/generate_head_microdoppler_2dfft_notched.py \
+  --from-patch-cache \
+  --out reports/figures/head_echo_microdoppler.png \
+  --cache reports/head_echo_microdoppler_2dfft_notched.h5
 
 if [[ -d "$OVERLEAF_DIR/reports" ]]; then
   run cp \
@@ -166,8 +170,12 @@ if [[ -d "$OVERLEAF_DIR/reports" ]]; then
     reports/orbit_classification_macros.tex \
     "$OVERLEAF_DIR/reports/"
   if [[ -d "$OVERLEAF_DIR/reports/figures" ]]; then
-    run cp reports/figures/orbit_xy_bolide.png "$OVERLEAF_DIR/reports/figures/"
+    run cp \
+      reports/figures/orbit_xy_bolide.png \
+      reports/figures/head_echo_microdoppler.png \
+      "$OVERLEAF_DIR/reports/figures/"
   fi
+  run cp reports/head_microdoppler_summary.tex "$OVERLEAF_DIR/reports/"
 fi
 
 (
