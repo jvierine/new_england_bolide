@@ -92,9 +92,11 @@ main interpretation are given in the appendices.
 
 \subsection{Range--Doppler Matched Filtering}
 
-Complex voltage samples were median-subtracted before matched filtering in
-order to remove DC-like offsets and slowly varying receiver bias over each
-coherent integration window.
+Complex voltage samples were corrected for receiver DC offsets before matched
+filtering by subtracting one complex mean voltage from each channel over the
+read interval.  The same complex-mean DC subtraction was applied to both raw
+receiver polarization streams before any polarization combination or
+range--Doppler matched filtering.
 
 For each receiver station, channel, transmit code, range gate, and time step,
 a window of complex voltage data was multiplied by the conjugate of the
@@ -335,34 +337,40 @@ bistatic propagation path.
 The residual RMS values for the current fit are \TrajectoryRangeRmsM{} m in
 bistatic range and \TrajectoryDopplerRmsHz{} Hz in Doppler.
 The uncertainty calculation uses the physical range--Doppler Jacobian from the
-nonlinear least-squares fit.  Because the post-fit residuals are not expected
-to be identically distributed across stations or between range and Doppler, the
-trajectory covariance is estimated with a heteroskedasticity-robust sandwich
-estimator,
+nonlinear least-squares fit together with the same correlated measurement model
+used in the final linear GLS solve.  The matched-filter measurements are formed
+from 16 repeated 10 ms codes, so adjacent time samples from the same receiver
+station and the same observable share coherent voltage samples.  We therefore
+model the measurement covariance as block diagonal by station and observable,
+with separate range and Doppler blocks.  Within each block, the correlation
+between two measurements separated by \(k\) code periods is
+\[
+  \rho(k) = \max\left(0,\ 1-\frac{|k|}{16}\right),
+\]
+and the covariance entries are
+\[
+  \Sigma^{(R)}_{ij} = \rho(k_{ij})\,\sigma_{R,i}\sigma_{R,j},
+  \qquad
+  \Sigma^{(f)}_{ij} = \rho(k_{ij})\,\sigma_{f,i}\sigma_{f,j}.
+\]
+Range and Doppler are kept independent to first order, so cross-observable
+blocks are zero.  With this full measurement covariance \(\boldsymbol{\Sigma}\),
+the trajectory covariance is the standard linearized GLS covariance
 \[
   \widehat{\bf C}_{p} =
-  \left({\bf J}^{T}{\bf W}{\bf J}\right)^{-1}
-  {\bf J}^{T}{\bf W}\widehat{\boldsymbol{\Omega}}{\bf W}{\bf J}
-  \left({\bf J}^{T}{\bf W}{\bf J}\right)^{-1},
+  \left({\bf J}^{T}\boldsymbol{\Sigma}^{-1}{\bf J}\right)^{-1},
 \]
 where \({\bf J}\) is the finite-difference Jacobian of the native range and
-Doppler predictions with respect to \({\bf p}\), \({\bf W}\) is the diagonal
-weight matrix with entries \(1/\sigma_R^{2}\) for range rows and
-\(1/\sigma_f^{2}\) for Doppler rows, and
-\(\widehat{\boldsymbol{\Omega}}\) is the diagonal matrix of squared post-fit
-range and Doppler residuals in their native units.  No empirical residual
-scale factor is applied to broaden the parameter covariance or the plotted
-uncertainty bands.
+Doppler predictions with respect to \({\bf p}\).  No empirical residual scale
+factor is applied to broaden the parameter covariance or the plotted uncertainty
+bands.
 The long pseudorandom phase code separates delay and Doppler in the matched
 filter, removing the range--Doppler ambiguity that would otherwise couple the
-two observables.  We therefore treat range and Doppler estimation errors as
-independent to first order and use a diagonal empirical residual covariance in
-the sandwich middle term.  Inspection of the post-fit residuals does not show a
-large station-dependent range bias, although the Doppler residuals retain some
-time-correlated structure.  The diagonal
-\(\widehat{\boldsymbol{\Omega}}\) approximation should therefore be interpreted
-as a first-order covariance model rather than a complete stochastic description
-of the residual process.
+two observables.  Inspection of the post-fit residuals does not show a large
+station-dependent range bias, although the Doppler residuals retain some
+time-correlated structure; the coherent-integration overlap model captures the
+dominant sampling correlation but is still an approximate stochastic
+description of the residual process.
 The shaded bands in
 Figure~\ref{fig:trajectory-observables} show the trajectory-parameter
 uncertainty: Monte Carlo draws from
@@ -377,9 +385,9 @@ of the resulting model curves.
   fit.  Points show the ROI-derived measurements after SNR thresholding and
   outlier rejection; lines show the fitted straight-line trajectory model for
   each bistatic path.  Shaded bands show central 95\% trajectory-parameter
-  uncertainty intervals obtained by propagating samples from the
-  heteroskedasticity-robust trajectory covariance through the range and
-  Doppler equations.}
+  uncertainty intervals obtained by propagating samples from the correlated
+  range--Doppler GLS trajectory covariance through the range and Doppler
+  equations.}
   \figsource{reports/generate_trajectory_report_assets.py}
   \label{fig:trajectory-observables}
 \end{figure}
@@ -706,10 +714,11 @@ rather than larger angular uncertainty.
   \centering
   \includegraphics[width=0.92\linewidth]{figures/shower_radiant_comparison.png}
   \caption{Corrected bolide radiant compared with nearby established shower
-  radiants from Jenniskens or Brown catalogue entries.  The bolide marker and
-  shaded ellipse show the mean and sampled 95\% zenithal-attraction-corrected
-  radiant uncertainty.  Shower marker area scales with catalogue member count,
-  and color gives Jopek \(D_H\) orbital dissimilarity.}
+  radiants from Jenniskens or Brown catalogue entries.  Red points show the
+  2000 REBOUND-sampled zenithal-attraction-corrected bolide radiants, with
+  red contours showing their sampled density and the star marking their mean.
+  Shower marker area scales with catalogue member count, and color gives
+  Jopek \(D_H\) orbital dissimilarity.}
   \figsource{plot_shower_radiants.py}
   \label{fig:shower-radiants}
 \end{figure}

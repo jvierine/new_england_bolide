@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from reports.generate_head_echo_gaussian_batch import display_path, plot_patch, safe_name, smooth_power_db  # noqa: E402
-from reports.generate_head_echo_gaussian_example import fit_gaussian_patch  # noqa: E402
+from reports.generate_head_echo_gaussian_example import fit_gaussian_patch, gaussian_power_snr  # noqa: E402
 from reports.generate_head_microdoppler import STATION_LABELS  # noqa: E402
 from reports.generate_head_microdoppler_2dfft_notched import EVENT_T0, notch_2d_doppler_repetition  # noqa: E402
 
@@ -51,9 +51,45 @@ def fit_cached_patch(station: str, patch_group: h5py.Group, args: argparse.Names
         "range_m": patch_group["range_m"][()].astype(float),
         "rel_freqs": patch_group["rel_freqs"][()].astype(float),
         "raw_db": patch_group["raw_db"][()].astype(float),
+        "coherent_window_s": float(patch_group.attrs.get("coherent_window_s", np.nan)),
+        "total_window_s": float(patch_group.attrs.get("total_window_s", np.nan)),
     }
+    if "polarization_gamma" in patch_group:
+        gamma = patch_group["polarization_gamma"][()].astype(np.complex64)
+        patch["polarization_gamma"] = gamma
+        patch["polarization_gamma0_real"] = float(np.real(gamma[0]))
+        patch["polarization_gamma0_imag"] = float(np.imag(gamma[0]))
+        patch["polarization_gamma1_real"] = float(np.real(gamma[1]))
+        patch["polarization_gamma1_imag"] = float(np.imag(gamma[1]))
+        patch["polarization_gamma0_abs"] = float(np.abs(gamma[0]))
+        patch["polarization_gamma1_abs"] = float(np.abs(gamma[1]))
+        patch["polarization_relative_phase_deg"] = float(np.angle(gamma[1] / gamma[0], deg=True)) if abs(gamma[0]) > 0 else np.nan
+    for key in (
+        "polarization_metric",
+        "polarization_signal_power",
+        "polarization_noise_power",
+        "polarization_metric_mask_pixels",
+    ):
+        if key in patch_group.attrs:
+            patch[key] = patch_group.attrs[key]
+    if "polarization_metric_kind" in patch_group.attrs:
+        patch["polarization_metric_kind"] = str(patch_group.attrs["polarization_metric_kind"])
+    if "channel_noise_equalizer" in patch_group:
+        eq = patch_group["channel_noise_equalizer"][()]
+        patch["channel_noise_equalizer0"] = float(eq[0])
+        patch["channel_noise_equalizer1"] = float(eq[1])
+    if "channel_noise_powers" in patch_group:
+        powers = patch_group["channel_noise_powers"][()]
+        patch["channel_noise_power0"] = float(powers[0])
+        patch["channel_noise_power1"] = float(powers[1])
     patch["raw_rel_freqs"] = patch["rel_freqs"].copy()
-    patch["filtered_unsmoothed_db"] = notch_2d_doppler_repetition(patch["raw_db"], args.n_coh, args.notch_half_width)
+    patch["filtered_unsmoothed_db"] = notch_2d_doppler_repetition(
+        patch["raw_db"],
+        args.n_coh,
+        args.notch_half_width,
+        fft_domain=args.fft_filter_domain,
+        inpaint_columns=args.inpaint_notched_columns,
+    )
     patch["filtered_db"] = smooth_power_db(
         patch["filtered_unsmoothed_db"],
         args.smooth_range_pixels,
@@ -79,6 +115,15 @@ def fit_cached_patch(station: str, patch_group: h5py.Group, args: argparse.Names
         fit["range_m"] = fit["range_km"] * 1000.0
         fit["range_correction_m"] = fit["range_m"] - obs["range_m"]
         fit["doppler_correction_hz"] = fit["absolute_doppler_hz"] - obs["doppler_hz"]
+        fit.update(
+            gaussian_power_snr(
+                patch["range_m"] / 1000.0,
+                patch["rel_freqs"],
+                fit,
+                seed_range_km,
+                seed_rel_hz,
+            )
+        )
         return obs, patch, fit, None
     except Exception as exc:
         return obs, patch, None, str(exc)
@@ -101,6 +146,28 @@ def summary_row(station: str, obs: dict, patch: dict | None, fit: dict | None, e
     row.update(settings)
     if patch is not None:
         row["model_doppler_hz"] = patch["model_doppler_hz"]
+        row["coherent_window_s"] = patch.get("coherent_window_s", "")
+        row["total_window_s"] = patch.get("total_window_s", "")
+        for key in (
+            "polarization_gamma0_real",
+            "polarization_gamma0_imag",
+            "polarization_gamma1_real",
+            "polarization_gamma1_imag",
+            "polarization_gamma0_abs",
+            "polarization_gamma1_abs",
+            "polarization_relative_phase_deg",
+            "polarization_metric_kind",
+            "polarization_metric_mask_pixels",
+            "polarization_metric",
+            "polarization_signal_power",
+            "polarization_noise_power",
+            "channel_noise_equalizer0",
+            "channel_noise_equalizer1",
+            "channel_noise_power0",
+            "channel_noise_power1",
+        ):
+            if key in patch:
+                row[key] = patch[key]
     if fit is not None:
         row.update(
             {
@@ -113,6 +180,14 @@ def summary_row(station: str, obs: dict, patch: dict | None, fit: dict | None, e
                 "sigma_doppler_hz": fit["sigma_doppler_hz"],
                 "range_doppler_correlation": fit["range_doppler_correlation"],
                 "amplitude_db": fit["amplitude_db"],
+                "signal_power_gaussian": fit["signal_power_gaussian"],
+                "noise_power_floor": fit["noise_power_floor"],
+                "snr_linear": fit["snr_linear"],
+                "snr_db": fit["snr_db"],
+                "noise_bandwidth_hz": fit["noise_bandwidth_hz"],
+                "noise_range_width_km": fit["noise_range_width_km"],
+                "noise_n_range_bins": fit["noise_n_range_bins"],
+                "noise_n_doppler_bins": fit["noise_n_doppler_bins"],
                 "cost": fit["cost"],
             }
         )
@@ -139,6 +214,14 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "sigma_doppler_hz",
         "range_doppler_correlation",
         "amplitude_db",
+        "signal_power_gaussian",
+        "noise_power_floor",
+        "snr_linear",
+        "snr_db",
+        "noise_bandwidth_hz",
+        "noise_range_width_km",
+        "noise_n_range_bins",
+        "noise_n_doppler_bins",
         "cost",
         "success",
         "error",
@@ -146,8 +229,28 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "n_incoh",
         "step_codes",
         "notch_half_width",
+        "fft_filter_domain",
+        "inpaint_notched_columns",
         "smooth_range_pixels",
         "smooth_frequency_pixels",
+        "coherent_window_s",
+        "total_window_s",
+        "polarization_gamma0_real",
+        "polarization_gamma0_imag",
+        "polarization_gamma1_real",
+        "polarization_gamma1_imag",
+        "polarization_gamma0_abs",
+        "polarization_gamma1_abs",
+        "polarization_relative_phase_deg",
+        "polarization_metric_kind",
+        "polarization_metric_mask_pixels",
+        "polarization_metric",
+        "polarization_signal_power",
+        "polarization_noise_power",
+        "channel_noise_equalizer0",
+        "channel_noise_equalizer1",
+        "channel_noise_power0",
+        "channel_noise_power1",
         "code_period_s",
         "figure",
     ]
@@ -166,9 +269,11 @@ def main() -> None:
     p.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY)
     p.add_argument("--stations", nargs="+", default=None)
     p.add_argument("--n-coh", type=int, default=16)
-    p.add_argument("--n-incoh", type=int, default=16)
+    p.add_argument("--n-incoh", type=int, default=1)
     p.add_argument("--step-codes", type=int, default=1)
     p.add_argument("--notch-half-width", type=int, default=1)
+    p.add_argument("--fft-filter-domain", choices=("db", "linear"), default="linear")
+    p.add_argument("--inpaint-notched-columns", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--smooth-range-pixels", type=float, default=4.0)
     p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
     p.add_argument("--code-period-s", type=float, default=0.01)
@@ -184,8 +289,12 @@ def main() -> None:
         "n_incoh": args.n_incoh,
         "step_codes": args.step_codes,
         "notch_half_width": args.notch_half_width,
+        "fft_filter_domain": args.fft_filter_domain,
+        "inpaint_notched_columns": bool(args.inpaint_notched_columns),
         "smooth_range_pixels": args.smooth_range_pixels,
         "smooth_frequency_pixels": args.smooth_frequency_pixels,
+        "coherent_window_s": "",
+        "total_window_s": "",
         "code_period_s": args.code_period_s,
     }
     rows = []

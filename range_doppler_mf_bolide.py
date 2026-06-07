@@ -64,7 +64,11 @@ def rf_file_for_time(station_dir, channel, iso_hour):
     return files
 
 
-def read_channel_files(files, start_second=0.0, seconds=None):
+def estimate_complex_dc(z):
+    return np.complex64(float(np.mean(z.real)) + 1.0j * float(np.mean(z.imag)))
+
+
+def read_channel_files(files, start_second=0.0, seconds=None, *, dc_subtract="mean"):
     chunks = []
     sample_rate = None
     abs_index0 = None
@@ -89,12 +93,17 @@ def read_channel_files(files, start_second=0.0, seconds=None):
         i1 = min(len(z), i0 + int(round(seconds * sample_rate)))
     if i0 >= len(z) or i1 <= i0:
         raise ValueError("Requested time span is outside the available RF data")
-    return z[i0:i1], sample_rate, abs_index0 + i0
+    out = z[i0:i1]
+    if dc_subtract == "mean":
+        out = out - estimate_complex_dc(out)
+    elif dc_subtract != "none":
+        raise ValueError(f"Unknown dc_subtract method {dc_subtract!r}")
+    return out.astype(np.complex64, copy=False), sample_rate, abs_index0 + i0
 
 
 def detrend_window(z, spike_sigma=0.0):
-    # remove median and optionally remove spikes
-    z = z - np.median(z)
+    # Remove complex mean DC and optionally remove spikes.
+    z = z - estimate_complex_dc(z)
     if spike_sigma and spike_sigma > 0:
         med = np.median(np.abs(z))
         if med > 0:

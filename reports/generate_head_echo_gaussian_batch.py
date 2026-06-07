@@ -18,11 +18,13 @@ sys.path.insert(0, str(ROOT))
 from reports.generate_head_echo_gaussian_example import (  # noqa: E402
     correlated_ellipse_points,
     fit_gaussian_patch,
+    gaussian_power_snr,
     gaussian2d,
     smooth_power_db,
 )
 from reports.generate_head_microdoppler import STATION_LABELS, STATIONS, load_station_observations  # noqa: E402
 from reports.generate_head_microdoppler_2dfft_notched import (  # noqa: E402
+    DEFAULT_SPARSE_PRODUCT_DIR,
     EVENT_T0,
     compute_filtered_patch,
     init_station,
@@ -62,6 +64,14 @@ def fit_patch(patch: dict, obs: dict, args: argparse.Namespace) -> dict:
     fit["range_m"] = fit["range_km"] * 1000.0
     fit["range_correction_m"] = fit["range_m"] - float(obs["range_m"])
     fit["doppler_correction_hz"] = fit["absolute_doppler_hz"] - float(obs["doppler_hz"])
+    snr = gaussian_power_snr(
+        patch["range_m"] / 1000.0,
+        patch["rel_freqs"],
+        fit,
+        seed_range_km,
+        seed_rel_hz,
+    )
+    fit.update(snr)
     return fit
 
 
@@ -233,6 +243,14 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "sigma_doppler_hz",
         "range_doppler_correlation",
         "amplitude_db",
+        "signal_power_gaussian",
+        "noise_power_floor",
+        "snr_linear",
+        "snr_db",
+        "noise_bandwidth_hz",
+        "noise_range_width_km",
+        "noise_n_range_bins",
+        "noise_n_doppler_bins",
         "cost",
         "success",
         "error",
@@ -240,8 +258,15 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "n_incoh",
         "step_codes",
         "notch_half_width",
+        "fft_filter_domain",
+        "inpaint_notched_columns",
         "smooth_range_pixels",
         "smooth_frequency_pixels",
+        "coherent_window_s",
+        "total_window_s",
+        "sparse_voltage_subtract",
+        "sparse_voltage_mode",
+        "sparse_voltage_gain",
         "figure",
     ]
     with path.open("w", newline="", encoding="utf-8") as fh:
@@ -287,8 +312,15 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                     "n_incoh": args.n_incoh,
                     "step_codes": args.step_codes,
                     "notch_half_width": args.notch_half_width,
+                    "fft_filter_domain": args.fft_filter_domain,
+                    "inpaint_notched_columns": bool(args.inpaint_notched_columns),
                     "smooth_range_pixels": args.smooth_range_pixels,
                     "smooth_frequency_pixels": args.smooth_frequency_pixels,
+                    "coherent_window_s": "",
+                    "total_window_s": "",
+                    "sparse_voltage_subtract": bool(args.sparse_voltage_subtract),
+                    "sparse_voltage_mode": args.sparse_voltage_mode,
+                    "sparse_voltage_gain": args.sparse_voltage_gain,
                     "figure": display_path(fig_path),
                 }
             )
@@ -311,6 +343,14 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                 "sigma_doppler_hz": fit["sigma_doppler_hz"],
                 "range_doppler_correlation": fit["range_doppler_correlation"],
                 "amplitude_db": fit["amplitude_db"],
+                "signal_power_gaussian": fit["signal_power_gaussian"],
+                "noise_power_floor": fit["noise_power_floor"],
+                "snr_linear": fit["snr_linear"],
+                "snr_db": fit["snr_db"],
+                "noise_bandwidth_hz": fit["noise_bandwidth_hz"],
+                "noise_range_width_km": fit["noise_range_width_km"],
+                "noise_n_range_bins": fit["noise_n_range_bins"],
+                "noise_n_doppler_bins": fit["noise_n_doppler_bins"],
                 "cost": fit["cost"],
                 "success": fit["success"],
                 "error": error or "",
@@ -318,8 +358,15 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                 "n_incoh": args.n_incoh,
                 "step_codes": args.step_codes,
                 "notch_half_width": args.notch_half_width,
+                "fft_filter_domain": args.fft_filter_domain,
+                "inpaint_notched_columns": bool(args.inpaint_notched_columns),
                 "smooth_range_pixels": args.smooth_range_pixels,
                 "smooth_frequency_pixels": args.smooth_frequency_pixels,
+                "coherent_window_s": patch.get("coherent_window_s", ""),
+                "total_window_s": patch.get("total_window_s", ""),
+                "sparse_voltage_subtract": bool(args.sparse_voltage_subtract),
+                "sparse_voltage_mode": args.sparse_voltage_mode,
+                "sparse_voltage_gain": args.sparse_voltage_gain,
                 "figure": display_path(fig_path),
             }
         )
@@ -342,12 +389,18 @@ def main() -> None:
     p.add_argument("--range-half-width-km", type=float, default=40.0)
     p.add_argument("--doppler-half-width-hz", type=float, default=1800.0)
     p.add_argument("--n-coh", type=int, default=16)
-    p.add_argument("--n-incoh", type=int, default=16)
+    p.add_argument("--n-incoh", type=int, default=1)
     p.add_argument("--step-codes", type=int, default=1)
     p.add_argument("--notch-half-width", type=int, default=1)
+    p.add_argument("--fft-filter-domain", choices=("db", "linear"), default="linear")
+    p.add_argument("--inpaint-notched-columns", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--smooth-range-pixels", type=float, default=4.0)
     p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
     p.add_argument("--dc-cancel", action="store_true")
+    p.add_argument("--sparse-voltage-subtract", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--sparse-product-dir", type=Path, default=DEFAULT_SPARSE_PRODUCT_DIR)
+    p.add_argument("--sparse-voltage-mode", choices=("full", "dc"), default="full")
+    p.add_argument("--sparse-voltage-gain", type=float, default=1.0)
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
     p.add_argument("--fit-range-half-width-km", type=float, default=5.0)

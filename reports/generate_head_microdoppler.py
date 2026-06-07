@@ -38,8 +38,12 @@ STATION_LABELS = {
 }
 
 
+def estimate_complex_dc(z: np.ndarray) -> np.complex64:
+    return np.complex64(float(np.mean(z.real)) + 1.0j * float(np.mean(z.imag)))
+
+
 def detrend_window(z: np.ndarray) -> np.ndarray:
-    return z - np.median(z)
+    return z - estimate_complex_dc(z)
 
 
 def bpsk(seed: int, length: int) -> np.ndarray:
@@ -79,7 +83,13 @@ def rf_file_for_time(data_dir: Path, station: str, channel: int, iso_hour: str) 
     return files
 
 
-def read_channel_files(files: list[Path], start_second: float, seconds: float | None) -> tuple[np.ndarray, float, int]:
+def read_channel_files(
+    files: list[Path],
+    start_second: float,
+    seconds: float | None,
+    *,
+    dc_subtract: str = "mean",
+) -> tuple[np.ndarray, float, int]:
     chunks = []
     sample_rate = None
     abs_index0 = None
@@ -99,10 +109,25 @@ def read_channel_files(files: list[Path], start_second: float, seconds: float | 
     i1 = len(z) if seconds is None else min(len(z), i0 + int(round(seconds * sample_rate)))
     if i1 <= i0:
         raise ValueError("Requested span is outside RF data")
-    return z[i0:i1], float(sample_rate), int(abs_index0 + i0)
+    out = z[i0:i1]
+    if dc_subtract == "mean":
+        out = out - estimate_complex_dc(out)
+    elif dc_subtract != "none":
+        raise ValueError(f"Unknown dc_subtract method {dc_subtract!r}")
+    return out.astype(np.complex64, copy=False), float(sample_rate), int(abs_index0 + i0)
 
 
-def read_station_channels(data_dir: Path, station: str, channels: np.ndarray, iso_hour: str, start_second: float, seconds: float, range_interp: int):
+def read_station_channels(
+    data_dir: Path,
+    station: str,
+    channels: np.ndarray,
+    iso_hour: str,
+    start_second: float,
+    seconds: float,
+    range_interp: int,
+    *,
+    dc_subtract: str = "mean",
+):
     out = []
     sample_rate = None
     abs_index0 = None
@@ -111,6 +136,7 @@ def read_station_channels(data_dir: Path, station: str, channels: np.ndarray, is
             rf_file_for_time(data_dir, station, int(ch), iso_hour),
             start_second=start_second,
             seconds=seconds,
+            dc_subtract=dc_subtract,
         )
         out.append(interpolate_rect(z, range_interp))
         sample_rate = sr if sample_rate is None else sample_rate
@@ -289,7 +315,7 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
         code_len = int(h["code_len"][()])
         product_n_coh = int(h["n_coh"][()])
         n_coh = 16
-        n_incoh = 16
+        n_incoh = 1
         step_codes = 1
         range_interp = int(h["range_interp"][()])
         sample_rate = float(h["sample_rate"][()])
@@ -397,6 +423,8 @@ def station_microdoppler(station: str, observations: list[dict], doppler_model: 
         "micro_n_coh": n_coh,
         "micro_n_incoh": n_incoh,
         "micro_step_codes": step_codes,
+        "micro_coherent_window_s": n_coh * code_len / sample_rate,
+        "micro_total_window_s": ((n_incoh - 1) * step_codes + n_coh) * code_len / sample_rate,
         "micro_clean_iterations": 12,
         "micro_clean_gain": 0.35,
     }
@@ -464,6 +492,8 @@ def write_summary(results: list[dict]) -> None:
         f"\\newcommand{{\\HeadMicroDopplerNCoherentCodes}}{{{results[0]['micro_n_coh']}}}\n",
         f"\\newcommand{{\\HeadMicroDopplerNIncoherentSpectra}}{{{results[0]['micro_n_incoh']}}}\n",
         f"\\newcommand{{\\HeadMicroDopplerStepCodes}}{{{results[0]['micro_step_codes']}}}\n",
+        f"\\newcommand{{\\HeadMicroDopplerCoherentWindowSeconds}}{{{results[0]['micro_coherent_window_s']:.3f}}}\n",
+        f"\\newcommand{{\\HeadMicroDopplerTotalWindowSeconds}}{{{results[0]['micro_total_window_s']:.3f}}}\n",
         f"\\newcommand{{\\HeadMicroDopplerCleanIterations}}{{{results[0]['micro_clean_iterations']}}}\n",
         f"\\newcommand{{\\HeadMicroDopplerCleanGain}}{{{results[0]['micro_clean_gain']:.2f}}}\n",
     ]
