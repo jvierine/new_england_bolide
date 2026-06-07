@@ -17,6 +17,7 @@ VENV_DIR="${VENV_DIR:-.venv}"
 CHUNK_DIR="products/rdmf_exact_highres_180615_10s_chunks"
 MERGED_DIR="products/rdmf_exact_highres_180615_10s_merged_20260602_095431"
 ORBIT_DIR="products/orbit_determination"
+OVERLEAF_DIR="${OVERLEAF_DIR:-/Users/j/src/cape_cod_bay}"
 
 run() {
   echo
@@ -155,6 +156,19 @@ run python reports/generate_orbit_source_table.py
 run python reports/generate_orbit_classification_table.py
 run python plot_orbit_xy.py --out reports/figures/orbit_xy_bolide.png
 run python plot_shower_radiants.py
+
+if [[ -d "$OVERLEAF_DIR/reports" ]]; then
+  run cp \
+    reports/orbit_parameter_table.tex \
+    reports/orbit_analysis_macros.tex \
+    reports/orbit_source_table.tex \
+    reports/orbit_classification_table.tex \
+    reports/orbit_classification_macros.tex \
+    "$OVERLEAF_DIR/reports/"
+  if [[ -d "$OVERLEAF_DIR/reports/figures" ]]; then
+    run cp reports/figures/orbit_xy_bolide.png "$OVERLEAF_DIR/reports/figures/"
+  fi
+fi
 
 (
   cd reports
