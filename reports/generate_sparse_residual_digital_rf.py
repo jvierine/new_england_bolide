@@ -140,7 +140,10 @@ def subtract_sparse_model(raw_by_channel: list[np.ndarray], abs_index0: int, spa
                     coeff = dc_coeff[chi, :, :n_support].T
                 model = np.sum(coeff[:, :, None] * shifted_part, axis=(0, 1), dtype=np.complex64)
                 if has_dc:
-                    model += dc_voltage[bi, ci, chi]
+                    if dc_voltage.ndim == 1:
+                        model += dc_voltage[bi]
+                    else:
+                        model += dc_voltage[bi, ci, chi]
                     terms += 1
                 raw[seg0:seg1] = (raw[seg0:seg1] - gain * model).astype(np.complex64)
                 model_power[chi] += float(np.sum(np.abs(model) ** 2))

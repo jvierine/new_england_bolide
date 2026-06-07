@@ -174,7 +174,7 @@ def solve_on_support(
     n_tx: int,
     support: np.ndarray,
     rcond: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, complex, np.ndarray, np.ndarray]:
     """Solve TX amplitudes and a constant voltage offset for a full block.
 
     Parameters
@@ -191,7 +191,7 @@ def solve_on_support(
     coeff:
         Shape (n_codes, n_channels, n_tx, n_support).
     dc_voltage:
-        Constant voltage offset with shape (n_codes, n_channels).
+        One constant voltage offset shared by the full block.
     residual:
         Same shape as y_block.
     model:
@@ -200,19 +200,33 @@ def solve_on_support(
     n_codes, n_ch, code_len = y_block.shape
     support_i = support.astype(np.int64) - int(ranges_all[0])
     col_i = (support_i[:, None] * n_tx + np.arange(n_tx, dtype=np.int64)[None, :]).ravel()
-    sparse_a = code_matrix[:, col_i]
-    dc_a = np.ones((code_len, 1), dtype=np.complex64)
-    a = np.hstack((sparse_a, dc_a))
+    a = code_matrix[:, col_i]
     y = np.moveaxis(y_block, -1, 0).reshape(code_len, n_codes * n_ch)
-    x, *_ = np.linalg.lstsq(a, y, rcond=rcond)
+
+    if a.shape[1] == 0:
+        dc_voltage = complex(np.mean(y))
+        x = np.empty((0, y.shape[1]), dtype=np.complex64)
+    else:
+        ones = np.ones((code_len, 1), dtype=np.complex64)
+        x0, *_ = np.linalg.lstsq(a, y, rcond=rcond)
+        x1, *_ = np.linalg.lstsq(a, ones, rcond=rcond)
+        residual_y = y - a @ x0
+        residual_one = ones - a @ x1
+        denom = y.shape[1] * np.vdot(residual_one[:, 0], residual_one[:, 0])
+        if abs(denom) <= 1e-20:
+            dc_voltage = 0.0j
+        else:
+            dc_voltage = complex(np.vdot(residual_one[:, 0], np.sum(residual_y, axis=1)) / denom)
+        x, *_ = np.linalg.lstsq(a, y - dc_voltage * ones, rcond=rcond)
+
     model = a @ x
+    model += dc_voltage
     residual = (y - model).reshape(code_len, n_codes, n_ch)
     residual = np.moveaxis(residual, 0, -1).astype(np.complex64)
     model = model.reshape(code_len, n_codes, n_ch)
     model = np.moveaxis(model, 0, -1).astype(np.complex64)
-    coeff = x[:-1].reshape(len(support), n_tx, n_codes, n_ch)
+    coeff = x.reshape(len(support), n_tx, n_codes, n_ch)
     coeff = np.moveaxis(coeff, [0, 1, 2, 3], [3, 2, 0, 1]).astype(np.complex64)
-    dc_voltage = x[-1].reshape(n_codes, n_ch).astype(np.complex64)
     return coeff, dc_voltage, residual, model
 
 
@@ -360,7 +374,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
     residual_fraction = np.zeros(n_blocks, dtype=np.float32)
     support_range_idx = np.full((n_blocks, args.max_active_ranges), -1, dtype=np.int32)
     support_voltage = np.zeros((n_blocks, args.coherent_codes, n_ch, n_tx, args.max_active_ranges), dtype=np.complex64)
-    dc_voltage = np.zeros((n_blocks, args.coherent_codes, n_ch), dtype=np.complex64)
+    dc_voltage = np.zeros(n_blocks, dtype=np.complex64)
 
     t_block = (abs_index0 + (np.arange(n_blocks) * args.coherent_codes + 0.5 * args.coherent_codes) * cfg["code_len"]) / float(sample_rate)
     time_resolution_s = args.coherent_codes * cfg["code_len"] / float(sample_rate)

@@ -113,7 +113,10 @@ def subtract_sparse_voltage_from_raw(
             for chi in range(len(raw_z)):
                 model = np.zeros(seg1 - seg0, dtype=np.complex64)
                 if has_dc:
-                    model += dc_voltage[bi, ci, chi]
+                    if dc_voltage.ndim == 1:
+                        model += dc_voltage[bi]
+                    else:
+                        model += dc_voltage[bi, ci, chi]
                     terms += 1
                 for txi in range(n_tx):
                     code = codes[txi]
