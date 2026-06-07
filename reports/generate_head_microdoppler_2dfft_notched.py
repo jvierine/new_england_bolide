@@ -737,6 +737,7 @@ def run_station_from_patch_cache(h: h5py.File, station: str, fit_rows: dict[int,
                 "n_coh": n_coh,
                 "n_incoh": int(patch.attrs.get("n_incoh", h.attrs.get("n_incoh", args.n_incoh))),
                 "step_codes": int(patch.attrs.get("step_codes", h.attrs.get("step_codes", args.step_codes))),
+                "coherent_window_s": float(fit.get("coherent_window_s", 0.01 * n_coh)),
                 "doppler_zero_pad_factor": int(patch.attrs.get("doppler_zero_pad_factor", h.attrs.get("doppler_zero_pad_factor", 1))),
                 "head_echo_product_version": str(h.attrs.get("head_echo_product_version", args.product_version)),
             }
@@ -753,6 +754,8 @@ def run_station_from_patch_cache(h: h5py.File, station: str, fit_rows: dict[int,
             "time_rel": np.asarray([row["time_rel_s"] for row in rows], dtype=float),
             "ranges_km": np.asarray([row["fit_range_m"] / 1000.0 for row in rows], dtype=float),
             "fit_dopplers_hz": np.asarray([row["fit_doppler_hz"] for row in rows], dtype=float),
+            "model_dopplers_hz": np.asarray([row["model_doppler_hz"] for row in rows], dtype=float),
+            "coherent_window_s": np.asarray([row["coherent_window_s"] for row in rows], dtype=float),
             "rel_freqs": rel_ref,
             "spec_db": spec_db,
         },
@@ -775,7 +778,7 @@ def save_patch_cache_results(results: list[dict], rows: list[dict], path: Path, 
         h["stations"] = np.asarray([res["station"].encode("utf-8") for res in results])
         for res in results:
             g = h.create_group(res["station"])
-            for name in ["time_rel", "ranges_km", "fit_dopplers_hz", "rel_freqs", "spec_db"]:
+            for name in ["time_rel", "ranges_km", "fit_dopplers_hz", "model_dopplers_hz", "coherent_window_s", "rel_freqs", "spec_db"]:
                 g[name] = res[name]
         rg = h.create_group("rows")
         for i, row in enumerate(rows):
@@ -807,10 +810,18 @@ def write_patch_cache_summary(results: list[dict], rows: list[dict], args: argpa
         name = res["station"].title()
         ranges_km = np.asarray([row["fit_range_m"] / 1000.0 for row in station_rows], dtype=float)
         dopplers_hz = np.asarray([row["fit_doppler_hz"] for row in station_rows], dtype=float)
+        model_dopplers_hz = np.asarray([row["model_doppler_hz"] for row in station_rows], dtype=float)
+        times_s = np.asarray([row["time_rel_s"] for row in station_rows], dtype=float)
+        coherent_s = np.asarray([row["coherent_window_s"] for row in station_rows], dtype=float)
+        if len(times_s) > 1:
+            expected_width_hz = np.abs(np.gradient(model_dopplers_hz, times_s)) * coherent_s
+        else:
+            expected_width_hz = np.full_like(times_s, np.nan, dtype=float)
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}N}}{{{len(station_rows)}}}\n")
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}MedianRangeKm}}{{{np.nanmedian(ranges_km):.0f}}}\n")
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}MedianDopplerHz}}{{{np.nanmedian(dopplers_hz):.0f}}}\n")
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}MedianPickedDopplerHz}}{{{np.nanmedian(dopplers_hz):.0f}}}\n")
+        lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}MedianExpectedWidthHz}}{{{np.nanmedian(expected_width_hz):.0f}}}\n")
     OUT_SUMMARY.write_text("".join(lines), encoding="utf-8")
 
 
@@ -835,11 +846,30 @@ def plot_results_plain(results: list[dict], out_fig: Path, args: argparse.Namesp
             vmax=vmax,
         )
         ax.axhline(0.0, color="white", alpha=0.5, linestyle="--", linewidth=0.8)
+        model_dopplers = np.asarray(res.get("model_dopplers_hz", res["fit_dopplers_hz"]), dtype=float)
+        fit_dopplers = np.asarray(res["fit_dopplers_hz"], dtype=float)
+        coherent_window_s = np.asarray(res.get("coherent_window_s", np.full_like(fit_dopplers, 0.16)), dtype=float)
+        if len(res["time_rel"]) > 1:
+            dfdt = np.gradient(model_dopplers, res["time_rel"])
+            expected_width_hz = np.abs(dfdt) * coherent_window_s
+            expected_center_hz = model_dopplers - fit_dopplers
+            lo = expected_center_hz - 0.5 * expected_width_hz
+            hi = expected_center_hz + 0.5 * expected_width_hz
+            ax.fill_between(
+                res["time_rel"],
+                lo,
+                hi,
+                color="#6ee7ff",
+                alpha=0.14,
+                linewidth=0,
+                zorder=5,
+            )
+            ax.plot(res["time_rel"], lo, color="#6ee7ff", linewidth=1.0, alpha=0.95, zorder=6)
+            ax.plot(res["time_rel"], hi, color="#6ee7ff", linewidth=1.0, alpha=0.95, zorder=6)
         ax.set_ylim(-500.0, 500.0)
         ax.set_ylabel("$f-f_{D,Gaussian}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo")
         dax = ax.twinx()
-        fit_dopplers = np.asarray(res["fit_dopplers_hz"], dtype=float)
         dax.plot(res["time_rel"], fit_dopplers, color="white", alpha=0.5, linewidth=1.0)
         finite_dop = fit_dopplers[np.isfinite(fit_dopplers)]
         if finite_dop.size:

@@ -581,6 +581,30 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
             axes[1].fill_between(tr, dlo, dhi, color=color, alpha=0.16, linewidth=0, label="95% correlated-fit covariance" if si == 0 else None)
     for ax in axes:
         add_version_stamp(ax, TRAJECTORY_FIT_VERSION)
+    corr_center_s = 4.0
+    corr_dt_s = 0.16
+    corr_y_khz = -2.5
+    axes[1].errorbar(
+        [corr_center_s],
+        [corr_y_khz],
+        xerr=[[0.5 * corr_dt_s], [0.5 * corr_dt_s]],
+        fmt="none",
+        ecolor="0.15",
+        elinewidth=1.5,
+        capsize=5.0,
+        capthick=1.5,
+        zorder=8,
+    )
+    axes[1].text(
+        corr_center_s,
+        corr_y_khz + 0.12,
+        r"$\Delta t = 0.16$",
+        ha="center",
+        va="bottom",
+        fontsize=9,
+        color="0.15",
+        zorder=8,
+    )
     axes[0].set_ylabel("Bistatic range (km)")
     axes[1].set_ylabel("Doppler shift (kHz)")
     axes[1].set_xlabel(f"Seconds relative to {payload_time_label(t_ref)}")
