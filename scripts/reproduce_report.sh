@@ -126,7 +126,7 @@ run python fit_ballistic_head_trail_correlated_appendix.py
 
 run python aod_position_from_merged.py \
   --merged-dir "$MERGED_DIR" \
-  --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_head_trail_correlated_fit.json \
+  --trajectory-json products/ballistic_head_trail_correlated_fit_v0p2p6_polarized_residual_manual/ballistic_head_trail_correlated_fit.json \
   --head-linear-trajectory-json products/head_echo_trajectory_roi_fit/head_echo_trajectory.json \
   --trail-positions-json products/specular_trail_positions/specular_trail_position_summary.json \
   --stations beverly clinton pomfret amherstnh siena \
@@ -141,7 +141,7 @@ run python tests/coordinate_sanity_checks.py \
   --tex-out reports/coordinate_sanity_table.tex
 
 run python orbit_det_sample.py \
-  --trajectory-json products/ballistic_head_trail_correlated_appendix_fit/ballistic_initial_state_correlated.json \
+  --trajectory-json products/ballistic_head_trail_correlated_fit_v0p2p6_polarized_residual_manual/ballistic_initial_state_correlated.json \
   --data-dir 2026_05_30_bolide \
   --kernel data/de440s.bsp \
   --samples 2000 \
@@ -152,6 +152,7 @@ run python nea_jopek_search.py
 run python comet_jopek_search.py
 run python meteor_source_search.py
 run python reports/generate_orbit_source_table.py
+run python reports/generate_orbit_classification_table.py
 run python plot_orbit_xy.py --out reports/figures/orbit_xy_bolide.png
 run python plot_shower_radiants.py
 

@@ -66,14 +66,21 @@ from fit_combined_head_trail_eci import (
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_HEAD_SELECTION = (
-    ROOT / "reports" / "head_echo_python_selection_workflow_ext0p5" / "head_echo_manual_selection_real.csv"
+    ROOT
+    / "reports"
+    / "head_echo_python_selection_v0p2p6_polarized_residual_dcmean"
+    / "head_echo_python_measurement_selection.csv"
 )
-DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_appendix_fit"
+DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_fit_v0p2p6_polarized_residual_manual"
 DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit"
 DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit"
-TRAJECTORY_FIT_VERSION = "0.2.1"
+TRAJECTORY_FIT_VERSION = "0.2.6"
 TRAJECTORY_FIT_VERSION_DESCRIPTION = (
-    "Selected head-echo correlated ballistic fit with mutual correlations within "
+    "Selected head-echo correlated ballistic fit using sparse-fit residual "
+    "voltage, complex-mean DC subtraction, channel-noise equalization, "
+    "Gaussian-mask polarization matched range-Doppler measurements, and "
+    "manually selected v0.2.6 polarized-residual head echoes. Mutual "
+    "correlations are included within "
     "head-echo and trail-echo measurements. Head-echo correlations follow "
     "coherent-integration overlap in time; trail-position correlations require "
     "temporal overlap and the same raw range gate, with different range gates "
@@ -741,7 +748,7 @@ def write_orbit_comparison_table(path: Path, comparison: dict) -> None:
 
 def main() -> None:
     args = parse_args()
-    args.plot_version_label = TRAJECTORY_FIT_VERSION
+    args.plot_version_label = args.trajectory_fit_version
     args.out_dir.mkdir(parents=True, exist_ok=True)
     Path(args.report_fig_dir).mkdir(parents=True, exist_ok=True)
     Path(args.report_table_dir).mkdir(parents=True, exist_ok=True)
@@ -815,8 +822,8 @@ def main() -> None:
     payload["fitted_parameter_order"] = payload["parameter_order"][:6]
     payload["fixed_parameter_order"] = payload["parameter_order"][6:]
     payload["fit_covariance"] = cov_params.tolist()
-    payload["trajectory_fit_version"] = TRAJECTORY_FIT_VERSION
-    payload["trajectory_fit_version_description"] = TRAJECTORY_FIT_VERSION_DESCRIPTION
+    payload["trajectory_fit_version"] = args.trajectory_fit_version
+    payload["trajectory_fit_version_description"] = args.trajectory_fit_version_description
     payload["correlated_covariance"] = {
         **cov_meta,
         "reduced_chi2": chi2_red,
@@ -831,8 +838,8 @@ def main() -> None:
         "note": "Atmospheric drag is fixed from this body model and is not estimated in the least-squares fit.",
     }
     payload["nominal_orbit_comparison"] = {
-        "trajectory_fit_version": TRAJECTORY_FIT_VERSION,
-        "trajectory_fit_version_description": TRAJECTORY_FIT_VERSION_DESCRIPTION,
+        "trajectory_fit_version": args.trajectory_fit_version,
+        "trajectory_fit_version_description": args.trajectory_fit_version_description,
         "method": "Astropy built-in Earth/Sun ephemeris plus two-body heliocentric elements; diagnostic only.",
         "old": nominal_orbit_elements(old_payload),
         "new": nominal_orbit_elements(payload),
@@ -843,8 +850,8 @@ def main() -> None:
         xhat,
         cov_params,
         t_ref,
-        trajectory_fit_version=TRAJECTORY_FIT_VERSION,
-        trajectory_fit_version_description=TRAJECTORY_FIT_VERSION_DESCRIPTION,
+        trajectory_fit_version=args.trajectory_fit_version,
+        trajectory_fit_version_description=args.trajectory_fit_version_description,
     )
 
     tx0, rot = transmitter_local_frame(geom)
@@ -891,6 +898,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--report-fig-dir", type=Path, default=DEFAULT_REPORT_DIR)
     p.add_argument("--report-table-dir", type=Path, default=DEFAULT_REPORT_TABLE_DIR)
+    p.add_argument("--trajectory-fit-version", default=TRAJECTORY_FIT_VERSION)
+    p.add_argument("--trajectory-fit-version-description", default=TRAJECTORY_FIT_VERSION_DESCRIPTION)
     p.add_argument("--head-coherent-codes", type=int, default=16)
     p.add_argument("--trail-coherent-codes", type=int, default=8)
     p.add_argument("--code-period-s", type=float, default=0.01)
