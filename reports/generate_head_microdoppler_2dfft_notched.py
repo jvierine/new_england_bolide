@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import multiprocessing as mp
 import sys
 from pathlib import Path
@@ -33,6 +34,13 @@ from reports.sparse_voltage_subtraction import (  # noqa: E402
     DEFAULT_SPARSE_PRODUCT_DIR,
     subtract_sparse_voltage_from_raw,
 )
+from fit_ballistic_head_trail import (  # noqa: E402
+    build_density_profile,
+    cache_head_station_states,
+    head_predictions_from_states,
+    propagate_state,
+)
+from fit_combined_head_trail_eci import station_geometry  # noqa: E402
 
 RDMF_DIR = ROOT / "products" / "rdmf_exact_highres_180615_10s_merged_20260602_095431"
 DATA_DIR = ROOT / "2026_05_30_bolide"
@@ -43,6 +51,12 @@ OUT_SUMMARY = ROOT / "reports" / "head_microdoppler_summary.tex"
 EVENT_T0 = 1780164380.0
 DEFAULT_PATCH_CACHE = ROOT / "products" / "head_echo_gaussian_patches" / "head_echo_gaussian_patches_polarized_residual_dcmean.h5"
 DEFAULT_FIT_SUMMARY = ROOT / "reports" / "head_echo_gaussian_fit_summary_v0p2p6_polarized_residual_dcmean.csv"
+DEFAULT_ANALYTICAL_TRAJECTORY_FIT = (
+    ROOT
+    / "products"
+    / "ballistic_head_trail_correlated_fit_v0p2p6_polarized_residual_manual"
+    / "ballistic_head_trail_correlated_fit.json"
+)
 
 G = {}
 
@@ -687,6 +701,58 @@ def load_fit_summary(path: Path, stations: list[str]) -> dict[str, dict[int, dic
     return out
 
 
+def load_analytical_trajectory_fit(path: Path) -> dict:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    params = np.asarray(payload["fit_parameters"], dtype=float)
+    settings = payload.get("settings", {})
+    data_dir = Path(settings.get("data_dir", DATA_DIR))
+    model_time = np.asarray(payload.get("model", {}).get("time_unix", []), dtype=float)
+    if model_time.size == 0:
+        model_time = np.asarray([payload["t_ref_unix"] - 1.0, payload["t_ref_unix"] + 8.0], dtype=float)
+    density_profile = build_density_profile(model_time, [], params, float(payload["t_ref_unix"]))
+    return {
+        "path": path,
+        "payload": payload,
+        "params": params,
+        "t_ref_unix": float(payload["t_ref_unix"]),
+        "density_profile": density_profile,
+        "use_drag": not bool(settings.get("no_drag", False)),
+        "data_dir": data_dir,
+    }
+
+
+def attach_analytical_doppler_widths(rows: list[dict], analytical_fit: dict, stations: list[str]) -> None:
+    if not rows:
+        return
+    geom = station_geometry(analytical_fit["data_dir"], stations)
+    obs = []
+    for row in rows:
+        half = 0.5 * float(row["coherent_window_s"])
+        for label, unix_time in (
+            ("center", float(row["time_unix"])),
+            ("start", float(row["time_unix"]) - half),
+            ("end", float(row["time_unix"]) + half),
+        ):
+            obs.append({"station": row["station"], "unix_time": unix_time, "_row": row, "_label": label})
+    obs = cache_head_station_states(obs, geom)
+    times = np.asarray([ob["unix_time"] for ob in obs], dtype=float)
+    pos, vel = propagate_state(
+        analytical_fit["params"],
+        times,
+        analytical_fit["t_ref_unix"],
+        analytical_fit["density_profile"],
+        use_drag=analytical_fit["use_drag"],
+    )
+    _ranges, dopplers = head_predictions_from_states(pos, vel, obs)
+    for ob, doppler_hz in zip(obs, dopplers, strict=True):
+        row = ob["_row"]
+        key = f"analytical_{ob['_label']}_doppler_hz"
+        row[key] = float(doppler_hz)
+    for row in rows:
+        row["analytical_doppler_width_hz"] = abs(float(row["analytical_end_doppler_hz"]) - float(row["analytical_start_doppler_hz"]))
+        row["analytical_doppler_center_offset_hz"] = float(row["analytical_center_doppler_hz"]) - float(row["fit_doppler_hz"])
+
+
 def run_station_from_patch_cache(h: h5py.File, station: str, fit_rows: dict[int, dict], args: argparse.Namespace) -> tuple[dict, list[dict]]:
     group = h[station]
     spectra = []
@@ -732,7 +798,6 @@ def run_station_from_patch_cache(h: h5py.File, station: str, fit_rows: dict[int,
                 "fit_rel_doppler_hz": fit_rel_hz,
                 "seed_range_m": float(fit["seed_range_m"]),
                 "seed_doppler_hz": float(fit["seed_doppler_hz"]),
-                "model_doppler_hz": float(fit["model_doppler_hz"]),
                 "range_row_m": float(range_m[row_i]),
                 "n_coh": n_coh,
                 "n_incoh": int(patch.attrs.get("n_incoh", h.attrs.get("n_incoh", args.n_incoh))),
@@ -754,7 +819,6 @@ def run_station_from_patch_cache(h: h5py.File, station: str, fit_rows: dict[int,
             "time_rel": np.asarray([row["time_rel_s"] for row in rows], dtype=float),
             "ranges_km": np.asarray([row["fit_range_m"] / 1000.0 for row in rows], dtype=float),
             "fit_dopplers_hz": np.asarray([row["fit_doppler_hz"] for row in rows], dtype=float),
-            "model_dopplers_hz": np.asarray([row["model_doppler_hz"] for row in rows], dtype=float),
             "coherent_window_s": np.asarray([row["coherent_window_s"] for row in rows], dtype=float),
             "rel_freqs": rel_ref,
             "spec_db": spec_db,
@@ -771,6 +835,7 @@ def save_patch_cache_results(results: list[dict], rows: list[dict], path: Path, 
         h.attrs["event_t0_unix"] = EVENT_T0
         h.attrs["patch_cache"] = str(args.patch_cache)
         h.attrs["fit_summary"] = str(args.fit_summary)
+        h.attrs["analytical_trajectory_fit"] = str(args.analytical_trajectory_fit)
         h.attrs["notch_half_width"] = int(args.notch_half_width)
         h.attrs["fft_filter_domain"] = str(args.fft_filter_domain)
         h.attrs["inpaint_notched_columns"] = bool(args.inpaint_notched_columns)
@@ -778,7 +843,16 @@ def save_patch_cache_results(results: list[dict], rows: list[dict], path: Path, 
         h["stations"] = np.asarray([res["station"].encode("utf-8") for res in results])
         for res in results:
             g = h.create_group(res["station"])
-            for name in ["time_rel", "ranges_km", "fit_dopplers_hz", "model_dopplers_hz", "coherent_window_s", "rel_freqs", "spec_db"]:
+            for name in [
+                "time_rel",
+                "ranges_km",
+                "fit_dopplers_hz",
+                "analytical_doppler_center_offsets_hz",
+                "analytical_doppler_widths_hz",
+                "coherent_window_s",
+                "rel_freqs",
+                "spec_db",
+            ]:
                 g[name] = res[name]
         rg = h.create_group("rows")
         for i, row in enumerate(rows):
@@ -810,13 +884,7 @@ def write_patch_cache_summary(results: list[dict], rows: list[dict], args: argpa
         name = res["station"].title()
         ranges_km = np.asarray([row["fit_range_m"] / 1000.0 for row in station_rows], dtype=float)
         dopplers_hz = np.asarray([row["fit_doppler_hz"] for row in station_rows], dtype=float)
-        model_dopplers_hz = np.asarray([row["model_doppler_hz"] for row in station_rows], dtype=float)
-        times_s = np.asarray([row["time_rel_s"] for row in station_rows], dtype=float)
-        coherent_s = np.asarray([row["coherent_window_s"] for row in station_rows], dtype=float)
-        if len(times_s) > 1:
-            expected_width_hz = np.abs(np.gradient(model_dopplers_hz, times_s)) * coherent_s
-        else:
-            expected_width_hz = np.full_like(times_s, np.nan, dtype=float)
+        expected_width_hz = np.asarray([row["analytical_doppler_width_hz"] for row in station_rows], dtype=float)
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}N}}{{{len(station_rows)}}}\n")
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}MedianRangeKm}}{{{np.nanmedian(ranges_km):.0f}}}\n")
         lines.append(f"\\newcommand{{\\HeadMicroDoppler{name}MedianDopplerHz}}{{{np.nanmedian(dopplers_hz):.0f}}}\n")
@@ -846,13 +914,10 @@ def plot_results_plain(results: list[dict], out_fig: Path, args: argparse.Namesp
             vmax=vmax,
         )
         ax.axhline(0.0, color="white", alpha=0.5, linestyle="--", linewidth=0.8)
-        model_dopplers = np.asarray(res.get("model_dopplers_hz", res["fit_dopplers_hz"]), dtype=float)
         fit_dopplers = np.asarray(res["fit_dopplers_hz"], dtype=float)
-        coherent_window_s = np.asarray(res.get("coherent_window_s", np.full_like(fit_dopplers, 0.16)), dtype=float)
+        expected_center_hz = np.asarray(res["analytical_doppler_center_offsets_hz"], dtype=float)
+        expected_width_hz = np.asarray(res["analytical_doppler_widths_hz"], dtype=float)
         if len(res["time_rel"]) > 1:
-            dfdt = np.gradient(model_dopplers, res["time_rel"])
-            expected_width_hz = np.abs(dfdt) * coherent_window_s
-            expected_center_hz = model_dopplers - fit_dopplers
             lo = expected_center_hz - 0.5 * expected_width_hz
             hi = expected_center_hz + 0.5 * expected_width_hz
             ax.fill_between(
@@ -895,6 +960,21 @@ def run_patch_cache_mode(args: argparse.Namespace) -> None:
             result, rows = run_station_from_patch_cache(h, station, fit_rows[station], args)
             results.append(result)
             all_rows.extend(rows)
+    analytical_fit = load_analytical_trajectory_fit(args.analytical_trajectory_fit)
+    attach_analytical_doppler_widths(all_rows, analytical_fit, args.stations)
+    by_station = {station: [] for station in args.stations}
+    for row in all_rows:
+        by_station[row["station"]].append(row)
+    for res in results:
+        station_rows = sorted(by_station[res["station"]], key=lambda row: row["time_rel_s"])
+        res["analytical_doppler_center_offsets_hz"] = np.asarray(
+            [row["analytical_doppler_center_offset_hz"] for row in station_rows],
+            dtype=float,
+        )
+        res["analytical_doppler_widths_hz"] = np.asarray(
+            [row["analytical_doppler_width_hz"] for row in station_rows],
+            dtype=float,
+        )
     save_patch_cache_results(results, all_rows, args.cache, args)
     write_patch_cache_summary(results, all_rows, args)
     plot_results_plain(results, args.out, args)
@@ -936,6 +1016,7 @@ def main() -> None:
     p.add_argument("--from-patch-cache", action="store_true", help="Build micro-Doppler from cached RD patches and a Gaussian fit summary.")
     p.add_argument("--patch-cache", type=Path, default=DEFAULT_PATCH_CACHE)
     p.add_argument("--fit-summary", type=Path, default=DEFAULT_FIT_SUMMARY)
+    p.add_argument("--analytical-trajectory-fit", type=Path, default=DEFAULT_ANALYTICAL_TRAJECTORY_FIT)
     p.add_argument("--rel-half-width-hz", type=float, default=1800.0)
     p.add_argument("--product-version", default="0.2.6")
     p.add_argument("--vmin-db", type=float, default=None)
