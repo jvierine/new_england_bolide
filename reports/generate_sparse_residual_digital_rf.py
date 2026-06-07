@@ -84,6 +84,7 @@ def subtract_sparse_model(raw_by_channel: list[np.ndarray], abs_index0: int, spa
         support_count = h["support_count"][()]
         support_range_idx = h["support_range_idx"][()]
         support_voltage = h["support_voltage"][()]
+        dc_voltage = h["dc_voltage"][()] if "dc_voltage" in h else None
 
     if range_interp != 1:
         raise ValueError(f"{sparse_path}: expected raw range_interp=1, got {range_interp}")
@@ -103,12 +104,13 @@ def subtract_sparse_model(raw_by_channel: list[np.ndarray], abs_index0: int, spa
 
     for bi in range(support_voltage.shape[0]):
         n_support = int(support_count[bi])
-        if n_support <= 0:
+        has_dc = dc_voltage is not None and bi < dc_voltage.shape[0]
+        if n_support <= 0 and not has_dc:
             continue
-        support = support_range_idx[bi, :n_support].astype(np.int64)
+        support = support_range_idx[bi, :n_support].astype(np.int64) if n_support > 0 else np.asarray([], dtype=np.int64)
         good = support >= 0
         support = support[good]
-        if support.size == 0:
+        if support.size == 0 and not has_dc:
             continue
         shifted = np.empty((len(support), n_tx, code_len), dtype=np.complex64)
         for si, raw_ri in enumerate(support):
@@ -130,11 +132,16 @@ def subtract_sparse_model(raw_by_channel: list[np.ndarray], abs_index0: int, spa
             loc1 = seg1 - start
             shifted_part = shifted[:, :, loc0:loc1]
             for chi, raw in enumerate(raw_by_channel):
-                if mode == "full":
+                if n_support == 0:
+                    coeff = np.empty((0, n_tx), dtype=np.complex64)
+                elif mode == "full":
                     coeff = support_voltage[bi, ci, chi, :, :n_support].T
                 else:
                     coeff = dc_coeff[chi, :, :n_support].T
                 model = np.sum(coeff[:, :, None] * shifted_part, axis=(0, 1), dtype=np.complex64)
+                if has_dc:
+                    model += dc_voltage[bi, ci, chi]
+                    terms += 1
                 raw[seg0:seg1] = (raw[seg0:seg1] - gain * model).astype(np.complex64)
                 model_power[chi] += float(np.sum(np.abs(model) ** 2))
                 terms += int(np.count_nonzero(coeff))

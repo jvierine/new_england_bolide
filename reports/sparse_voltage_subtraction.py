@@ -74,6 +74,7 @@ def subtract_sparse_voltage_from_raw(
         support_count = h["support_count"][()]
         support_range_idx = h["support_range_idx"][()]
         support_voltage = h["support_voltage"][()]
+        dc_voltage = h["dc_voltage"][()] if "dc_voltage" in h else None
 
     if sparse_range_interp != 1:
         raise ValueError(f"Sparse subtraction expects sparse range_interp=1, got {sparse_range_interp}")
@@ -94,11 +95,12 @@ def subtract_sparse_voltage_from_raw(
 
     for bi in range(support_voltage.shape[0]):
         n_support = int(support_count[bi])
-        if n_support <= 0:
+        has_dc = dc_voltage is not None and bi < dc_voltage.shape[0]
+        if n_support <= 0 and not has_dc:
             continue
         used_block = False
         dc_coeff = None
-        if mode == "dc":
+        if mode == "dc" and n_support > 0:
             dc_coeff = np.mean(support_voltage[bi], axis=0)
         for ci in range(coherent_codes):
             start = offset + (bi * coherent_codes + ci) * code_len
@@ -110,6 +112,9 @@ def subtract_sparse_voltage_from_raw(
             loc = np.arange(seg0 - start, seg1 - start, dtype=np.int64)
             for chi in range(len(raw_z)):
                 model = np.zeros(seg1 - seg0, dtype=np.complex64)
+                if has_dc:
+                    model += dc_voltage[bi, ci, chi]
+                    terms += 1
                 for txi in range(n_tx):
                     code = codes[txi]
                     for si in range(n_support):

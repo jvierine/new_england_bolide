@@ -174,8 +174,8 @@ def solve_on_support(
     n_tx: int,
     support: np.ndarray,
     rcond: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Solve all TX amplitudes on a shared range support for a full block.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Solve TX amplitudes and a constant voltage offset for a full block.
 
     Parameters
     ----------
@@ -190,6 +190,8 @@ def solve_on_support(
     -------
     coeff:
         Shape (n_codes, n_channels, n_tx, n_support).
+    dc_voltage:
+        Constant voltage offset with shape (n_codes, n_channels).
     residual:
         Same shape as y_block.
     model:
@@ -198,7 +200,9 @@ def solve_on_support(
     n_codes, n_ch, code_len = y_block.shape
     support_i = support.astype(np.int64) - int(ranges_all[0])
     col_i = (support_i[:, None] * n_tx + np.arange(n_tx, dtype=np.int64)[None, :]).ravel()
-    a = code_matrix[:, col_i]
+    sparse_a = code_matrix[:, col_i]
+    dc_a = np.ones((code_len, 1), dtype=np.complex64)
+    a = np.hstack((sparse_a, dc_a))
     y = np.moveaxis(y_block, -1, 0).reshape(code_len, n_codes * n_ch)
     x, *_ = np.linalg.lstsq(a, y, rcond=rcond)
     model = a @ x
@@ -206,9 +210,10 @@ def solve_on_support(
     residual = np.moveaxis(residual, 0, -1).astype(np.complex64)
     model = model.reshape(code_len, n_codes, n_ch)
     model = np.moveaxis(model, 0, -1).astype(np.complex64)
-    coeff = x.reshape(len(support), n_tx, n_codes, n_ch)
+    coeff = x[:-1].reshape(len(support), n_tx, n_codes, n_ch)
     coeff = np.moveaxis(coeff, [0, 1, 2, 3], [3, 2, 0, 1]).astype(np.complex64)
-    return coeff, residual, model
+    dc_voltage = x[-1].reshape(n_codes, n_ch).astype(np.complex64)
+    return coeff, dc_voltage, residual, model
 
 
 def select_sparse_support(
@@ -229,11 +234,10 @@ def select_sparse_support(
     doppler_hz: np.ndarray,
     use_doppler_scores: bool,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
-    residual = y_block.copy()
     support: set[int] = set()
     history = []
-    coeff = np.zeros((y_block.shape[0], y_block.shape[1], n_tx, 0), dtype=np.complex64)
-    model = np.zeros_like(y_block)
+    empty_support = np.asarray([], dtype=np.int32)
+    coeff, dc_voltage, residual, model = solve_on_support(y_block, code_matrix, ranges_all, n_tx, empty_support, rcond)
     initial_peak = None
 
     for _ in range(max_iter):
@@ -275,20 +279,19 @@ def select_sparse_support(
             ranked = sorted(support, key=lambda ri: full_scores[int(ri - ranges_all[0])], reverse=True)
             support = set(sorted(ranked[:max_active_ranges]))
         support_arr = np.asarray(sorted(support), dtype=np.int32)
-        coeff, residual, model = solve_on_support(y_block, code_matrix, ranges_all, n_tx, support_arr, rcond)
+        coeff, dc_voltage, residual, model = solve_on_support(y_block, code_matrix, ranges_all, n_tx, support_arr, rcond)
         if len(support) >= max_active_ranges:
             break
 
     support_arr = np.asarray(sorted(support), dtype=np.int32)
-    if len(support_arr):
-        coeff, residual, model = solve_on_support(y_block, code_matrix, ranges_all, n_tx, support_arr, rcond)
+    coeff, dc_voltage, residual, model = solve_on_support(y_block, code_matrix, ranges_all, n_tx, support_arr, rcond)
     meta = {
         "iterations": int(len(history)),
         "history_range_idx": np.asarray([h[0] for h in history], dtype=np.int32),
         "history_snr": np.asarray([h[1] for h in history], dtype=np.float32),
         "residual_fraction": float(np.sum(np.abs(residual) ** 2) / max(np.sum(np.abs(y_block) ** 2), 1e-20)),
     }
-    return support_arr, coeff, residual, meta
+    return support_arr, coeff, dc_voltage, residual, meta
 
 
 def process_station(args: argparse.Namespace, station: str) -> Path:
@@ -357,6 +360,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
     residual_fraction = np.zeros(n_blocks, dtype=np.float32)
     support_range_idx = np.full((n_blocks, args.max_active_ranges), -1, dtype=np.int32)
     support_voltage = np.zeros((n_blocks, args.coherent_codes, n_ch, n_tx, args.max_active_ranges), dtype=np.complex64)
+    dc_voltage = np.zeros((n_blocks, args.coherent_codes, n_ch), dtype=np.complex64)
 
     t_block = (abs_index0 + (np.arange(n_blocks) * args.coherent_codes + 0.5 * args.coherent_codes) * cfg["code_len"]) / float(sample_rate)
     time_resolution_s = args.coherent_codes * cfg["code_len"] / float(sample_rate)
@@ -391,7 +395,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
             )
         elif args.candidate_source == "none":
             block_candidate_support = None
-        support, coeff, residual, meta = select_sparse_support(
+        support, coeff, dc_coeff, residual, meta = select_sparse_support(
             y_block,
             shifted_codes,
             code_matrix,
@@ -412,6 +416,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
         n_support = min(len(support), args.max_active_ranges)
         support_count[bi] = n_support
         local_done[bi] = True
+        dc_voltage[bi] = dc_coeff
         residual_fraction[bi] = meta["residual_fraction"]
         residual_power[bi] = matched_filter_range_scores(residual, shifted_codes).astype(np.float32)
         if n_support:
@@ -450,6 +455,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
                 "residual_fraction": residual_fraction,
                 "support_range_idx": support_range_idx,
                 "support_voltage": support_voltage,
+                "dc_voltage": dc_voltage,
             },
             root=0,
         )
@@ -465,6 +471,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
         residual_fraction.fill(0.0)
         support_range_idx.fill(-1)
         support_voltage.fill(0.0)
+        dc_voltage.fill(0.0)
         for part in gathered:
             rows = part["done"]
             peak_power[rows] = part["peak_power"][rows]
@@ -477,6 +484,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
             residual_fraction[rows] = part["residual_fraction"][rows]
             support_range_idx[rows] = part["support_range_idx"][rows]
             support_voltage[rows] = part["support_voltage"][rows]
+            dc_voltage[rows] = part["dc_voltage"][rows]
 
     out_path = Path(args.product_dir) / f"trail_sparse_deconv_{station}.h5"
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -492,6 +500,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
         h["residual_fraction"] = residual_fraction
         h["support_range_idx"] = support_range_idx
         h["support_voltage"] = support_voltage
+        h["dc_voltage"] = dc_voltage
         h["time_unix"] = t_block.astype(np.float64)
         h["range_km"] = range_km
         h["range_idx"] = ranges_all
@@ -506,7 +515,7 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
         h["range_interp"] = int(args.range_interp)
         h["coherent_codes"] = int(args.coherent_codes)
         h["station"] = np.bytes_(station)
-        h.attrs["method"] = "Sparse active-range pursuit followed by simultaneous all-transmit-code least squares on the active support."
+        h.attrs["method"] = "Sparse active-range pursuit followed by simultaneous all-transmit-code plus constant-DC least squares on the active support."
         h.attrs["support_selection"] = "Iterative single-TX matched-filter residual range picking with neighboring range gates added after each selected peak."
         h.attrs["time_resolution_s"] = float(time_resolution_s)
         h.attrs["range_resolution_km"] = float(range_resolution_m_i / 1000.0)
