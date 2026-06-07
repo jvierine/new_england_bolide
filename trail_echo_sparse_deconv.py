@@ -456,20 +456,21 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
 
     comm = getattr(args, "mpi_comm", None)
     if comm is not None and size > 1:
+        local_rows = np.nonzero(local_done)[0]
         gathered = comm.gather(
             {
-                "done": local_done,
-                "peak_power": peak_power,
-                "peak_doppler": peak_doppler,
-                "candidate_peak_power": candidate_peak_power,
-                "candidate_peak_doppler": candidate_peak_doppler,
-                "residual_power": residual_power,
-                "support_mask": support_mask,
-                "support_count": support_count,
-                "residual_fraction": residual_fraction,
-                "support_range_idx": support_range_idx,
-                "support_voltage": support_voltage,
-                "dc_voltage": dc_voltage,
+                "rows": local_rows,
+                "peak_power": peak_power[local_rows],
+                "peak_doppler": peak_doppler[local_rows],
+                "candidate_peak_power": candidate_peak_power[local_rows],
+                "candidate_peak_doppler": candidate_peak_doppler[local_rows],
+                "residual_power": residual_power[local_rows],
+                "support_mask": support_mask[local_rows],
+                "support_count": support_count[local_rows],
+                "residual_fraction": residual_fraction[local_rows],
+                "support_range_idx": support_range_idx[local_rows],
+                "support_voltage": support_voltage[local_rows],
+                "dc_voltage": dc_voltage[local_rows],
             },
             root=0,
         )
@@ -487,18 +488,18 @@ def process_station(args: argparse.Namespace, station: str) -> Path:
         support_voltage.fill(0.0)
         dc_voltage.fill(0.0)
         for part in gathered:
-            rows = part["done"]
-            peak_power[rows] = part["peak_power"][rows]
-            peak_doppler[rows] = part["peak_doppler"][rows]
-            candidate_peak_power[rows] = part["candidate_peak_power"][rows]
-            candidate_peak_doppler[rows] = part["candidate_peak_doppler"][rows]
-            residual_power[rows] = part["residual_power"][rows]
-            support_mask[rows] = part["support_mask"][rows]
-            support_count[rows] = part["support_count"][rows]
-            residual_fraction[rows] = part["residual_fraction"][rows]
-            support_range_idx[rows] = part["support_range_idx"][rows]
-            support_voltage[rows] = part["support_voltage"][rows]
-            dc_voltage[rows] = part["dc_voltage"][rows]
+            rows = part["rows"]
+            peak_power[rows] = part["peak_power"]
+            peak_doppler[rows] = part["peak_doppler"]
+            candidate_peak_power[rows] = part["candidate_peak_power"]
+            candidate_peak_doppler[rows] = part["candidate_peak_doppler"]
+            residual_power[rows] = part["residual_power"]
+            support_mask[rows] = part["support_mask"]
+            support_count[rows] = part["support_count"]
+            residual_fraction[rows] = part["residual_fraction"]
+            support_range_idx[rows] = part["support_range_idx"]
+            support_voltage[rows] = part["support_voltage"]
+            dc_voltage[rows] = part["dc_voltage"]
 
     out_path = Path(args.product_dir) / f"trail_sparse_deconv_{station}.h5"
     out_path.parent.mkdir(parents=True, exist_ok=True)
