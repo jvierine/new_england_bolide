@@ -46,6 +46,35 @@ def display_path(path: Path) -> str:
         return str(resolved)
 
 
+def polarization_summary_values(patch: dict | None) -> dict:
+    if patch is None:
+        return {}
+    gamma = np.asarray(patch.get("polarization_gamma", []), dtype=np.complex64)
+    if gamma.size < 2 or not np.all(np.isfinite(gamma[:2])):
+        return {}
+    channel_noise_equalizer = np.asarray(patch.get("channel_noise_equalizer", []), dtype=float)
+    channel_noise_powers = np.asarray(patch.get("channel_noise_powers", []), dtype=float)
+    phase_deg = float((np.rad2deg(np.angle(gamma[1]) - np.angle(gamma[0])) + 180.0) % 360.0 - 180.0)
+    return {
+        "polarization_gamma0_real": float(np.real(gamma[0])),
+        "polarization_gamma0_imag": float(np.imag(gamma[0])),
+        "polarization_gamma1_real": float(np.real(gamma[1])),
+        "polarization_gamma1_imag": float(np.imag(gamma[1])),
+        "polarization_gamma0_abs": float(np.abs(gamma[0])),
+        "polarization_gamma1_abs": float(np.abs(gamma[1])),
+        "polarization_relative_phase_deg": phase_deg,
+        "polarization_metric_kind": patch.get("polarization_metric_kind", ""),
+        "polarization_metric_mask_pixels": patch.get("polarization_metric_mask_pixels", ""),
+        "polarization_metric": patch.get("polarization_metric", ""),
+        "polarization_signal_power": patch.get("polarization_signal_power", ""),
+        "polarization_noise_power": patch.get("polarization_noise_power", ""),
+        "channel_noise_equalizer0": channel_noise_equalizer[0] if channel_noise_equalizer.size > 0 else "",
+        "channel_noise_equalizer1": channel_noise_equalizer[1] if channel_noise_equalizer.size > 1 else "",
+        "channel_noise_power0": channel_noise_powers[0] if channel_noise_powers.size > 0 else "",
+        "channel_noise_power1": channel_noise_powers[1] if channel_noise_powers.size > 1 else "",
+    }
+
+
 def fit_patch(patch: dict, obs: dict, args: argparse.Namespace) -> dict:
     seed_range_km = float(obs["range_m"]) / 1000.0
     seed_rel_hz = float(obs["doppler_hz"]) - float(patch["model_doppler_hz"])
@@ -257,6 +286,7 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "n_coh",
         "n_incoh",
         "step_codes",
+        "doppler_zero_pad_factor",
         "notch_half_width",
         "fft_filter_domain",
         "inpaint_notched_columns",
@@ -264,6 +294,22 @@ def write_summary(path: Path, rows: list[dict]) -> None:
         "smooth_frequency_pixels",
         "coherent_window_s",
         "total_window_s",
+        "polarization_gamma0_real",
+        "polarization_gamma0_imag",
+        "polarization_gamma1_real",
+        "polarization_gamma1_imag",
+        "polarization_gamma0_abs",
+        "polarization_gamma1_abs",
+        "polarization_relative_phase_deg",
+        "polarization_metric_kind",
+        "polarization_metric_mask_pixels",
+        "polarization_metric",
+        "polarization_signal_power",
+        "polarization_noise_power",
+        "channel_noise_equalizer0",
+        "channel_noise_equalizer1",
+        "channel_noise_power0",
+        "channel_noise_power1",
         "sparse_voltage_subtract",
         "sparse_voltage_mode",
         "sparse_voltage_gain",
@@ -311,6 +357,7 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                     "n_coh": args.n_coh,
                     "n_incoh": args.n_incoh,
                     "step_codes": args.step_codes,
+                    "doppler_zero_pad_factor": args.doppler_zero_pad_factor,
                     "notch_half_width": args.notch_half_width,
                     "fft_filter_domain": args.fft_filter_domain,
                     "inpaint_notched_columns": bool(args.inpaint_notched_columns),
@@ -323,6 +370,7 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                     "sparse_voltage_gain": args.sparse_voltage_gain,
                     "figure": display_path(fig_path),
                 }
+                | polarization_summary_values(patch)
             )
             continue
         rows.append(
@@ -357,6 +405,7 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                 "n_coh": args.n_coh,
                 "n_incoh": args.n_incoh,
                 "step_codes": args.step_codes,
+                "doppler_zero_pad_factor": args.doppler_zero_pad_factor,
                 "notch_half_width": args.notch_half_width,
                 "fft_filter_domain": args.fft_filter_domain,
                 "inpaint_notched_columns": bool(args.inpaint_notched_columns),
@@ -369,6 +418,7 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
                 "sparse_voltage_gain": args.sparse_voltage_gain,
                 "figure": display_path(fig_path),
             }
+            | polarization_summary_values(patch)
         )
     return rows
 
@@ -391,6 +441,7 @@ def main() -> None:
     p.add_argument("--n-coh", type=int, default=16)
     p.add_argument("--n-incoh", type=int, default=1)
     p.add_argument("--step-codes", type=int, default=1)
+    p.add_argument("--doppler-zero-pad-factor", type=int, default=1)
     p.add_argument("--notch-half-width", type=int, default=1)
     p.add_argument("--fft-filter-domain", choices=("db", "linear"), default="linear")
     p.add_argument("--inpaint-notched-columns", action=argparse.BooleanOptionalAction, default=True)
@@ -406,6 +457,13 @@ def main() -> None:
     p.add_argument("--sparse-product-dir", type=Path, default=DEFAULT_SPARSE_PRODUCT_DIR)
     p.add_argument("--sparse-voltage-mode", choices=("full", "dc"), default="full")
     p.add_argument("--sparse-voltage-gain", type=float, default=1.0)
+    p.add_argument("--polarization-combine", action="store_true")
+    p.add_argument("--polarization-method", choices=("phase", "grid", "grid_image"), default="phase")
+    p.add_argument("--polarization-equalize-noise", action="store_true")
+    p.add_argument("--polarization-equalize-block-samples", type=int, default=100000)
+    p.add_argument("--polarization-grid-theta", type=int, default=91)
+    p.add_argument("--polarization-grid-phase", type=int, default=361)
+    p.add_argument("--polarization-phase-chunk", type=int, default=32)
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
     p.add_argument("--fit-range-half-width-km", type=float, default=5.0)
