@@ -28,7 +28,7 @@ AU = 1.495978707e11
 JUPITER_A_AU = 5.203
 OMEGA_EARTH = 7.2921150e-5
 ORBIT_H5 = ROOT / "products" / "orbit_determination" / "best_fit_orbit.h5"
-BALLISTIC_FIT_JSON = ROOT / "products" / "ballistic_head_trail_correlated_appendix_fit" / "ballistic_head_trail_correlated_fit.json"
+BALLISTIC_FIT_JSON: Path | None = None
 NEA_CSV = ROOT / "products" / "orbit_determination" / "nea_jopek_matches.csv"
 COMET_CSV = ROOT / "products" / "orbit_determination" / "comet_jopek_matches.csv"
 SOURCE_CSV = ROOT / "products" / "orbit_determination" / "meteor_source_matches.csv"
@@ -156,6 +156,51 @@ def eci_velocity_to_ecef(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, t_unix: flo
     return vel_rotated - np.cross(omega, pos_ecef)
 
 
+def h5_attr_text(value: object) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    if isinstance(value, np.bytes_):
+        return value.decode("utf-8")
+    return str(value)
+
+
+def resolve_h5_reference(path: Path, reference: str) -> Path:
+    ref = Path(reference)
+    if ref.is_absolute():
+        return ref
+    bases = [ROOT]
+    resolved = path.resolve()
+    if len(resolved.parents) > 2:
+        bases.append(resolved.parents[2])
+    bases.append(resolved.parent)
+    for base in bases:
+        candidate = base / ref
+        if candidate.exists():
+            return candidate
+    return ROOT / ref
+
+
+def infer_ballistic_fit_json(path: Path) -> Path | None:
+    if BALLISTIC_FIT_JSON is not None and BALLISTIC_FIT_JSON.exists():
+        return BALLISTIC_FIT_JSON
+    try:
+        with h5py.File(path, "r") as h:
+            trajectory_json = h5_attr_text(h.attrs.get("trajectory_json", ""))
+    except Exception:
+        return None
+    if not trajectory_json:
+        return None
+    initial_state = resolve_h5_reference(path, trajectory_json)
+    candidates = [
+        initial_state.with_name("ballistic_head_trail_correlated_fit.json"),
+        initial_state.with_name("ballistic_head_trail_fit.json"),
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     from angle_departure_estimator import enu_to_ecef_matrix
     from fit_ballistic_head_trail import (
@@ -167,7 +212,8 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
         state_at_time,
     )
 
-    if not BALLISTIC_FIT_JSON.exists():
+    ballistic_fit_json = infer_ballistic_fit_json(path)
+    if ballistic_fit_json is None:
         return {}
     with h5py.File(path, "r") as h:
         samples = np.asarray(h["sample_state_input"][()], dtype=float)
@@ -178,7 +224,7 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     elif samples.shape[0] > MAX_CROSSING_100KM_SAMPLES:
         idx = np.linspace(0, samples.shape[0] - 1, MAX_CROSSING_100KM_SAMPLES, dtype=int)
         samples = samples[idx]
-    payload = json.loads(BALLISTIC_FIT_JSON.read_text(encoding="utf-8"))
+    payload = json.loads(ballistic_fit_json.read_text(encoding="utf-8"))
     log10_cd_area_mass = float(payload["fit_parameters"][6])
     no_drag = bool(payload.get("settings", {}).get("no_drag", False))
     mean_params = np.r_[mean_state, log10_cd_area_mass]
@@ -377,7 +423,7 @@ def first_csv_row(path: Path) -> dict[str, str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate orbit source-association tables from orbit HDF5 and match CSVs.")
     parser.add_argument("--orbit-h5", type=Path, default=ORBIT_H5)
-    parser.add_argument("--ballistic-fit-json", type=Path, default=BALLISTIC_FIT_JSON)
+    parser.add_argument("--ballistic-fit-json", type=Path, default=None)
     parser.add_argument("--nea-csv", type=Path, default=NEA_CSV)
     parser.add_argument("--comet-csv", type=Path, default=COMET_CSV)
     parser.add_argument("--source-csv", type=Path, default=SOURCE_CSV)
