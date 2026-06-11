@@ -785,6 +785,114 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
     plt.close(fig)
 
 
+def plot_head_echo_residual_diagnostics(out: Path, params, obs, t_ref, density_profile, args) -> None:
+    stations = sorted(set(o["station"] for o in obs))
+    times = np.array([o["unix_time"] for o in obs], dtype=float)
+    pos_head, vel_head = propagate_state(params, times, t_ref, density_profile, use_drag=not args.no_drag)
+    pred_range, pred_doppler = head_predictions_from_states(pos_head, vel_head, obs)
+
+    fig, axes = plt.subplots(
+        2,
+        2,
+        figsize=(12.0, 7.2),
+        gridspec_kw={"width_ratios": [2.4, 1.0]},
+        constrained_layout=True,
+    )
+    residual_sets = [
+        {
+            "label": "Range",
+            "unit": "km",
+            "values": (pred_range - np.array([o["range_m"] for o in obs], dtype=float)) / 1000.0,
+            "sigma": np.array([o["range_sigma_m"] for o in obs], dtype=float) / 1000.0,
+            "use_key": "use_range",
+            "axis": axes[0],
+        },
+        {
+            "label": "Doppler",
+            "unit": "Hz",
+            "values": pred_doppler - np.array([o["doppler_hz"] for o in obs], dtype=float),
+            "sigma": np.array([o["doppler_sigma_hz"] for o in obs], dtype=float),
+            "use_key": "use_doppler",
+            "axis": axes[1],
+        },
+    ]
+
+    for ri, info in enumerate(residual_sets):
+        ax_time, ax_hist = info["axis"]
+        all_used_resid = []
+        all_used_norm = []
+        for si, station in enumerate(stations):
+            color = f"C{si}"
+            keep_station = np.array([o["station"] == station for o in obs], dtype=bool)
+            keep_used = np.array([bool(o.get(info["use_key"], True)) for o in obs], dtype=bool)
+            keep = keep_station & keep_used & np.isfinite(info["values"])
+            if not np.any(keep):
+                continue
+            tr = times[keep] - t_ref
+            resid = info["values"][keep]
+            sigma = info["sigma"][keep]
+            ax_time.errorbar(
+                tr,
+                resid,
+                yerr=sigma,
+                fmt="o",
+                ms=4.2,
+                lw=0.8,
+                capsize=1.5,
+                color=color,
+                ecolor=color,
+                alpha=0.75,
+                label=station.capitalize() if ri == 0 else None,
+            )
+            ax_hist.hist(
+                resid,
+                bins=18,
+                orientation="horizontal",
+                histtype="step",
+                color=color,
+                lw=1.4,
+                alpha=0.85,
+            )
+            all_used_resid.append(resid)
+            all_used_norm.append(resid / np.maximum(sigma, 1e-12))
+        ax_time.axhline(0.0, color="0.15", lw=1.0)
+        ax_hist.axhline(0.0, color="0.15", lw=1.0)
+        ax_time.grid(True, color="0.9", lw=0.6)
+        ax_hist.grid(True, color="0.9", lw=0.6)
+        ax_time.set_ylabel(f"{info['label']} residual ({info['unit']})")
+        ax_hist.set_xlabel("count")
+        ax_hist.set_yticklabels([])
+        ax_hist.set_title("station distributions")
+        if all_used_resid:
+            resid_all = np.concatenate(all_used_resid)
+            norm_all = np.concatenate(all_used_norm)
+            text = (
+                f"median={np.nanmedian(resid_all):+.2g} {info['unit']}\n"
+                f"RMS={np.sqrt(np.nanmean(resid_all**2)):.2g} {info['unit']}\n"
+                f"RMS/$\\sigma$={np.sqrt(np.nanmean(norm_all**2)):.2g}"
+            )
+            ax_time.text(
+                0.015,
+                0.96,
+                text,
+                transform=ax_time.transAxes,
+                ha="left",
+                va="top",
+                fontsize=8,
+                bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.82},
+            )
+            lim = float(np.nanpercentile(np.abs(resid_all), 98.0))
+            if np.isfinite(lim) and lim > 0.0:
+                ax_time.set_ylim(-1.12 * lim, 1.12 * lim)
+                ax_hist.set_ylim(ax_time.get_ylim())
+        add_version_stamp(ax_time, TRAJECTORY_FIT_VERSION)
+    axes[0, 0].legend(ncol=3, fontsize=9, loc="lower right")
+    axes[1, 0].set_xlabel(f"Seconds relative to {payload_time_label(t_ref)}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=240, bbox_inches="tight")
+    plt.close(fig)
+
+
 def head_snr_error_models(params, obs, t_ref, density_profile, args) -> dict:
     pos_head, vel_head = propagate_state(
         params,
@@ -1061,6 +1169,7 @@ def main() -> None:
 
     overview_plot = args.out_dir / "station_measurement_ballistic_correlated_overview.png"
     range_doppler_plot = args.out_dir / "ballistic_head_trail_correlated_range_doppler_fit.png"
+    head_residual_plot = args.out_dir / "head_echo_residual_diagnostics.png"
     altitude_plot = args.out_dir / "ballistic_head_trail_correlated_altitude_enu.png"
     lonlat_plot = args.out_dir / "ballistic_head_trail_correlated_lonlat_height.png"
     correlation_plot = args.out_dir / "measurement_overlap_correlation_overview.png"
@@ -1068,6 +1177,7 @@ def main() -> None:
     trail_error_plot = args.out_dir / "trail_position_correlated_error_vs_snr.png"
     trail_angle_plot = args.out_dir / "trail_aod_correlated_angle_error_vs_snr.png"
     plot_correlated_range_doppler(range_doppler_plot, xhat, cov_params, obs, t_ref, density_profile, args)
+    plot_head_echo_residual_diagnostics(head_residual_plot, xhat, obs, t_ref, density_profile, args)
     payload["head_snr_error_models"] = plot_head_snr_error_model(head_snr_plot, xhat, obs, t_ref, density_profile, args)
     (args.out_dir / "ballistic_head_trail_correlated_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     plot_station_measurement_ballistic_overview(overview_plot, xhat, obs, trail_rows, geom, t_ref, density_profile, impact_payload, args)
@@ -1076,7 +1186,7 @@ def main() -> None:
     plot_lonlat_height(lonlat_plot, payload, xhat, cov_params, obs, trail_rows, t_ref, t_model, density_profile, args)
     plot_trail_position_error_debug(trail_error_plot, payload, trail_rows, t_ref, tx0, rot)
     plot_trail_aod_angle_error_debug(trail_angle_plot, payload, trail_rows, t_ref, tx0, rot)
-    for plot in [impact_plot, overview_plot, range_doppler_plot, altitude_plot, lonlat_plot, correlation_plot, head_snr_plot, trail_error_plot, trail_angle_plot]:
+    for plot in [impact_plot, overview_plot, range_doppler_plot, head_residual_plot, altitude_plot, lonlat_plot, correlation_plot, head_snr_plot, trail_error_plot, trail_angle_plot]:
         shutil.copy2(plot, Path(args.report_fig_dir) / plot.name)
 
     write_appendix_summary(Path(args.report_table_dir) / "correlated_ballistic_fit_summary.tex", payload, old_payload, cov_meta)
