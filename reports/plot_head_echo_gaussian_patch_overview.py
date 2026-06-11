@@ -69,6 +69,7 @@ def cached_station_overview(group: h5py.Group, n_coh: int, notch_half_width: int
         )
 
     return {
+        "n_coh": int(n_coh),
         "time_rel_s": np.asarray(time_rel_s),
         "rel_freqs": rel_freqs,
         "range_residual_grid_km": range_residual_grid_km,
@@ -136,7 +137,7 @@ def plot_station(path: Path, station: str, data: dict, rois: dict) -> None:
         ax.set_ylabel(ylabel)
         fig.colorbar(im, ax=ax, label="dB")
     label = STATION_LABELS.get(station, station)
-    fig.suptitle(f"{label}: 16-code matched-filter overview on common a priori time grid", fontsize=14)
+    fig.suptitle(f"{label}: {int(data['n_coh'])}-code matched-filter overview on common a priori time grid", fontsize=14)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=180)
     plt.close(fig)

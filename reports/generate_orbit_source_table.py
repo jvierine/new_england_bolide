@@ -157,9 +157,6 @@ def eci_velocity_to_ecef(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, t_unix: flo
 
 
 def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
-    if not COMPUTE_CROSSING_100KM_UNCERTAINTY:
-        return {}
-
     from angle_departure_estimator import enu_to_ecef_matrix
     from fit_ballistic_head_trail import (
         build_density_profile,
@@ -196,7 +193,8 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     lats = []
     lons = []
     azs = []
-    zens = []
+    els = []
+    speeds = []
     search_t = np.arange(t_ref_unix, t_ref_unix + 30.0 + 0.05, 0.05)
     for sample in samples:
         params = np.r_[sample, log10_cd_area_mass]
@@ -210,25 +208,28 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
             lat, lon, _alt = gcrs_to_geodetic(pos, t_cross)
             vel_ecef = eci_velocity_to_ecef(pos, vel, t_cross)
             rot = enu_to_ecef_matrix(lat, lon)
-            radiant_enu = -vel_ecef @ rot
-            radiant_enu /= np.linalg.norm(radiant_enu)
-            east, north, up = radiant_enu
+            entry_enu = vel_ecef @ rot
+            entry_enu /= np.linalg.norm(entry_enu)
+            east, north, up = entry_enu
             az = math.degrees(math.atan2(east, north)) % 360.0
             el = math.degrees(math.asin(np.clip(up, -1.0, 1.0)))
+            speed_kmps = float(np.linalg.norm(vel_ecef) / 1000.0)
         except Exception:
             continue
         times.append(t_cross)
         lats.append(lat)
         lons.append(lon)
         azs.append(az)
-        zens.append(90.0 - el)
+        els.append(el)
+        speeds.append(speed_kmps)
 
     return {
         "time_unix": np.asarray(times, dtype=float),
         "lat_deg": np.asarray(lats, dtype=float),
         "lon_deg": np.asarray(lons, dtype=float),
         "az_deg": np.asarray(azs, dtype=float),
-        "zenith_deg": np.asarray(zens, dtype=float),
+        "el_deg": np.asarray(els, dtype=float),
+        "speed_kmps": np.asarray(speeds, dtype=float),
     }
 
 
@@ -286,10 +287,12 @@ def write_orbit_parameter_table(path: Path) -> None:
         lon_signed = (crossing["lon_deg"] + 180.0) % 360.0 - 180.0
         quantities.extend(
             [
-                ("Radiant azimuth at 100 km", "Az", "deg", crossing["az_deg"], True, 1),
-                ("Radiant zenith angle at 100 km", "$z$", "deg", crossing["zenith_deg"], False, 1),
+                ("Time at 100 km", "$t_{100}$", "UTC", crossing["time_unix"], False, -1),
                 ("Geodetic latitude at 100 km", "$\\phi_{100}$", "deg", crossing["lat_deg"], False, 2),
                 ("Geodetic longitude at 100 km", "$\\lambda_{100}$", "deg", lon_signed, False, 2),
+                ("Entry azimuth at 100 km", "Az$_{100}$", "deg", crossing["az_deg"], True, 1),
+                ("Entry elevation at 100 km", "El$_{100}$", "deg", crossing["el_deg"], False, 1),
+                ("Velocity at 100 km", "$v_{100}$", "km s$^{-1}$", crossing["speed_kmps"], False, 2),
             ]
         )
 
@@ -308,6 +311,9 @@ def write_orbit_parameter_table(path: Path) -> None:
     ]
     for name, symbol, unit, values, is_angle, digits in quantities:
         values = np.asarray(values, dtype=float)
+        if digits < 0:
+            lines.append(f"{name} & {symbol} & {unit} & {format_utc_pm(values)} \\\\\n")
+            continue
         if is_angle:
             mean = circular_mean_deg(values)
             sigma = angular_std_deg(values, mean)
@@ -316,8 +322,6 @@ def write_orbit_parameter_table(path: Path) -> None:
             finite_values = values[np.isfinite(values)]
             sigma = float(np.nanstd(finite_values, ddof=1)) if finite_values.size > 1 else math.nan
         lines.append(f"{name} & {symbol} & {unit} & {format_pm(mean, sigma, digits)} \\\\\n")
-    if crossing:
-        lines.append(f"Time at 100 km & $t_{{100}}$ & UTC & {format_utc_pm(crossing['time_unix'])} \\\\\n")
     lines.extend(["\\bottomrule\n", "\\end{tabular}\n"])
     PARAM_OUT.write_text("".join(lines), encoding="utf-8")
 

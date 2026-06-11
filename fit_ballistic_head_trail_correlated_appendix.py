@@ -68,23 +68,21 @@ ROOT = Path(__file__).resolve().parent
 DEFAULT_HEAD_SELECTION = (
     ROOT
     / "reports"
-    / "head_echo_python_selection_v0p2p6_polarized_residual_dcmean"
+    / "head_echo_python_selection_v0p2p7_zp16"
     / "head_echo_python_measurement_selection.csv"
 )
-DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_fit_v0p2p6_polarized_residual_manual"
-DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit"
-DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit"
-TRAJECTORY_FIT_VERSION = "0.2.6"
+DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5"
+DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit_v0p2p7_zp16_neighbor0p5"
+DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit_v0p2p7_zp16_neighbor0p5"
+TRAJECTORY_FIT_VERSION = "0.2.7"
 TRAJECTORY_FIT_VERSION_DESCRIPTION = (
-    "Selected head-echo correlated ballistic fit using sparse-fit residual "
-    "voltage, complex-mean DC subtraction, channel-noise equalization, "
-    "Gaussian-mask polarization matched range-Doppler measurements, and "
-    "manually selected v0.2.6 polarized-residual head echoes. Mutual "
-    "correlations are included within "
-    "head-echo and trail-echo measurements. Head-echo correlations follow "
-    "coherent-integration overlap in time; trail-position correlations require "
-    "temporal overlap and the same raw range gate, with different range gates "
-    "treated as uncorrelated."
+    "Selected head-echo correlated ballistic fit using v0.2.7 n_coh=1, "
+    "n_incoh=2, 16x-code FFT, sparse-fit residual voltage, global "
+    "complex-mean DC subtraction, Gaussian matched range-Doppler "
+    "measurements, and station-specific manual range/Doppler selections. "
+    "Only neighbouring selected head measurements within the same station "
+    "and observable are correlated; trail-position correlations require "
+    "temporal overlap and the same raw range gate."
 )
 OMEGA_EARTH = 7.2921150e-5
 C = 299792458.0
@@ -108,26 +106,38 @@ def fixed_log10_cd_area_over_mass(args) -> float:
 
 def load_selected_head_observations(path: Path) -> list[dict]:
     df = pd.read_csv(path)
-    df = df[df["selection"].astype(str).str.lower() == "real"].copy()
+    if "real_range" not in df.columns:
+        df["real_range"] = df["selection"].astype(str).str.lower() == "real"
+    if "real_doppler" not in df.columns:
+        df["real_doppler"] = df["selection"].astype(str).str.lower() == "real"
+    df["real_range"] = df["real_range"].astype(str).str.lower().isin({"true", "1", "yes", "real"})
+    df["real_doppler"] = df["real_doppler"].astype(str).str.lower().isin({"true", "1", "yes", "real"})
+    df = df[df["real_range"] | df["real_doppler"]].copy()
     df["station"] = df["station"].astype(str).str.lower()
-    required = ["station", "time_unix", "fit_range_m", "fit_doppler_hz"]
+    required = ["station", "time_unix"]
     df = df.dropna(subset=required)
     rows = []
     for _idx, row in df.sort_values(["station", "time_unix", "idx"]).iterrows():
+        use_range = bool(row["real_range"]) and np.isfinite(float(row.get("fit_range_m", np.nan)))
+        use_doppler = bool(row["real_doppler"]) and np.isfinite(float(row.get("fit_doppler_hz", np.nan)))
+        if not use_range and not use_doppler:
+            continue
         rows.append(
             {
                 "station": str(row["station"]),
                 "unix_time": float(row["time_unix"]),
-                "range_m": float(row["fit_range_m"]),
-                "doppler_hz": float(row["fit_doppler_hz"]),
+                "range_m": float(row["fit_range_m"]) if np.isfinite(float(row.get("fit_range_m", np.nan))) else np.nan,
+                "doppler_hz": float(row["fit_doppler_hz"]) if np.isfinite(float(row.get("fit_doppler_hz", np.nan))) else np.nan,
                 "snr_db": float(row.get("amplitude_db", np.nan)),
                 "range_sigma_m": float(max(row.get("sigma_range_m", np.nan), 500.0)),
                 "doppler_sigma_hz": float(max(row.get("sigma_doppler_hz", np.nan), 25.0)),
                 "source_idx": int(row.get("idx", -1)),
+                "use_range": use_range,
+                "use_doppler": use_doppler,
             }
         )
     if not rows:
-        raise ValueError(f"No real selected head observations found in {path}")
+        raise ValueError(f"No selected head observations found in {path}")
     return rows
 
 
@@ -158,18 +168,50 @@ def raw_residuals(params, obs, trail_rows, t_ref, t_model, density_profile, args
         )
         pos_model, _vel_model = propagate_state(params, t_model, t_ref, density_profile, use_drag=not args.no_drag)
     except Exception:
-        return np.full(2 * len(obs) + 3 * len(trail_rows), 1e12, dtype=float)
+        return np.full(len(head_measurement_records(obs)) + 3 * len(trail_rows), 1e12, dtype=float)
     pred_range, pred_doppler = head_predictions_from_states(pos_head, vel_head, obs)
-    meas_range = np.array([o["range_m"] for o in obs], dtype=float)
-    meas_doppler = np.array([o["doppler_hz"] for o in obs], dtype=float)
+    head_residuals = []
+    for i, ob in enumerate(obs):
+        if ob.get("use_range", True):
+            head_residuals.append(float(pred_range[i] - float(ob["range_m"])))
+        if ob.get("use_doppler", True):
+            head_residuals.append(float(pred_doppler[i] - float(ob["doppler_hz"])))
     trail_points = np.array([r["gcrs_ref_m"] for r in trail_rows], dtype=float)
     trail_vec, _idx = closest_curve_vectors(trail_points, pos_model)
-    return np.r_[pred_range - meas_range, pred_doppler - meas_doppler, trail_vec.ravel()]
+    return np.r_[np.asarray(head_residuals, dtype=float), trail_vec.ravel()]
 
 
 def overlap_corr(dt_s: np.ndarray, code_period_s: float, n_codes: int) -> np.ndarray:
     lag_codes = np.rint(np.abs(dt_s) / code_period_s).astype(int)
     return np.maximum(0.0, 1.0 - lag_codes / float(n_codes))
+
+
+def coherent_incoherent_overlap_corr(
+    dt_s: np.ndarray,
+    *,
+    n_coh: int,
+    n_incoh: int,
+    step_codes: int,
+    code_period_s: float,
+) -> np.ndarray:
+    lag_codes = np.rint(np.abs(dt_s) / code_period_s).astype(int)
+    n_coh = max(1, int(n_coh))
+    n_incoh = max(1, int(n_incoh))
+    step_codes = max(1, int(step_codes))
+
+    def covariance_for_lag(lag: int) -> float:
+        total = 0.0
+        for left in range(n_incoh):
+            for right in range(n_incoh):
+                coherent_lag = abs(int(lag) + (right - left) * step_codes)
+                total += max(0.0, 1.0 - coherent_lag / float(n_coh))
+        return total
+
+    norm = covariance_for_lag(0)
+    if norm <= 0.0:
+        return np.zeros_like(lag_codes, dtype=float)
+    corr = np.vectorize(lambda lag: covariance_for_lag(int(lag)) / norm, otypes=[float])(lag_codes)
+    return np.clip(corr, 0.0, 1.0)
 
 
 def fill_correlated_block(
@@ -193,6 +235,58 @@ def fill_correlated_block(
     cov[np.ix_(indices, indices)] = block
 
 
+def fill_head_correlated_block(
+    cov: np.ndarray,
+    indices: list[int],
+    times: np.ndarray,
+    sigma: np.ndarray,
+    *,
+    n_coh: int,
+    n_incoh: int,
+    step_codes: int,
+    code_period_s: float,
+) -> int:
+    if len(indices) == 0:
+        return 0
+    times = np.asarray(times, dtype=float)
+    sigma = np.asarray(sigma, dtype=float)
+    corr = coherent_incoherent_overlap_corr(
+        times[:, None] - times[None, :],
+        n_coh=n_coh,
+        n_incoh=n_incoh,
+        step_codes=step_codes,
+        code_period_s=code_period_s,
+    )
+    cov[np.ix_(indices, indices)] = corr * sigma[:, None] * sigma[None, :]
+    return int(np.count_nonzero(np.triu(corr > 0.0, k=1)))
+
+
+def head_measurement_records(obs: list[dict]) -> list[dict]:
+    records = []
+    for oi, ob in enumerate(obs):
+        if ob.get("use_range", True):
+            records.append(
+                {
+                    "obs_index": oi,
+                    "kind": "range",
+                    "station": ob["station"],
+                    "unix_time": float(ob["unix_time"]),
+                    "sigma": float(ob["range_sigma_m"]),
+                }
+            )
+        if ob.get("use_doppler", True):
+            records.append(
+                {
+                    "obs_index": oi,
+                    "kind": "doppler",
+                    "station": ob["station"],
+                    "unix_time": float(ob["unix_time"]),
+                    "sigma": float(ob["doppler_sigma_hz"]),
+                }
+            )
+    return records
+
+
 def trail_range_gate_ids(rows: list[dict], gate_m: float) -> np.ndarray:
     ids = []
     for row in rows:
@@ -210,33 +304,32 @@ def trail_range_gate_ids(rows: list[dict], gate_m: float) -> np.ndarray:
 
 def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) -> tuple[np.ndarray, dict]:
     n_head = len(obs)
+    head_records = head_measurement_records(obs)
+    n_head_residuals = len(head_records)
     n_trail = len(trail_rows)
-    n = 2 * n_head + 3 * n_trail
+    n = n_head_residuals + 3 * n_trail
     cov = np.zeros((n, n), dtype=float)
 
-    for station in sorted(set(o["station"] for o in obs)):
-        idx_obs = [i for i, o in enumerate(obs) if o["station"] == station]
-        times = np.array([obs[i]["unix_time"] for i in idx_obs], dtype=float)
-        range_sigma = np.array([obs[i]["range_sigma_m"] for i in idx_obs], dtype=float)
-        dop_sigma = np.array([obs[i]["doppler_sigma_hz"] for i in idx_obs], dtype=float)
-        fill_correlated_block(
-            cov,
-            idx_obs,
-            times,
-            range_sigma,
-            n_codes=args.head_coherent_codes,
-            code_period_s=args.code_period_s,
-        )
-        fill_correlated_block(
-            cov,
-            [n_head + i for i in idx_obs],
-            times,
-            dop_sigma,
-            n_codes=args.head_coherent_codes,
-            code_period_s=args.code_period_s,
-        )
+    head_correlated_pairs = 0
+    for station in sorted(set(r["station"] for r in head_records)):
+        for kind in ("range", "doppler"):
+            keyed = [(i, r) for i, r in enumerate(head_records) if r["station"] == station and r["kind"] == kind]
+            keyed.sort(key=lambda item: (item[1]["unix_time"], item[1]["obs_index"]))
+            indices = [i for i, _r in keyed]
+            times = np.array([r["unix_time"] for _i, r in keyed], dtype=float)
+            sigma = np.array([r["sigma"] for _i, r in keyed], dtype=float)
+            head_correlated_pairs += fill_head_correlated_block(
+                cov,
+                indices,
+                times,
+                sigma,
+                n_coh=args.head_coherent_codes,
+                n_incoh=args.head_incoherent_spectra,
+                step_codes=args.head_step_codes,
+                code_period_s=args.code_period_s,
+            )
 
-    trail_base = 2 * n_head
+    trail_base = n_head_residuals
     trail_offdiag_correlated = 0
     trail_offdiag_same_time_different_gate = 0
     for comp in range(3):
@@ -267,14 +360,29 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
     meta = {
         "n_residuals": int(n),
         "n_head_observations": int(n_head),
+        "n_head_range_measurements": int(sum(1 for r in head_records if r["kind"] == "range")),
+        "n_head_doppler_measurements": int(sum(1 for r in head_records if r["kind"] == "doppler")),
+        "n_head_residuals": int(n_head_residuals),
         "n_trail_positions": int(n_trail),
         "head_coherent_codes": int(args.head_coherent_codes),
+        "head_incoherent_spectra": int(args.head_incoherent_spectra),
+        "head_step_codes": int(args.head_step_codes),
+        "head_neighbor_correlation": float(
+            coherent_incoherent_overlap_corr(
+                np.array(args.head_step_codes * args.code_period_s),
+                n_coh=args.head_coherent_codes,
+                n_incoh=args.head_incoherent_spectra,
+                step_codes=args.head_step_codes,
+                code_period_s=args.code_period_s,
+            )
+        ),
+        "head_neighbor_correlated_pairs": int(head_correlated_pairs),
         "trail_coherent_codes": int(args.trail_coherent_codes),
         "code_period_s": float(args.code_period_s),
         "trail_correlation_range_gate_m": float(args.trail_correlation_range_gate_m),
         "trail_offdiag_correlated_pairs": int(trail_offdiag_correlated),
         "trail_offdiag_time_overlap_different_gate_pairs": int(trail_offdiag_same_time_different_gate),
-        "description": "Block covariance with triangular coherent-integration overlap correlation within each station and observable; trail interferometric position correlations are retained only for measurements in the same raw range gate.",
+        "description": "Head range and Doppler residuals are selected independently. Within each station and observable, head correlations are computed from n_coh, n_incoh, step_codes, and code_period_s. Trail interferometric position correlations are retained only for measurements in the same raw range gate.",
     }
     return cov, meta
 
@@ -299,13 +407,49 @@ def head_neighbor_correlations(obs: list[dict], args) -> np.ndarray:
     corr = np.zeros(len(obs), dtype=float)
     for station in sorted(set(o["station"] for o in obs)):
         idx = [i for i, o in enumerate(obs) if o["station"] == station]
-        times = np.array([obs[i]["unix_time"] for i in idx], dtype=float)
-        corr[idx] = max_neighbor_correlation(
-            times,
-            n_codes=args.head_coherent_codes,
-            code_period_s=args.code_period_s,
-        )
+        for use_key in ("use_range", "use_doppler"):
+            subidx = [i for i in idx if obs[i].get(use_key, True)]
+            if not subidx:
+                continue
+            order = sorted(subidx, key=lambda i: (float(obs[i]["unix_time"]), int(obs[i].get("source_idx", -1))))
+            times = np.array([obs[i]["unix_time"] for i in order], dtype=float)
+            values = max_head_correlation(
+                times,
+                n_coh=args.head_coherent_codes,
+                n_incoh=args.head_incoherent_spectra,
+                step_codes=args.head_step_codes,
+                code_period_s=args.code_period_s,
+            )
+            for i, val in zip(order, values, strict=True):
+                corr[i] = max(corr[i], float(val))
     return corr
+
+
+def max_head_correlation(
+    times: np.ndarray,
+    *,
+    n_coh: int,
+    n_incoh: int,
+    step_codes: int,
+    code_period_s: float,
+) -> np.ndarray:
+    if len(times) == 0:
+        return np.empty(0, dtype=float)
+    corr = coherent_incoherent_overlap_corr(
+        times[:, None] - times[None, :],
+        n_coh=n_coh,
+        n_incoh=n_incoh,
+        step_codes=step_codes,
+        code_period_s=code_period_s,
+    )
+    np.fill_diagonal(corr, 0.0)
+    return np.max(corr, axis=1)
+
+
+def head_correlation_annotation(args) -> tuple[float, str]:
+    window_s = ((max(1, int(args.head_incoherent_spectra)) - 1) * max(1, int(args.head_step_codes)) + max(1, int(args.head_coherent_codes))) * float(args.code_period_s)
+    label = rf"$\Delta t = {window_s:.2f}$ s"
+    return window_s, label
 
 
 def trail_neighbor_correlations(trail_rows: list[dict], args) -> np.ndarray:
@@ -462,9 +606,24 @@ def embed_state_covariance(cov6: np.ndarray) -> np.ndarray:
 
 
 def load_initial_state(args, t_ref: float) -> np.ndarray:
-    old = json.loads(Path(args.initial_ballistic_json).read_text(encoding="utf-8"))
+    old = load_initial_payload(args.initial_ballistic_json)
     state = np.asarray(old["fit_parameters"][:6], dtype=float)
     return shift_eci_state_linear(state, float(old["t_ref_unix"]), t_ref)
+
+
+def load_initial_payload(path: Path) -> dict:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if "fit_parameters" in payload and "t_ref_unix" in payload:
+        return payload
+    if "state" in payload and "time_unix" in payload:
+        state = np.asarray(payload["state"], dtype=float)
+        if state.size < 6:
+            raise ValueError(f"Initial-state JSON {path} has fewer than six state elements")
+        out = dict(payload)
+        out["t_ref_unix"] = float(payload["time_unix"])
+        out["fit_parameters"] = np.r_[state[:6], fixed_log10_cd_area_over_mass(argparse.Namespace(body_diameter_m=FIXED_BODY_DIAMETER_M, body_cd=FIXED_BODY_CD, body_mass_kg=FIXED_BODY_MASS_KG))].tolist()
+        return out
+    raise ValueError(f"Initial ballistic JSON {path} is neither a full fit payload nor an initial-state payload")
 
 
 def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_meta: dict) -> None:
@@ -486,10 +645,16 @@ def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_met
         f"% trajectory_fit_version: {payload.get('trajectory_fit_version', 'unspecified')}\n",
         f"% trajectory_fit_version_description: {payload.get('trajectory_fit_version_description', 'unspecified')}\n",
         f"\\newcommand{{\\CorrFitNHead}}{{{payload['n_head_observations']}}}\n",
+        f"\\newcommand{{\\CorrFitNHeadRange}}{{{cov_meta['n_head_range_measurements']}}}\n",
+        f"\\newcommand{{\\CorrFitNHeadDoppler}}{{{cov_meta['n_head_doppler_measurements']}}}\n",
         f"\\newcommand{{\\CorrFitNTrail}}{{{payload['n_trail_positions']}}}\n",
         f"\\newcommand{{\\CorrFitNResiduals}}{{{cov_meta['n_residuals']}}}\n",
         f"\\newcommand{{\\CorrFitReducedChiSq}}{{{fmt(payload['correlated_covariance']['reduced_chi2'], 2)}}}\n",
         f"\\newcommand{{\\CorrFitHeadCoherentCodes}}{{{cov_meta['head_coherent_codes']}}}\n",
+        f"\\newcommand{{\\CorrFitHeadIncoherentSpectra}}{{{cov_meta['head_incoherent_spectra']}}}\n",
+        f"\\newcommand{{\\CorrFitHeadStepCodes}}{{{cov_meta['head_step_codes']}}}\n",
+        f"\\newcommand{{\\CorrFitHeadNeighborCorrelation}}{{{fmt(cov_meta['head_neighbor_correlation'], 2)}}}\n",
+        f"\\newcommand{{\\CorrFitHeadNeighborPairs}}{{{cov_meta['head_neighbor_correlated_pairs']}}}\n",
         f"\\newcommand{{\\CorrFitTrailCoherentCodes}}{{{cov_meta['trail_coherent_codes']}}}\n",
         f"\\newcommand{{\\CorrFitTrailCorrelationGateKm}}{{{fmt(cov_meta['trail_correlation_range_gate_m'] / 1000.0, 1)}}}\n",
         f"\\newcommand{{\\CorrFitTrailSameGatePairs}}{{{cov_meta['trail_offdiag_correlated_pairs']}}}\n",
@@ -557,6 +722,8 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
         meas_d = np.array([o["doppler_hz"] for o in so], dtype=float) / 1000.0
         sig_r = np.array([o["range_sigma_m"] for o in so], dtype=float) / 1000.0
         sig_d = np.array([o["doppler_sigma_hz"] for o in so], dtype=float) / 1000.0
+        use_r = np.array([bool(o.get("use_range", True)) for o in so], dtype=bool)
+        use_d = np.array([bool(o.get("use_doppler", True)) for o in so], dtype=bool)
         tr = times - t_ref
         sample_r = []
         sample_d = []
@@ -570,8 +737,10 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
             except Exception:
                 continue
         label = station.capitalize()
-        axes[0].errorbar(tr, meas_r, yerr=sig_r, fmt="o", ms=4, color=color, ecolor=color, alpha=0.65, capsize=1.5, label=f"{label} selected")
-        axes[1].errorbar(tr, meas_d, yerr=sig_d, fmt="o", ms=4, color=color, ecolor=color, alpha=0.65, capsize=1.5, label=f"{label} selected")
+        if np.any(use_r):
+            axes[0].errorbar(tr[use_r], meas_r[use_r], yerr=sig_r[use_r], fmt="o", ms=4, color=color, ecolor=color, alpha=0.65, capsize=1.5, label=f"{label} selected")
+        if np.any(use_d):
+            axes[1].errorbar(tr[use_d], meas_d[use_d], yerr=sig_d[use_d], fmt="o", ms=4, color=color, ecolor=color, alpha=0.65, capsize=1.5, label=f"{label} selected")
         axes[0].plot(tr, pr / 1000.0, color=color, lw=2.0, label=f"{label} ballistic fit")
         axes[1].plot(tr, pd / 1000.0, color=color, lw=2.0, label=f"{label} ballistic fit")
         if sample_r:
@@ -582,7 +751,7 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
     for ax in axes:
         add_version_stamp(ax, TRAJECTORY_FIT_VERSION)
     corr_center_s = 4.0
-    corr_dt_s = 0.16
+    corr_dt_s, corr_label = head_correlation_annotation(args)
     corr_y_khz = -2.5
     axes[1].errorbar(
         [corr_center_s],
@@ -598,7 +767,7 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
     axes[1].text(
         corr_center_s,
         corr_y_khz + 0.12,
-        r"$\Delta t = 0.16$",
+        corr_label,
         ha="center",
         va="bottom",
         fontsize=9,
@@ -628,9 +797,11 @@ def head_snr_error_models(params, obs, t_ref, density_profile, args) -> dict:
     meas_range = np.array([o["range_m"] for o in obs], dtype=float)
     meas_doppler = np.array([o["doppler_hz"] for o in obs], dtype=float)
     snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    use_range = np.array([bool(o.get("use_range", True)) for o in obs], dtype=bool)
+    use_doppler = np.array([bool(o.get("use_doppler", True)) for o in obs], dtype=bool)
     return {
-        "range": fit_snr_error_model(pred_range - meas_range, snr_db, floor=150.0, unit="m", name="bistatic range"),
-        "doppler": fit_snr_error_model(pred_doppler - meas_doppler, snr_db, floor=25.0, unit="Hz", name="Doppler"),
+        "range": fit_snr_error_model(pred_range[use_range] - meas_range[use_range], snr_db[use_range], floor=150.0, unit="m", name="bistatic range"),
+        "doppler": fit_snr_error_model(pred_doppler[use_doppler] - meas_doppler[use_doppler], snr_db[use_doppler], floor=25.0, unit="Hz", name="Doppler"),
     }
 
 
@@ -645,19 +816,23 @@ def plot_head_snr_error_model(out: Path, params, obs, t_ref, density_profile, ar
     )
     pred_range, pred_doppler = head_predictions_from_states(pos_head, vel_head, obs)
     snr_db = np.array([float(o.get("snr_db", np.nan)) for o in obs], dtype=float)
+    use_range = np.array([bool(o.get("use_range", True)) for o in obs], dtype=bool)
+    use_doppler = np.array([bool(o.get("use_doppler", True)) for o in obs], dtype=bool)
+    meas_range = np.array([o["range_m"] for o in obs], dtype=float)
+    meas_doppler = np.array([o["doppler_hz"] for o in obs], dtype=float)
     residuals = [
-        ("Range", pred_range - np.array([o["range_m"] for o in obs], dtype=float), models["range"]),
-        ("Doppler", pred_doppler - np.array([o["doppler_hz"] for o in obs], dtype=float), models["doppler"]),
+        ("Range", pred_range[use_range] - meas_range[use_range], snr_db[use_range], models["range"]),
+        ("Doppler", pred_doppler[use_doppler] - meas_doppler[use_doppler], snr_db[use_doppler], models["doppler"]),
     ]
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.6), constrained_layout=True)
-    for ax, (label, resid, model) in zip(axes, residuals, strict=True):
-        good = np.isfinite(snr_db) & np.isfinite(resid)
-        ax.scatter(snr_db[good], np.abs(resid[good]), s=22, color="0.35", alpha=0.55, label="absolute residual")
+    for ax, (label, resid, resid_snr_db, model) in zip(axes, residuals, strict=True):
+        good = np.isfinite(resid_snr_db) & np.isfinite(resid)
+        ax.scatter(resid_snr_db[good], np.abs(resid[good]), s=22, color="0.35", alpha=0.55, label="absolute residual")
         bins = model.get("bins", [])
         if bins:
             ax.plot([b["snr_db"] for b in bins], [b["std"] for b in bins], "o", color="C1", ms=7, label="binned robust std")
         if np.any(good):
-            xgrid = np.linspace(float(np.nanmin(snr_db[good])), float(np.nanmax(snr_db[good])), 200)
+            xgrid = np.linspace(float(np.nanmin(resid_snr_db[good])), float(np.nanmax(resid_snr_db[good])), 200)
             ax.plot(xgrid, sigmas_from_snr_model(model, xgrid), color="C3", lw=2.2, label=f"{model['type']} model")
         ax.set_title(f"{label} error model")
         ax.set_xlabel("Matched-filter SNR (dB)")
@@ -792,7 +967,7 @@ def main() -> None:
         row["gcrs_ref_m"] = ecef_to_gcrs(row["position_ecef_m"], row["unix_time"])
 
     base_state = load_initial_state(args, t_ref)
-    old_payload = json.loads(Path(args.initial_ballistic_json).read_text(encoding="utf-8"))
+    old_payload = load_initial_payload(args.initial_ballistic_json)
     fixed_log_drag = fixed_log10_cd_area_over_mass(args)
     old_params_shifted = np.r_[base_state, fixed_log_drag]
     q0 = np.zeros(6, dtype=float)
@@ -851,7 +1026,7 @@ def main() -> None:
     payload["correlated_covariance"] = {
         **cov_meta,
         "reduced_chi2": chi2_red,
-        "covariance_model": "Sigma blocks use triangular overlap autocorrelation. Trail interferometric-position off-diagonal terms are retained only for same-station measurements in the same raw range gate; overlapping measurements in different raw 3 km range gates are treated as uncorrelated. Parameter covariance is the standard linearized GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters.",
+        "covariance_model": "Head range and Doppler residuals are selected independently. Head correlations within the same station and observable are computed from the overlap implied by n_coh, n_incoh, step_codes, and code_period_s. For the v0.2.7 n_coh=1, n_incoh=2, step_codes=1 run, this reduces to adjacent-only rho=0.5. Trail interferometric-position off-diagonal terms are retained only for same-station measurements in the same raw range gate; overlapping measurements in different raw 3 km range gates are treated as uncorrelated. Parameter covariance is the standard linearized GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters.",
     }
     payload["fixed_body"] = {
         "diameter_m": float(args.body_diameter_m),
@@ -917,14 +1092,17 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--head-selection-csv", type=Path, default=DEFAULT_HEAD_SELECTION)
     p.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     p.add_argument("--trail-json", type=Path, default=DEFAULT_TRAIL)
-    p.add_argument("--initial-ballistic-json", type=Path, default=ROOT / "products" / "ballistic_head_trail_fit" / "ballistic_head_trail_fit.json")
+    p.add_argument("--initial-ballistic-json", type=Path, default=ROOT / "products" / "ballistic_head_trail_fit" / "ballistic_initial_state.json")
     p.add_argument("--combined-fit-json", type=Path, default=DEFAULT_COMBINED_FIT)
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--report-fig-dir", type=Path, default=DEFAULT_REPORT_DIR)
     p.add_argument("--report-table-dir", type=Path, default=DEFAULT_REPORT_TABLE_DIR)
     p.add_argument("--trajectory-fit-version", default=TRAJECTORY_FIT_VERSION)
     p.add_argument("--trajectory-fit-version-description", default=TRAJECTORY_FIT_VERSION_DESCRIPTION)
-    p.add_argument("--head-coherent-codes", type=int, default=16)
+    p.add_argument("--head-coherent-codes", type=int, default=1)
+    p.add_argument("--head-incoherent-spectra", type=int, default=2)
+    p.add_argument("--head-step-codes", type=int, default=1)
+    p.add_argument("--head-neighbor-correlation", type=float, default=0.5)
     p.add_argument("--trail-coherent-codes", type=int, default=8)
     p.add_argument("--code-period-s", type=float, default=0.01)
     p.add_argument("--trail-correlation-range-gate-m", type=float, default=3000.0)

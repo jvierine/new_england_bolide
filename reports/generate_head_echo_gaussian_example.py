@@ -487,11 +487,18 @@ def main() -> None:
     p.add_argument("--fit-range-half-width-km", type=float, default=5.0)
     p.add_argument("--fit-doppler-half-width-hz", type=float, default=300.0)
     p.add_argument("--smooth-range-pixels", type=float, default=4.0)
-    p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
+    p.add_argument(
+        "--smooth-frequency-pixels",
+        type=float,
+        default=None,
+        help="Frequency-axis Gaussian smoothing in pixels; defaults to 2*n_coh.",
+    )
     p.add_argument("--cache", type=Path, default=OUT_CACHE)
     p.add_argument("--out", type=Path, default=OUT_FIG)
     p.add_argument("--plot-only", action="store_true")
     args = p.parse_args()
+    if args.smooth_frequency_pixels is None:
+        args.smooth_frequency_pixels = 2.0 * float(args.n_coh)
 
     md2d.DATA_DIR = args.data_dir
 

@@ -395,7 +395,12 @@ def main() -> None:
     p.add_argument("--fft-filter-domain", choices=("db", "linear"), default="linear")
     p.add_argument("--inpaint-notched-columns", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--smooth-range-pixels", type=float, default=4.0)
-    p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
+    p.add_argument(
+        "--smooth-frequency-pixels",
+        type=float,
+        default=None,
+        help="Frequency-axis Gaussian smoothing in pixels; defaults to 2*n_coh.",
+    )
     p.add_argument("--dc-cancel", action="store_true")
     p.add_argument("--sparse-voltage-subtract", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--sparse-product-dir", type=Path, default=DEFAULT_SPARSE_PRODUCT_DIR)
@@ -408,6 +413,8 @@ def main() -> None:
     p.add_argument("--out-dir", type=Path, default=OUT_DIR)
     p.add_argument("--summary", type=Path, default=OUT_CSV)
     args = p.parse_args()
+    if args.smooth_frequency_pixels is None:
+        args.smooth_frequency_pixels = 2.0 * float(args.n_coh)
 
     global G_ARGS
     G_ARGS = args

@@ -5,7 +5,10 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from dasst.functions import ca_criteria
+try:
+    from dasst.functions import ca_criteria
+except ModuleNotFoundError:
+    from dasst.similarity import ca_criteria
 
 import sys
 

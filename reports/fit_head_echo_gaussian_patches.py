@@ -275,7 +275,12 @@ def main() -> None:
     p.add_argument("--fft-filter-domain", choices=("db", "linear"), default="linear")
     p.add_argument("--inpaint-notched-columns", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--smooth-range-pixels", type=float, default=4.0)
-    p.add_argument("--smooth-frequency-pixels", type=float, default=16.0)
+    p.add_argument(
+        "--smooth-frequency-pixels",
+        type=float,
+        default=None,
+        help="Frequency-axis Gaussian smoothing in pixels; defaults to 2*n_coh.",
+    )
     p.add_argument("--code-period-s", type=float, default=0.01)
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
@@ -283,6 +288,8 @@ def main() -> None:
     p.add_argument("--fit-doppler-half-width-hz", type=float, default=300.0)
     p.add_argument("--limit", type=int, default=None)
     args = p.parse_args()
+    if args.smooth_frequency_pixels is None:
+        args.smooth_frequency_pixels = 2.0 * float(args.n_coh)
 
     settings = {
         "n_coh": args.n_coh,

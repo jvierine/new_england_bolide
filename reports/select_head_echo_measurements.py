@@ -5,15 +5,16 @@ Keyboard shortcuts:
   r  switch brush mode to real
   x  switch brush mode to reject
   u  switch brush mode to unknown
-  c  clear current selection
-  a  select all points in current station
+  c  clear all selections in current station
   n  next station
   p  previous station
   s  save JSON/CSV
   q  save and close
 
 Use the lasso tool on either panel, or click near a point, to apply the current
-brush mode. Classifications are saved to disk immediately after every edit.
+brush mode. Painting the range panel selects range measurements; painting the
+Doppler panel selects Doppler measurements. Classifications are saved to disk
+immediately after every edit.
 """
 
 from __future__ import annotations
@@ -50,7 +51,6 @@ STATUS_COLORS = {
     "reject": "tab:red",
 }
 
-
 def load_measurements(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     df = df[df["success"].astype(str).str.lower() == "true"].copy()
@@ -77,11 +77,16 @@ def load_measurements(path: Path) -> pd.DataFrame:
     return df.sort_values(["station", "time_rel_s", "idx"]).reset_index(drop=True)
 
 
-def default_state(df: pd.DataFrame) -> dict[str, str]:
-    return {key: "unknown" for key in df["key"]}
+def default_state(df: pd.DataFrame) -> dict[str, dict[str, str]]:
+    return {key: {"range": "unknown", "doppler": "unknown"} for key in df["key"]}
 
 
-def load_state(path: Path, df: pd.DataFrame) -> dict[str, str]:
+def normalize_status(value: object) -> str:
+    status = str(value).lower()
+    return status if status in {"unknown", "real", "reject"} else "unknown"
+
+
+def load_state(path: Path, df: pd.DataFrame) -> dict[str, dict[str, str]]:
     state = default_state(df)
     if not path.exists():
         return state
@@ -91,19 +96,29 @@ def load_state(path: Path, df: pd.DataFrame) -> dict[str, str]:
     if isinstance(data, list):
         for row in data:
             key = f"{row['station']}:{int(row['idx'])}"
-            sel = str(row.get("selection", "unknown")).lower()
-            if key in state and sel in {"unknown", "real", "reject"}:
-                state[key] = sel
+            if key not in state:
+                continue
+            if "selection_range" in row or "selection_doppler" in row:
+                state[key]["range"] = normalize_status(row.get("selection_range", "unknown"))
+                state[key]["doppler"] = normalize_status(row.get("selection_doppler", "unknown"))
+            else:
+                sel = normalize_status(row.get("selection", "unknown"))
+                state[key] = {"range": sel, "doppler": sel}
     elif isinstance(data, dict):
         for key, sel in data.items():
-            sel = str(sel).lower()
-            if key in state and sel in {"unknown", "real", "reject"}:
-                state[key] = sel
+            if key not in state:
+                continue
+            if isinstance(sel, dict):
+                state[key]["range"] = normalize_status(sel.get("range", "unknown"))
+                state[key]["doppler"] = normalize_status(sel.get("doppler", "unknown"))
+            else:
+                status = normalize_status(sel)
+                state[key] = {"range": status, "doppler": status}
     return state
 
 
 class HeadEchoSelector:
-    def __init__(self, df: pd.DataFrame, state: dict[str, str], out_dir: Path):
+    def __init__(self, df: pd.DataFrame, state: dict[str, dict[str, str]], out_dir: Path):
         self.df = df
         self.state = state
         self.out_dir = out_dir
@@ -140,8 +155,7 @@ class HeadEchoSelector:
             ("Brush Real (r)", self.brush_real),
             ("Brush Reject (x)", self.brush_reject),
             ("Brush Unknown (u)", self.brush_unknown),
-            ("Clear (c)", self.clear_selection),
-            ("Apply All (a)", self.apply_all_station),
+            ("Clear All (c)", self.clear_all_station),
             ("Prev (p)", self.prev_station),
             ("Next (n)", self.next_station),
             ("Save (s)", self.save),
@@ -166,28 +180,35 @@ class HeadEchoSelector:
         station_color = STATION_COLORS.get(self.station, "tab:blue")
         self.scatters = []
         for status in ["unknown", "real", "reject"]:
-            ssdf = sdf[[self.state[k] == status for k in sdf["key"]]]
-            if ssdf.empty:
-                continue
-            edge = [("gold" if key in self.selected else "white") for key in ssdf["key"]]
-            linewidth = [(2.2 if key in self.selected else 0.4) for key in ssdf["key"]]
-            size = [(76 if key in self.selected else 34) for key in ssdf["key"]]
+            ssdf = sdf[[self.state[k]["range"] == status for k in sdf["key"]]]
             color = station_color if status == "unknown" else STATUS_COLORS[status]
             alpha = 0.55 if status == "unknown" else 0.90
-            sc0 = self.axes[0].scatter(
-                ssdf["time_rel_s"],
-                ssdf["fit_range_km"],
-                s=size,
-                c=color,
-                alpha=alpha,
-                edgecolors=edge,
-                linewidths=linewidth,
-                label=f"{status} ({len(ssdf)})",
-                zorder=3,
-            )
+            if not ssdf.empty:
+                edge = [("gold" if key in self.selected else "white") for key in ssdf["key"]]
+                linewidth = [(2.2 if key in self.selected else 0.4) for key in ssdf["key"]]
+                size = [(76 if key in self.selected else 34) for key in ssdf["key"]]
+                sc0 = self.axes[0].scatter(
+                    ssdf["time_rel_s"],
+                    ssdf["fit_range_km"],
+                    s=size,
+                    c=color,
+                    alpha=alpha,
+                    edgecolors=edge,
+                    linewidths=linewidth,
+                    label=f"range {status} ({len(ssdf)})",
+                    zorder=3,
+                )
+                self.scatters.append((sc0, ssdf["key"].tolist(), 0))
+
+            ssdf_dop = sdf[[self.state[k]["doppler"] == status for k in sdf["key"]]]
+            if ssdf_dop.empty:
+                continue
+            edge = [("gold" if key in self.selected else "white") for key in ssdf_dop["key"]]
+            linewidth = [(2.2 if key in self.selected else 0.4) for key in ssdf_dop["key"]]
+            size = [(76 if key in self.selected else 34) for key in ssdf_dop["key"]]
             sc1 = self.axes[1].scatter(
-                ssdf["time_rel_s"],
-                ssdf["fit_doppler_hz"],
+                ssdf_dop["time_rel_s"],
+                ssdf_dop["fit_doppler_hz"],
                 s=size,
                 c=color,
                 alpha=alpha,
@@ -195,19 +216,22 @@ class HeadEchoSelector:
                 linewidths=linewidth,
                 zorder=3,
             )
-            self.scatters.append((sc0, ssdf["key"].tolist(), 0))
-            self.scatters.append((sc1, ssdf["key"].tolist(), 1))
+            self.scatters.append((sc1, ssdf_dop["key"].tolist(), 1))
 
         self.axes[0].scatter(sdf["time_rel_s"], sdf["seed_range_km"], s=42, facecolors="none", edgecolors="black", linewidths=0.9, alpha=0.55, label="original seed", zorder=4)
         self.axes[1].scatter(sdf["time_rel_s"], sdf["seed_doppler_hz"], s=42, facecolors="none", edgecolors="black", linewidths=0.9, alpha=0.55, zorder=4)
 
-        counts = {status: sum(self.state[k] == status for k in sdf["key"]) for status in ["unknown", "real", "reject"]}
+        range_counts = {status: sum(self.state[k]["range"] == status for k in sdf["key"]) for status in ["unknown", "real", "reject"]}
+        doppler_counts = {status: sum(self.state[k]["doppler"] == status for k in sdf["key"]) for status in ["unknown", "real", "reject"]}
         self.axes[0].set_title(
             f"{STATION_LABELS.get(self.station, self.station)}: "
-            f"unknown={counts['unknown']} real={counts['real']} reject={counts['reject']} "
+            f"range real={range_counts['real']} reject={range_counts['reject']} unknown={range_counts['unknown']} "
             f"brush={self.brush_mode} selected={len(self.selected)}"
         )
-        self.axes[1].set_title("Click/lasso paints current brush; r=real, x=reject, u=unknown, s=save, n/p=station")
+        self.axes[1].set_title(
+            f"doppler real={doppler_counts['real']} reject={doppler_counts['reject']} unknown={doppler_counts['unknown']} "
+            "paint range panel for ranges; paint Doppler panel for Dopplers"
+        )
         self.axes[0].legend(loc="best", framealpha=0.90)
         self.fig.canvas.draw_idle()
 
@@ -224,7 +248,7 @@ class HeadEchoSelector:
         path = MplPath(verts)
         mask = path.contains_points(pts)
         touched = [key for key, keep in zip(keys, mask) if keep]
-        self.apply_status(touched, self.brush_mode)
+        self.apply_status(touched, self.brush_mode, axis_i)
 
     def on_click(self, event) -> None:
         if event.inaxes not in self.axes or event.xdata is None or event.ydata is None:
@@ -247,12 +271,13 @@ class HeadEchoSelector:
             status = "reject"
         elif event.button == 2:
             status = "unknown"
-        self.apply_status([key], status)
+        self.apply_status([key], status, axis_i)
 
-    def apply_status(self, keys: list[str], status: str) -> None:
+    def apply_status(self, keys: list[str], status: str, axis_i: int) -> None:
         self.selected = set(keys)
+        measurement = "range" if axis_i == 0 else "doppler"
         for key in keys:
-            self.state[key] = status
+            self.state[key][measurement] = status
         self.save()
         self.draw()
 
@@ -268,12 +293,13 @@ class HeadEchoSelector:
         self.brush_mode = "unknown"
         self.draw()
 
-    def clear_selection(self) -> None:
+    def clear_all_station(self) -> None:
+        for key in self.station_df()["key"]:
+            self.state[key]["range"] = "unknown"
+            self.state[key]["doppler"] = "unknown"
         self.selected.clear()
+        self.save()
         self.draw()
-
-    def apply_all_station(self) -> None:
-        self.apply_status(list(self.station_df()["key"]), self.brush_mode)
 
     def next_station(self) -> None:
         self.station_i = (self.station_i + 1) % len(self.stations)
@@ -293,9 +319,7 @@ class HeadEchoSelector:
         elif event.key == "u":
             self.brush_unknown()
         elif event.key == "c":
-            self.clear_selection()
-        elif event.key == "a":
-            self.apply_all_station()
+            self.clear_all_station()
         elif event.key == "n":
             self.next_station()
         elif event.key == "p":
@@ -310,6 +334,9 @@ class HeadEchoSelector:
         self.out_dir.mkdir(parents=True, exist_ok=True)
         rows = []
         for row in self.df.to_dict(orient="records"):
+            range_selection = self.state[row["key"]]["range"]
+            doppler_selection = self.state[row["key"]]["doppler"]
+            both_selection = range_selection if range_selection == doppler_selection else "mixed"
             rows.append(
                 {
                     "station": row["station"],
@@ -322,8 +349,12 @@ class HeadEchoSelector:
                     "sigma_doppler_hz": float(row["sigma_doppler_hz"]),
                     "amplitude_db": float(row["amplitude_db"]),
                     "cost": float(row["cost"]),
-                    "selection": self.state[row["key"]],
-                    "real": self.state[row["key"]] == "real",
+                    "selection": both_selection,
+                    "selection_range": range_selection,
+                    "selection_doppler": doppler_selection,
+                    "real": range_selection == "real" and doppler_selection == "real",
+                    "real_range": range_selection == "real",
+                    "real_doppler": doppler_selection == "real",
                 }
             )
         json_path = self.out_dir / "head_echo_python_measurement_selection.json"
