@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import h5py
@@ -14,7 +15,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 FIG_DIR = ROOT / "reports" / "figures"
+
+from angle_departure_estimator import load_station_yaml  # noqa: E402
+DEFAULT_PATCH_H5 = (
+    ROOT
+    / "products"
+    / "head_echo_gaussian_patches"
+    / "head_echo_gaussian_patches_v0p2p7_1coh_2incoh_zp16_sparse_dcmean_retained_ext0p5.h5"
+)
 
 STATION_RANGES_KM = [
     ("beverly", 180.0, 275.0),
@@ -41,6 +52,18 @@ WGS84_F = 1.0 / 298.257223563
 def unix_to_mpl(t: np.ndarray) -> np.ndarray:
     ns = np.asarray(np.asarray(t, dtype=float) * 1e9, dtype="datetime64[ns]")
     return mdates.date2num(ns.astype("datetime64[us]").astype(object))
+
+
+def bin_edges(values: np.ndarray) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    if values.size == 0:
+        return values
+    if values.size == 1:
+        return np.array([values[0] - 0.5, values[0] + 0.5], dtype=float)
+    mids = 0.5 * (values[:-1] + values[1:])
+    first = values[0] - (mids[0] - values[0])
+    last = values[-1] + (values[-1] - mids[-1])
+    return np.r_[first, mids, last]
 
 
 def geodetic_to_ecef(lat_deg: np.ndarray, lon_deg: np.ndarray, alt_m: np.ndarray) -> np.ndarray:
@@ -164,6 +187,97 @@ def load_station_rcs(
     return data, meta
 
 
+def patch_peak_snr_by_range(raw_db: np.ndarray) -> np.ndarray:
+    raw_power = 10.0 ** (np.asarray(raw_db, dtype=float) / 10.0)
+    peak_power = np.nanmax(raw_power, axis=1)
+    noise_power = np.nanmedian(raw_power, axis=1)
+    return np.maximum(peak_power / np.maximum(noise_power, 1e-300), 1e-30)
+
+
+def load_station_rcs_from_patches(
+    station: str,
+    patch_h5: Path,
+    data_dir: Path,
+    fit_json: Path,
+    pt_w: float,
+    tx_gain: float,
+    rx_gain: float,
+    system_temp_k: float,
+    noise_bandwidth_hz: float,
+) -> tuple[dict, dict]:
+    site = load_station_yaml(data_dir, station)
+    with h5py.File(patch_h5, "r") as h:
+        if station not in h:
+            raise ValueError(f"{patch_h5} does not contain station {station!r}")
+        station_group = h[station]
+        patch_names = sorted(station_group.keys())
+        times = np.array([float(station_group[name].attrs["time_unix"]) for name in patch_names], dtype=float)
+        ranges_m = np.unique(
+            np.concatenate([np.rint(np.asarray(station_group[name]["range_m"][()], dtype=float)).astype(np.int64) for name in patch_names])
+        )
+        ranges_km = ranges_m.astype(float) / 1000.0
+        snr_linear = np.full((len(patch_names), len(ranges_m)), np.nan, dtype=float)
+        for ti, name in enumerate(patch_names):
+            group = station_group[name]
+            patch_ranges = np.rint(np.asarray(group["range_m"][()], dtype=float)).astype(np.int64)
+            col = np.searchsorted(ranges_m, patch_ranges)
+            snr_linear[ti, col] = patch_peak_snr_by_range(group["raw_db"][()])
+        product_version = str(h.attrs.get("head_echo_product_version", "unspecified"))
+        product_description = str(h.attrs.get("head_echo_product_version_description", ""))
+        n_coh = int(h.attrs.get("n_coh", -1))
+        n_incoh = int(h.attrs.get("n_incoh", -1))
+        doppler_zero_pad_factor = int(h.attrs.get("doppler_zero_pad_factor", -1))
+        sparse_voltage_subtract = bool(h.attrs.get("sparse_voltage_subtract", False))
+        dc_subtract = str(h.attrs.get("dc_subtract", ""))
+
+    tx_ecef = geodetic_to_ecef(np.array([site["gps_tx"][0]]), np.array([site["gps_tx"][1]]), np.array([site["gps_tx"][2]]))[0]
+    rx_ecef = geodetic_to_ecef(np.array([site["gps_rx"][0]]), np.array([site["gps_rx"][1]]), np.array([site["gps_rx"][2]]))[0]
+    target_ecef = target_ecef_from_fit(fit_json, times)
+    r_tx_m = np.linalg.norm(target_ecef - tx_ecef[None, :], axis=1)
+    r_rx_m = np.linalg.norm(target_ecef - rx_ecef[None, :], axis=1)
+
+    wavelength_m = C_MPS / float(site["frequency_hz"])
+    noise_power_w = K_BOLTZMANN * system_temp_k * noise_bandwidth_hz
+    geom = (4.0 * np.pi) ** 3 * (r_tx_m[:, None] ** 2) * (r_rx_m[:, None] ** 2)
+    sigma_m2 = snr_linear * noise_power_w * geom / (pt_w * tx_gain * rx_gain * wavelength_m**2)
+    rcs_dbsm = 10.0 * np.log10(np.maximum(sigma_m2, 1e-60))
+    rcs_dbsm[~np.isfinite(snr_linear)] = np.nan
+
+    finite_ranges = ranges_km[np.any(np.isfinite(rcs_dbsm), axis=0)]
+    if finite_ranges.size:
+        rmin_km = float(np.nanmin(finite_ranges))
+        rmax_km = float(np.nanmax(finite_ranges))
+    else:
+        rmin_km, rmax_km = float(ranges_km[0]), float(ranges_km[-1])
+    pad_km = max(1.0, 0.025 * (rmax_km - rmin_km))
+    data = {
+        "station": station,
+        "t": times,
+        "range_km": ranges_km,
+        "rcs_dbsm": rcs_dbsm,
+        "rmin_km": rmin_km - pad_km,
+        "rmax_km": rmax_km + pad_km,
+    }
+    meta = {
+        "station": station,
+        "product": patch_h5.name,
+        "product_kind": "zp16_head_echo_patch_cache",
+        "product_version": product_version,
+        "product_description": product_description,
+        "frequency_hz": float(site["frequency_hz"]),
+        "code_len": int(site["code_len"]),
+        "n_coh": n_coh,
+        "n_incoh": n_incoh,
+        "doppler_zero_pad_factor": doppler_zero_pad_factor,
+        "noise_bandwidth_hz": float(noise_bandwidth_hz),
+        "snr_definition": "per-range peak(raw unfiltered RDMF power) / median(raw unfiltered RDMF power over Doppler)",
+        "sparse_voltage_subtract": sparse_voltage_subtract,
+        "dc_subtract": dc_subtract,
+        "n_patches": len(patch_names),
+    }
+    return data, meta
+
+
 def plot_rcs(datasets: list[dict], metas: list[dict], out: Path, version_label: str) -> Path:
     vals = np.concatenate([d["rcs_dbsm"][np.isfinite(d["rcs_dbsm"])] for d in datasets])
     vmin = float(np.nanpercentile(vals, 2.0)) if vals.size else -40.0
@@ -186,8 +300,8 @@ def plot_rcs(datasets: list[dict], metas: list[dict], out: Path, version_label: 
     mesh = None
     for ax, data in zip(axes, datasets, strict=True):
         mesh = ax.pcolormesh(
-            unix_to_mpl(data["t"]),
-            data["range_km"],
+            bin_edges(unix_to_mpl(data["t"])),
+            bin_edges(data["range_km"]),
             data["rcs_dbsm"].T,
             shading="auto",
             cmap=cmap,
@@ -227,54 +341,83 @@ def main() -> None:
         type=Path,
         default=ROOT / "products" / "rdmf_exact_highres_180615_10s_merged_20260602_095431",
     )
+    parser.add_argument("--patch-h5", type=Path, default=DEFAULT_PATCH_H5)
+    parser.add_argument("--data-dir", type=Path, default=ROOT / "2026_05_30_bolide")
     parser.add_argument(
         "--fit-json",
         type=Path,
-        default=ROOT / "products" / "ballistic_head_trail_fit" / "ballistic_head_trail_fit.json",
+        default=ROOT
+        / "products"
+        / "ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5"
+        / "ballistic_head_trail_correlated_fit.json",
     )
     parser.add_argument("--output", type=Path, default=FIG_DIR / "station_range_time_head_rcs.png")
     parser.add_argument("--pt-w", type=float, default=500.0)
     parser.add_argument("--tx-gain", type=float, default=1.0)
     parser.add_argument("--rx-gain", type=float, default=1.0)
     parser.add_argument("--system-temp-k", type=float, default=290.0)
+    parser.add_argument("--noise-bandwidth-hz", type=float, default=100.0)
     parser.add_argument("--doppler-min-hz", type=float, default=250.0)
-    parser.add_argument("--version-label", default="fit v2.0.0")
+    parser.add_argument("--version-label", default="v0.2.7 zp16 n_coh=1")
     parser.add_argument("--no-vertical-notch", action="store_true")
+    parser.add_argument("--use-merged-rdmf", action="store_true")
     args = parser.parse_args()
 
     datasets = []
     metas = []
-    for station, rmin, rmax in STATION_RANGES_KM:
-        data, meta = load_station_rcs(
-            station,
-            rmin,
-            rmax,
-            args.merged_dir,
-            args.fit_json,
-            args.pt_w,
-            args.tx_gain,
-            args.rx_gain,
-            args.system_temp_k,
-            args.doppler_min_hz,
-            not args.no_vertical_notch,
-        )
-        datasets.append(data)
-        metas.append(meta)
+    if args.use_merged_rdmf:
+        for station, rmin, rmax in STATION_RANGES_KM:
+            data, meta = load_station_rcs(
+                station,
+                rmin,
+                rmax,
+                args.merged_dir,
+                args.fit_json,
+                args.pt_w,
+                args.tx_gain,
+                args.rx_gain,
+                args.system_temp_k,
+                args.doppler_min_hz,
+                not args.no_vertical_notch,
+            )
+            datasets.append(data)
+            metas.append(meta)
+    else:
+        with h5py.File(args.patch_h5, "r") as h:
+            stations = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in h["stations"][()]]
+        for station in stations:
+            data, meta = load_station_rcs_from_patches(
+                station,
+                args.patch_h5,
+                args.data_dir,
+                args.fit_json,
+                args.pt_w,
+                args.tx_gain,
+                args.rx_gain,
+                args.system_temp_k,
+                args.noise_bandwidth_hz,
+            )
+            datasets.append(data)
+            metas.append(meta)
     out = plot_rcs(datasets, metas, args.output, args.version_label)
     meta_out = out.with_suffix(".json")
+    product_kind = "merged_rdmf" if args.use_merged_rdmf else "zp16_patch_cache"
     meta_out.write_text(
         json.dumps(
             {
                 "figure": str(out.relative_to(ROOT)) if out.is_relative_to(ROOT) else str(out),
                 "source": "reports/generate_station_head_rcs_figure.py",
+                "product_kind": product_kind,
+                "patch_h5": str(args.patch_h5.relative_to(ROOT)) if args.patch_h5.is_relative_to(ROOT) else str(args.patch_h5),
                 "merged_dir_name": args.merged_dir.name,
                 "fit_json_name": args.fit_json.name,
                 "pt_w": args.pt_w,
                 "tx_gain": args.tx_gain,
                 "rx_gain": args.rx_gain,
                 "system_temp_k": args.system_temp_k,
+                "noise_bandwidth_hz": args.noise_bandwidth_hz,
                 "doppler_min_hz": args.doppler_min_hz,
-                "vertical_common_mode_2d_fft_notch": not args.no_vertical_notch,
+                "vertical_common_mode_2d_fft_notch": bool(args.use_merged_rdmf and not args.no_vertical_notch),
                 "stations": metas,
             },
             indent=2,
