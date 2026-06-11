@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 from pathlib import Path
 
@@ -15,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EVENT_T0 = 1780164380.0
 DEFAULT_TRAJECTORY_JSON = Path("products/head_echo_trajectory_roi_fit/head_echo_trajectory.json")
 FALLBACK_TRAJECTORY_JSON = Path("/Users/j/src/new_england_bolide/products/head_echo_trajectory_roi_fit/head_echo_trajectory.json")
+DEFAULT_SUMMARY_CSV = Path("reports/head_echo_gaussian_fit_summary_v0p2p7_1coh_2incoh_zp16_sparse_dcmean.csv")
 DEFAULT_OUT = Path("reports/figures/head_echo_snr_traces.png")
 STATION_LABELS = {
     "beverly": "Beverly",
@@ -47,6 +49,35 @@ def load_observations(path: Path) -> dict[str, list[dict]]:
         if "unix_time" not in obs or "snr_db" not in obs:
             continue
         by_station.setdefault(station, []).append(obs)
+    for rows in by_station.values():
+        rows.sort(key=lambda row: float(row["unix_time"]))
+    return by_station
+
+
+def load_gaussian_summary(path: Path, event_t0: float) -> dict[str, list[dict]]:
+    by_station: dict[str, list[dict]] = {}
+    with path.open(newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            station = str(row.get("station", ""))
+            if station not in STATION_LABELS:
+                continue
+            if row.get("success", "").lower() != "true":
+                continue
+            if not row.get("snr_db"):
+                continue
+            time_unix = row.get("time_unix")
+            if time_unix:
+                unix_time = float(time_unix)
+            elif row.get("time_rel_s"):
+                unix_time = event_t0 + float(row["time_rel_s"])
+            else:
+                continue
+            by_station.setdefault(station, []).append(
+                {
+                    "unix_time": unix_time,
+                    "snr_db": float(row["snr_db"]),
+                }
+            )
     for rows in by_station.values():
         rows.sort(key=lambda row: float(row["unix_time"]))
     return by_station
@@ -92,6 +123,7 @@ def plot_snr_traces(observations: dict[str, list[dict]], out: Path, event_t0: fl
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--summary-csv", type=Path, default=DEFAULT_SUMMARY_CSV)
     parser.add_argument("--trajectory-json", type=Path, default=DEFAULT_TRAJECTORY_JSON)
     parser.add_argument("--event-t0", type=float, default=EVENT_T0)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
@@ -100,13 +132,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    trajectory_json = resolve_default_input(args.trajectory_json)
-    observations = load_observations(trajectory_json)
+    if args.summary_csv.exists():
+        observations = load_gaussian_summary(args.summary_csv, args.event_t0)
+        source = args.summary_csv
+    else:
+        trajectory_json = resolve_default_input(args.trajectory_json)
+        observations = load_observations(trajectory_json)
+        source = trajectory_json
     if not observations:
-        raise SystemExit(f"No head-echo SNR observations found in {trajectory_json}")
+        raise SystemExit(f"No head-echo SNR observations found in {source}")
     plot_snr_traces(observations, args.out, args.event_t0)
     for station, rows in observations.items():
         print(f"{station}: {len(rows)} samples")
+    print(f"Read {source}")
     print(f"Wrote {args.out}")
 
 
