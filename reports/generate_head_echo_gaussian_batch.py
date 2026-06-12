@@ -25,6 +25,7 @@ from reports.generate_head_echo_gaussian_example import (  # noqa: E402
 from reports.generate_head_microdoppler import STATION_LABELS, STATIONS, load_station_observations  # noqa: E402
 from reports.generate_head_microdoppler_2dfft_notched import (  # noqa: E402
     DEFAULT_SPARSE_PRODUCT_DIR,
+    DEFAULT_TX_AOD_TRAJECTORY_FIT,
     EVENT_T0,
     compute_filtered_patch,
     init_station,
@@ -326,8 +327,15 @@ def run_station(station: str, observations: list[dict], payload: dict, args: arg
     print(f"{station}: loading raw data", flush=True)
     init_station(payload, station, args)
     items = list(enumerate(observations))
+    if args.time_rel_min is not None:
+        items = [(idx, obs) for idx, obs in items if float(obs["unix_time"]) - EVENT_T0 >= args.time_rel_min]
+    if args.time_rel_max is not None:
+        items = [(idx, obs) for idx, obs in items if float(obs["unix_time"]) - EVENT_T0 <= args.time_rel_max]
     if args.limit:
         items = items[: args.limit]
+    if not items:
+        print(f"{station}: no observations in requested time interval", flush=True)
+        return []
     n_workers = min(max(1, args.workers), len(items))
     print(f"{station}: fitting {len(items)} head-echo patches with {n_workers} worker(s)", flush=True)
 
@@ -436,6 +444,8 @@ def main() -> None:
     p.add_argument("--stations", nargs="+", default=list(STATIONS))
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--time-rel-min", type=float, default=None, help="Minimum seconds relative to 2026-05-30 18:06:20 UTC.")
+    p.add_argument("--time-rel-max", type=float, default=None, help="Maximum seconds relative to 2026-05-30 18:06:20 UTC.")
     p.add_argument("--range-half-width-km", type=float, default=40.0)
     p.add_argument("--doppler-half-width-hz", type=float, default=1800.0)
     p.add_argument("--n-coh", type=int, default=16)
@@ -464,6 +474,9 @@ def main() -> None:
     p.add_argument("--polarization-grid-theta", type=int, default=91)
     p.add_argument("--polarization-grid-phase", type=int, default=361)
     p.add_argument("--polarization-phase-chunk", type=int, default=32)
+    p.add_argument("--tx-aod-beamform", action=argparse.BooleanOptionalAction, default=False)
+    p.add_argument("--tx-aod-trajectory-json", type=Path, default=DEFAULT_TX_AOD_TRAJECTORY_FIT)
+    p.add_argument("--tx-aod-phase-sign", type=float, default=-1.0)
     p.add_argument("--search-range-half-width-km", type=float, default=10.0)
     p.add_argument("--search-doppler-half-width-hz", type=float, default=700.0)
     p.add_argument("--fit-range-half-width-km", type=float, default=5.0)

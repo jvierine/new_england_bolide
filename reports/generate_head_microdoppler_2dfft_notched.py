@@ -34,6 +34,12 @@ from reports.sparse_voltage_subtraction import (  # noqa: E402
     DEFAULT_SPARSE_PRODUCT_DIR,
     subtract_sparse_voltage_from_raw,
 )
+from angle_departure_estimator import (  # noqa: E402
+    C,
+    enu_to_ecef_matrix,
+    geodetic_to_ecef,
+    load_station_yaml,
+)
 from fit_ballistic_head_trail import (  # noqa: E402
     build_density_profile,
     cache_head_station_states,
@@ -57,8 +63,83 @@ DEFAULT_ANALYTICAL_TRAJECTORY_FIT = (
     / "ballistic_head_trail_correlated_fit_v0p2p6_polarized_residual_manual"
     / "ballistic_head_trail_correlated_fit.json"
 )
+DEFAULT_TX_AOD_TRAJECTORY_FIT = (
+    ROOT
+    / "products"
+    / "ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5"
+    / "ballistic_head_trail_correlated_fit.json"
+)
 
 G = {}
+
+
+def load_tx_aod_trajectory_fit(path: Path) -> dict:
+    fit = json.loads(Path(path).read_text(encoding="utf-8"))
+    model = fit.get("model", {})
+    needed = ("time_unix", "lat_deg", "lon_deg", "alt_m")
+    if not all(key in model for key in needed):
+        raise ValueError(f"{path} does not contain model arrays {needed}")
+    return {
+        "path": str(path),
+        "time_unix": np.asarray(model["time_unix"], dtype=np.float64),
+        "lat_deg": np.asarray(model["lat_deg"], dtype=np.float64),
+        "lon_deg": np.asarray(model["lon_deg"], dtype=np.float64),
+        "alt_m": np.asarray(model["alt_m"], dtype=np.float64),
+    }
+
+
+def tx_aod_target_ecef(fit: dict, unix_time: float) -> np.ndarray:
+    t = fit["time_unix"]
+    if t.size < 2:
+        raise ValueError("AoD trajectory fit needs at least two model samples")
+    lat = np.interp(unix_time, t, fit["lat_deg"])
+    lon = np.interp(unix_time, t, fit["lon_deg"])
+    alt = np.interp(unix_time, t, fit["alt_m"])
+    return geodetic_to_ecef(lat, lon, alt)
+
+
+def tx_aod_unit_enu(obs: dict) -> np.ndarray:
+    fit = G.get("tx_aod_trajectory_fit")
+    site = G.get("site")
+    if fit is None or site is None:
+        return np.asarray([], dtype=np.float32)
+    target_ecef = tx_aod_target_ecef(fit, float(obs["unix_time"]))
+    tx_ecef = geodetic_to_ecef(*site["gps_tx"])
+    rot = enu_to_ecef_matrix(site["gps_tx"][0], site["gps_tx"][1])
+    vec_enu = (target_ecef - tx_ecef) @ rot
+    norm = float(np.linalg.norm(vec_enu))
+    if not np.isfinite(norm) or norm <= 0.0:
+        raise ValueError("Invalid TX AoD vector from trajectory")
+    return (vec_enu / norm).astype(np.float32)
+
+
+def tx_aod_steering(obs: dict) -> tuple[np.ndarray | None, np.ndarray]:
+    args = G["args"]
+    if not bool(getattr(args, "tx_aod_beamform", False)):
+        return None, np.asarray([], dtype=np.float32)
+    site = G["site"]
+    unit = tx_aod_unit_enu(obs)
+    ant = np.asarray(site["antenna_pos_tx"], dtype=np.float64)
+    if ant.shape[0] != len(G["codes"]):
+        raise ValueError(f"{G['station']}: {ant.shape[0]} TX antennas but {len(G['codes'])} decoded codes")
+    wavelength = C / float(site["frequency_hz"])
+    k = 2.0 * np.pi / wavelength
+    phase_sign = float(getattr(args, "tx_aod_phase_sign", 1.0))
+    phase = phase_sign * k * (unit.astype(np.float64) @ ant.T)
+    return np.exp(1.0j * phase).astype(np.complex64), unit
+
+
+def power_from_code_images(images: np.ndarray, steering: np.ndarray | None) -> np.ndarray:
+    """Collapse code images to power, optionally by coherent TX-AoD beamforming.
+
+    The coherent sum is normalized by the number of steered TX codes, matching
+    the standard RDMF chain: no scalar gain is applied to the noise floor, while
+    a correctly phased target retains the coherent SNR improvement.
+    """
+    if steering is None:
+        return np.sum(np.abs(images) ** 2, axis=-3, dtype=np.float64)
+    beam = np.sum(images * np.conj(steering)[..., None, None], axis=-3)
+    return np.abs(beam) ** 2 / float(len(steering))
 
 
 def robust_channel_noise_power(files: list[Path], block_samples: int) -> float:
@@ -157,6 +238,10 @@ def notch_2d_doppler_repetition(
 
 def init_station(payload: dict, station: str, args: argparse.Namespace) -> None:
     doppler_model = load_doppler_model(payload, DATA_DIR)
+    site = load_station_yaml(DATA_DIR, station)
+    tx_aod_trajectory_fit = None
+    if bool(getattr(args, "tx_aod_beamform", False)):
+        tx_aod_trajectory_fit = load_tx_aod_trajectory_fit(Path(getattr(args, "tx_aod_trajectory_json")))
     rdmf_file = RDMF_DIR / f"rdmf_peak_{station}_merged.h5"
     with h5py.File(rdmf_file, "r") as h:
         channels = h["channels"][()]
@@ -241,6 +326,8 @@ def init_station(payload: dict, station: str, args: argparse.Namespace) -> None:
         {
             "args": args,
             "station": station,
+            "site": site,
+            "tx_aod_trajectory_fit": tx_aod_trajectory_fit,
             "doppler_model": doppler_model,
             "channels": channels,
             "sample_rate": sample_rate,
@@ -313,8 +400,9 @@ def compute_filtered_patch(item: tuple[int, dict]) -> dict | None:
     G.pop("polarization_result", None)
     gamma = None
     S = None
+    steering, tx_unit_enu = tx_aod_steering(obs)
     if bool(getattr(args, "polarization_combine", False)) and str(getattr(args, "polarization_method", "phase")) == "grid_image":
-        gamma, S = estimate_image_peak_polarization_gamma(start_i, read_len, ridx, fidx, dc_offsets)
+        gamma, S = estimate_image_peak_polarization_gamma(start_i, read_len, ridx, fidx, dc_offsets, steering)
     elif bool(getattr(args, "polarization_combine", False)):
         seed_rel_hz = float(obs["doppler_hz"]) - bulk
         seed_range_i = int(np.argmin(np.abs(ridx.astype(np.float64) * gate_m - head_range_m)))
@@ -340,12 +428,18 @@ def compute_filtered_patch(item: tuple[int, dict]) -> dict | None:
                 if dc_offsets is not None:
                     offsets = combined_dc_offsets if combined_dc_offsets is not None else dc_offsets
                     windows = windows - offsets[chi, :, None]
+                code_images = []
                 for code in G["codes"]:
                     Z = np.fft.fftshift(
                         np.fft.fft(windows * np.conj(code), n=G["fft_len"], axis=1),
                         axes=1,
                     )[:, fidx]
-                    S += np.abs(Z) ** 2
+                    if steering is None:
+                        S += np.abs(Z) ** 2
+                    else:
+                        code_images.append(Z.astype(np.complex64, copy=False))
+                if steering is not None:
+                    S += power_from_code_images(np.stack(code_images, axis=0), steering)
 
     img_db = 10.0 * np.log10(np.maximum(S, 1e-30))
     filtered_db = notch_2d_doppler_repetition(
@@ -381,6 +475,11 @@ def compute_filtered_patch(item: tuple[int, dict]) -> dict | None:
         "polarization_noise_power": float(polarization_result.get("noise_power", np.nan)),
         "polarization_metric_kind": str(polarization_result.get("metric_kind", "")),
         "polarization_metric_mask_pixels": int(polarization_result.get("mask_pixels", 0)),
+        "tx_aod_beamformed": bool(steering is not None),
+        "tx_aod_unit_enu": np.asarray(tx_unit_enu, dtype=np.float32),
+        "tx_aod_steering": np.asarray(steering, dtype=np.complex64) if steering is not None else np.asarray([], dtype=np.complex64),
+        "tx_aod_ideal_snr_gain": float(len(G["codes"]) if steering is not None else 1.0),
+        "tx_aod_noise_code_gain": float(len(G["codes"])),
     }
 
 
@@ -477,6 +576,7 @@ def estimate_image_peak_polarization_gamma(
     ridx: np.ndarray,
     fidx: np.ndarray,
     dc_offsets: np.ndarray | None,
+    steering: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     if len(G["zc"]) != 2:
         raise ValueError("Polarization combining currently expects exactly two channels")
@@ -518,7 +618,8 @@ def estimate_image_peak_polarization_gamma(
             ph = phase[p0 : p0 + phase_chunk]
             gamma1 = (b_amp * np.exp(1.0j * ph)).astype(np.complex64)
             combined = a * z0[None, ...] + gamma1[:, None, None, None, None] * z1[None, ...]
-            power_images = np.sum(np.abs(combined) ** 2, axis=(1, 2), dtype=np.float64)
+            power_by_incoh = power_from_code_images(combined, steering)
+            power_images = np.sum(power_by_incoh, axis=1, dtype=np.float64)
             if metric_mask is None:
                 signal_power = np.nanmax(power_images.reshape(power_images.shape[0], -1), axis=1)
             else:
@@ -1003,6 +1104,9 @@ def main() -> None:
     p.add_argument("--polarization-grid-theta", type=int, default=91)
     p.add_argument("--polarization-grid-phase", type=int, default=361)
     p.add_argument("--polarization-phase-chunk", type=int, default=32)
+    p.add_argument("--tx-aod-beamform", action=argparse.BooleanOptionalAction, default=False, help="Coherently combine decoded TX codes with trajectory-derived angle-of-departure phases.")
+    p.add_argument("--tx-aod-trajectory-json", type=Path, default=DEFAULT_TX_AOD_TRAJECTORY_FIT)
+    p.add_argument("--tx-aod-phase-sign", type=float, default=1.0)
     p.add_argument("--out", type=Path, default=OUT_FIG)
     p.add_argument("--cache", type=Path, default=OUT_CACHE)
     p.add_argument("--plot-only", action="store_true", help="Plot from --cache without recomputing filtered RD patches.")
