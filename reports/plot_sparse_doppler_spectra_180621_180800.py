@@ -15,8 +15,8 @@ STATIONS = ["beverly", "clinton", "pomfret", "amherstnh", "siena"]
 START = datetime(2026, 5, 30, 18, 6, 21, tzinfo=timezone.utc).timestamp()
 STOP = datetime(2026, 5, 30, 18, 8, 0, tzinfo=timezone.utc).timestamp()
 BOLIDE_RANGE_KM = {
-    "beverly": (190.0, 270.0),
-    "clinton": (230.0, 285.0),
+    "beverly": (190.0, 285.0),
+    "clinton": (230.0, 300.0),
     "pomfret": (365.0, 415.0),
     "amherstnh": (255.0, 315.0),
     "siena": (385.0, 445.0),
