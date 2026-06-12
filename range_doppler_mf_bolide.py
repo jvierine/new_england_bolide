@@ -25,7 +25,16 @@ def parse_time_second(value, iso_hour):
     except ValueError:
         pass
 
-    hour0 = datetime.fromisoformat(str(iso_hour).replace("Z", "+00:00"))
+    iso_text = str(iso_hour).replace("Z", "+00:00")
+    try:
+        hour0 = datetime.fromisoformat(iso_text)
+    except ValueError:
+        if "T" in iso_text:
+            date_part, time_part = iso_text.split("T", 1)
+            fields = time_part.split("-")
+            if len(fields) >= 3:
+                iso_text = f"{date_part}T{fields[0]}:{fields[1]}:{fields[2]}"
+        hour0 = datetime.fromisoformat(iso_text)
     if hour0.tzinfo is None:
         hour0 = hour0.replace(tzinfo=timezone.utc)
     if "T" in text:
