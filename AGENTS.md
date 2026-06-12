@@ -29,6 +29,10 @@ Data products must be stored as HDF5 (`.h5`) unless there is an explicit,
 documented external format requirement. Do not create NumPy `.npz` data
 products for analysis or manuscript support assets.
 
+When adding or updating memo figures, cite the script that generated each plot
+in the memo text or caption/provenance list before compiling and pushing the
+memo repository.
+
 ## Remote Compute On avaruus
 
 Use `juha@avaruus.uit.no` for expensive matched-filter and RDMF jobs that are
