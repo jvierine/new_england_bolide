@@ -1,11 +1,42 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import time
 from pathlib import Path
 
 import h5py
 import numpy as np
 import yaml
+
+C = 299792458.0
+WGS84_A = 6378137.0
+WGS84_F = 1.0 / 298.257223563
+WGS84_E2 = WGS84_F * (2.0 - WGS84_F)
+
+
+def geodetic_to_ecef(lat_deg, lon_deg, alt_m):
+    lat = np.deg2rad(lat_deg)
+    lon = np.deg2rad(lon_deg)
+    sin_lat = np.sin(lat)
+    cos_lat = np.cos(lat)
+    n = WGS84_A / np.sqrt(1.0 - WGS84_E2 * sin_lat * sin_lat)
+    x = (n + alt_m) * cos_lat * np.cos(lon)
+    y = (n + alt_m) * cos_lat * np.sin(lon)
+    z = (n * (1.0 - WGS84_E2) + alt_m) * sin_lat
+    return np.array([x, y, z], dtype=np.float64)
+
+
+def enu_to_ecef_matrix(lat_deg, lon_deg):
+    lat = np.deg2rad(lat_deg)
+    lon = np.deg2rad(lon_deg)
+    sin_lat = np.sin(lat)
+    cos_lat = np.cos(lat)
+    sin_lon = np.sin(lon)
+    cos_lon = np.cos(lon)
+    east = np.array([-sin_lon, cos_lon, 0.0], dtype=np.float64)
+    north = np.array([-sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat], dtype=np.float64)
+    up = np.array([cos_lat * cos_lon, cos_lat * sin_lon, sin_lat], dtype=np.float64)
+    return np.column_stack((east, north, up))
 
 
 def bpsk(seed, length):
@@ -52,9 +83,79 @@ def read_config(data_dir, station):
         "frequency_hz": float(system["frequency"]),
         "gps_rx": system["gps_rx"],
         "gps_tx": system["gps_tx"],
+        "antenna_pos_tx": np.array(system["antenna_pos_tx"], dtype=np.float64),
         "name_rx": system["name_rx"],
         "name_tx": system["name_tx"],
     }
+
+
+def load_trajectory(path):
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    model = payload["model"]
+    return {key: np.asarray(model[key], dtype=np.float64) for key in ("time_unix", "lat_deg", "lon_deg", "alt_m")}
+
+
+def target_ecef(traj, time_unix):
+    time_unix = np.asarray(time_unix, dtype=np.float64)
+    lat = np.interp(time_unix, traj["time_unix"], traj["lat_deg"])
+    lon = np.interp(time_unix, traj["time_unix"], traj["lon_deg"])
+    alt = np.interp(time_unix, traj["time_unix"], traj["alt_m"])
+    return np.stack([geodetic_to_ecef(a, b, c) for a, b, c in zip(lat, lon, alt, strict=True)], axis=0)
+
+
+def tx_aod_steering_vector(config, traj, time_unix, phase_sign=-1.0):
+    tx_ecef = geodetic_to_ecef(*config["gps_tx"])
+    rot = enu_to_ecef_matrix(config["gps_tx"][0], config["gps_tx"][1])
+    vec_enu = (target_ecef(traj, np.array([time_unix], dtype=np.float64))[0] - tx_ecef) @ rot
+    unit = vec_enu / max(float(np.linalg.norm(vec_enu)), 1e-30)
+    wavelength = C / float(config["frequency_hz"])
+    phase = float(phase_sign) * (2.0 * np.pi / wavelength) * (
+        unit @ np.asarray(config["antenna_pos_tx"], dtype=np.float64).T
+    )
+    return np.exp(1.0j * phase).astype(np.complex64), unit.astype(np.float32)
+
+
+def combine_matched_filter_images(code_images, good_head_dop, steering=None, polarization_combine=False):
+    """
+    Combine channel/code matched-filter voltage images.
+
+    code_images has shape (rx_channel, tx_code, range, doppler). With TX
+    steering enabled, the code dimension is coherently steered using the
+    trajectory-implied transmit-array phase. The receive-polarization vector is
+    estimated once from the peak pixel in the AoD-steered, incoherent-pol image.
+    """
+    n_channels, n_codes = code_images.shape[:2]
+    tx_norm = float(n_codes)
+    pol_gamma = np.full(n_channels, np.nan + 1.0j * np.nan, dtype=np.complex64)
+    peak_range_idx = np.int32(-1)
+    peak_doppler_idx = np.int32(-1)
+
+    if steering is None:
+        if polarization_combine:
+            raise ValueError("polarization_combine requires tx_aod_beamform so TX voltages have been coherently steered")
+        power = np.sum(np.abs(code_images) ** 2, axis=(0, 1)).astype(np.float32)
+        return power, pol_gamma, peak_range_idx, peak_doppler_idx
+
+    if len(steering) != n_codes:
+        raise ValueError(f"steering vector has {len(steering)} TX channels, expected {n_codes}")
+
+    tx_beam = np.einsum("ckrf,k->crf", code_images, np.conj(steering), optimize=True)
+    selection_power = (np.sum(np.abs(tx_beam) ** 2, axis=0) / tx_norm).astype(np.float32)
+    if not polarization_combine:
+        return selection_power, pol_gamma, peak_range_idx, peak_doppler_idx
+
+    search = selection_power.copy()
+    search[:, ~good_head_dop] = -np.inf
+    peak_range_idx, peak_doppler_idx = np.unravel_index(int(np.argmax(search)), search.shape)
+    peak_vec = tx_beam[:, peak_range_idx, peak_doppler_idx]
+    norm = float(np.linalg.norm(peak_vec))
+    if norm <= 0.0 or not np.isfinite(norm):
+        power = selection_power
+    else:
+        pol_gamma = (peak_vec / norm).astype(np.complex64)
+        combined = np.einsum("c,crf->rf", np.conj(pol_gamma), tx_beam, optimize=True)
+        power = (np.abs(combined) ** 2 / tx_norm).astype(np.float32)
+    return power, pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
 
 
 def rf_file_for_time(station_dir, channel, iso_hour):
@@ -150,6 +251,11 @@ def range_doppler_bank(
     spike_sigma=0.0,
     doppler_whiten=False,
     doppler_zero_pad_factor=4,
+    tx_aod_beamform=False,
+    tx_aod_trajectory=None,
+    tx_aod_config=None,
+    tx_aod_phase_sign=-1.0,
+    polarization_combine=False,
     progress_every=1,
     checkpoint_every=0,
     checkpoint_func=None,
@@ -184,26 +290,54 @@ def range_doppler_bank(
     P_head = np.zeros_like(P_rti)
     D_head = np.zeros_like(P_rti)
     N = np.zeros_like(P_rti)
+    pol_gamma = np.full((n_steps, len(channel_data)), np.nan + 1.0j * np.nan, dtype=np.complex64)
+    pol_peak_range_idx = np.full(n_steps, -1, dtype=np.int32)
+    pol_peak_doppler_idx = np.full(n_steps, -1, dtype=np.int32)
+    tx_aod_unit_enu = np.full((n_steps, 3), np.nan, dtype=np.float32)
     t_sample = abs_index0 + np.arange(n_steps, dtype=np.float64) * original_step_len
     t_start = time.time()
     dc_source = channel_data if dc_calibration_data is None else dc_calibration_data
     dc_offsets = estimate_range_gate_dc(dc_source, ridx, sample_rate_i, dc_cancel_seconds) if dc_cancel else None
     if dc_offsets is not None:
         print(f"subtracting per-range DC offsets estimated from {dc_cancel_seconds:g}s", flush=True)
+    if polarization_combine and not tx_aod_beamform:
+        raise ValueError("polarization_combine currently requires tx_aod_beamform")
+    if tx_aod_beamform and (tx_aod_trajectory is None or tx_aod_config is None):
+        raise ValueError("tx_aod_beamform requires tx_aod_trajectory and tx_aod_config")
 
     # for all time steps, compute the matched filter for all codes and ranges,
     # store matched filter power, best Doppler bin, and noise floor estimate. Optionally apply Doppler whitening.
     for ti in range(n_steps):
         start = ti * step_len
-        S = np.zeros((len(ridx), len(fidx)), dtype=np.float32)
+        code_images = np.zeros((len(channel_data), len(codes), len(ridx), len(fidx)), dtype=np.complex64)
         for chi, z in enumerate(channel_data):
             z0 = detrend_window(z[start : start + read_len], spike_sigma=spike_sigma)
             windows = np.lib.stride_tricks.sliding_window_view(z0, win_len)[ridx, :]
             if dc_offsets is not None:
                 windows = windows - dc_offsets[chi, :, None]
-            for code in codes:
+            for code_i, code in enumerate(codes):
                 Z = np.fft.fftshift(np.fft.fft(windows * np.conj(code), n=fftlen, axis=1), axes=1)
-                S += np.abs(Z[:, fidx]) ** 2
+                code_images[chi, code_i, :, :] = Z[:, fidx]
+
+        steering = None
+        if tx_aod_beamform:
+            unix_time = float(t_sample[ti] / sample_rate)
+            steering, unit_enu = tx_aod_steering_vector(
+                tx_aod_config,
+                tx_aod_trajectory,
+                unix_time,
+                phase_sign=tx_aod_phase_sign,
+            )
+            tx_aod_unit_enu[ti, :] = unit_enu
+        S, gamma, peak_ri, peak_di = combine_matched_filter_images(
+            code_images,
+            good_head_dop=good_head_dop,
+            steering=steering,
+            polarization_combine=polarization_combine,
+        )
+        pol_gamma[ti, :] = gamma
+        pol_peak_range_idx[ti] = peak_ri
+        pol_peak_doppler_idx[ti] = peak_di
 
         if doppler_whiten:
             # Normalize each Doppler bin by its median power over range before
@@ -265,6 +399,10 @@ def range_doppler_bank(
                     "P": P_head[:n_done, :],
                     "D": D_head[:n_done, :],
                     "N": N[:n_done, :],
+                    "pol_gamma": pol_gamma[:n_done, :],
+                    "pol_peak_range_idx": pol_peak_range_idx[:n_done],
+                    "pol_peak_doppler_idx": pol_peak_doppler_idx[:n_done],
+                    "tx_aod_unit_enu": tx_aod_unit_enu[:n_done, :],
                     "t_sample": t_sample[:n_done],
                     "range_idx": ridx.astype(np.int32),
                     "range_km": (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
@@ -282,6 +420,10 @@ def range_doppler_bank(
         "P": P_head,
         "D": D_head,
         "N": N,
+        "pol_gamma": pol_gamma,
+        "pol_peak_range_idx": pol_peak_range_idx,
+        "pol_peak_doppler_idx": pol_peak_doppler_idx,
+        "tx_aod_unit_enu": tx_aod_unit_enu,
         "t_sample": t_sample,
         "range_idx": ridx.astype(np.int32),
         "range_km": (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
@@ -314,13 +456,19 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
         h["dc_cancel_seconds"] = args.dc_cancel_seconds
         h["dc_cancel_start_second"] = args.dc_cancel_start_second
         h["doppler_whiten"] = int(args.doppler_whiten)
+        h["tx_aod_beamform"] = int(args.tx_aod_beamform)
+        h["tx_aod_phase_sign"] = float(args.tx_aod_phase_sign)
+        h["polarization_combine"] = int(args.polarization_combine)
         h["frequency_hz"] = config["frequency_hz"]
         h["gps_rx"] = np.array(config["gps_rx"], dtype=np.float64)
         h["gps_tx"] = np.array(config["gps_tx"], dtype=np.float64)
+        h["antenna_pos_tx"] = np.array(config["antenna_pos_tx"], dtype=np.float64)
         h.attrs["config_path"] = config["config_path"]
         h.attrs["iso_hour"] = args.iso_hour
         h.attrs["name_rx"] = config["name_rx"]
         h.attrs["name_tx"] = config["name_tx"]
+        h.attrs["tx_aod_trajectory_json"] = str(args.tx_aod_trajectory_json)
+        h.attrs["polarization_method"] = "peak_pixel_unit_vector" if args.polarization_combine else "incoherent"
         if hasattr(args, "n_done"):
             h.attrs["n_done"] = int(args.n_done)
         if hasattr(args, "n_steps"):
@@ -352,8 +500,15 @@ def main():
     p.add_argument("--dc-cancel-seconds", type=float, default=5.0)
     p.add_argument("--dc-cancel-start-second", type=float, default=75.0)
     p.add_argument("--spike-sigma", type=float, default=0.0)
-    p.add_argument("--doppler-whiten", action="store_true", default=True)
+    p.add_argument("--doppler-whiten", action="store_true", default=False)
     p.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
+    p.add_argument("--tx-aod-beamform", action="store_true")
+    p.add_argument(
+        "--tx-aod-trajectory-json",
+        default="products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json",
+    )
+    p.add_argument("--tx-aod-phase-sign", type=float, default=-1.0)
+    p.add_argument("--polarization-combine", action="store_true")
     p.add_argument("--progress-every", type=int, default=5)
     p.add_argument("--checkpoint-every", type=int, default=25)
     p.add_argument("--out", default=None)
@@ -379,6 +534,7 @@ def main():
         abs_index0 = idx0 if abs_index0 is None else abs_index0
 
     codes = get_codes(config["seeds"], config["code_len"], args.n_coh, range_interp=args.range_interp)
+    tx_aod_trajectory = load_trajectory(args.tx_aod_trajectory_json) if args.tx_aod_beamform else None
     ofname = args.out
     if ofname is None:
         ofname = f"rdmf_{args.station}_{args.iso_hour}_{int(args.start_second):04d}s.h5"
@@ -416,6 +572,11 @@ def main():
         n_coh=args.n_coh,
         codes_per_step=args.codes_per_step,
         doppler_zero_pad_factor=args.doppler_zero_pad_factor,
+        tx_aod_beamform=args.tx_aod_beamform,
+        tx_aod_trajectory=tx_aod_trajectory,
+        tx_aod_config=config,
+        tx_aod_phase_sign=args.tx_aod_phase_sign,
+        polarization_combine=args.polarization_combine,
         fmin=args.fmin,
         fmax=args.fmax,
         ignore_freq=args.ignore_freq,

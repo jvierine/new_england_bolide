@@ -73,6 +73,14 @@ def build_worker_cmd(args, station, out_file):
         cmd.extend(["--max-range-km", str(args.max_range_km)])
     if args.doppler_whiten:
         cmd.append("--doppler-whiten")
+    else:
+        cmd.append("--no-doppler-whiten")
+    if args.tx_aod_beamform:
+        cmd.append("--tx-aod-beamform")
+        cmd.extend(["--tx-aod-trajectory-json", str(args.tx_aod_trajectory_json)])
+        cmd.extend(["--tx-aod-phase-sign", str(args.tx_aod_phase_sign)])
+    if args.polarization_combine:
+        cmd.append("--polarization-combine")
     if station in set(args.dc_cancel_stations):
         cmd.append("--dc-cancel")
     return cmd
@@ -132,8 +140,15 @@ def main():
     p.add_argument("--dc-cancel-seconds", type=float, default=5.0)
     p.add_argument("--dc-cancel-start-second", type=float, default=75.0)
     p.add_argument("--spike-sigma", type=float, default=0.0)
-    p.add_argument("--doppler-whiten", action="store_true", default=True)
+    p.add_argument("--doppler-whiten", action="store_true", default=False)
     p.add_argument("--no-doppler-whiten", action="store_false", dest="doppler_whiten")
+    p.add_argument("--tx-aod-beamform", action="store_true")
+    p.add_argument(
+        "--tx-aod-trajectory-json",
+        default="products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json",
+    )
+    p.add_argument("--tx-aod-phase-sign", type=float, default=-1.0)
+    p.add_argument("--polarization-combine", action="store_true")
     p.add_argument("--progress-every", type=int, default=10)
     p.add_argument("--checkpoint-every", type=int, default=50)
     p.add_argument("--plot-every", type=float, default=60.0)
