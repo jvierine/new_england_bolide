@@ -495,3 +495,31 @@ ssh juha@avaruus.uit.no 'pgrep -af "range_doppler_mf_bolide|run_rdmf_stations"'
 ssh juha@avaruus.uit.no 'tail -n 120 ~/src/new_england_bolide/logs/rdmf_fft16_txaod_pol_standard_be10bb6.log'
 rsync -av juha@avaruus.uit.no:~/src/new_england_bolide/products/rdmf_fft16_txaod_pol_standard_be10bb6/ products/rdmf_fft16_txaod_pol_standard_be10bb6/
 ```
+
+Completion update:
+
+- The server run reached `999/999` for all five stations and wrote complete
+  checkpoint HDF5 products plus RTI/Doppler PNGs.
+- The worker wrapper reported failure only because the final post-checkpoint
+  write attempted to create an HDF5 dataset named `doppler_zero_pad_factor`
+  that already existed in the result dictionary. The checkpoint products were
+  validated complete locally and remotely.
+- This writer bug was fixed in:
+
+```text
+266283e Avoid duplicate RDMF metadata datasets
+```
+
+- The server checkout was fast-forwarded to `266283e` after the run completed.
+- Products were pulled back locally to:
+
+```text
+products/rdmf_fft16_txaod_pol_standard_be10bb6/
+```
+
+- Local `.h5.tmp` leftovers from the failed final write were removed. The
+  retained local files are five `.h5` products plus each station's `_rti.png`
+  and `_doppler.png`.
+- Local validation showed all HDF5 products have `P`/`N` shape `(999, 351)`,
+  `n_done=999`, `tx_aod_beamform=1`, `polarization_combine=1`, and
+  `doppler_whiten=0`.
