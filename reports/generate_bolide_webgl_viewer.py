@@ -28,7 +28,7 @@ DEFAULT_ORBIT = "products/orbit_determination/best_fit_orbit.h5"
 DEFAULT_TYCHO = str(Path.home() / "src/meteor_viz/web/data/tycho2_mag8_embedded.js")
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
 CSS_VERSION = "2026.06.12.1"
-JS_VERSION = "2026.06.12.3"
+JS_VERSION = "2026.06.12.4"
 AU_M = 149_597_870_700.0
 
 
@@ -211,6 +211,15 @@ const SolarApproachScene = (() => {
     gl.enableVertexAttribArray(at); gl.vertexAttribPointer(at,1,gl.FLOAT,false,36,28);
     gl.enableVertexAttribArray(as); gl.vertexAttribPointer(as,1,gl.FLOAT,false,36,32);
   }
+  function bind9PlanetPoints(buf, mvp) {
+    gl.useProgram(planetProg);
+    gl.uniformMatrix4fv(gl.getUniformLocation(planetProg,'u_mvp'),false,mvp);
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+    const ap=gl.getAttribLocation(planetProg,'a_pos'), ac=gl.getAttribLocation(planetProg,'a_col'), as=gl.getAttribLocation(planetProg,'a_size');
+    gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,36,0);
+    gl.enableVertexAttribArray(ac); gl.vertexAttribPointer(ac,4,gl.FLOAT,false,36,12);
+    gl.enableVertexAttribArray(as); gl.vertexAttribPointer(as,1,gl.FLOAT,false,36,32);
+  }
   function updateMeteorBuffers(u, unixNow, meteorPos, earthPos) {
     const trail = [];
     const steps = 120, startUnix = solar.entry_unix - 0.55 * periodDays * 86400;
@@ -264,8 +273,8 @@ const SolarApproachScene = (() => {
     bind7Global(surfProg, earthSphereSet.buf, earthMvp);
     gl.disable(gl.BLEND); gl.drawArrays(gl.TRIANGLES,0,earthSphereSet.count);
 
-    bind9Points(planetPointSet.buf, mvp, 0.0, 2.0, 0.0);
-    gl.depthMask(false); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.drawArrays(gl.POINTS,0,planetPointSet.count);
+    bind9PlanetPoints(planetPointSet.buf, mvp);
+    gl.depthMask(false); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.drawArrays(gl.POINTS,0,planetPointSet.count);
     bind9Points(meteorPointSet.buf, mvp, 0.0, 2.0, 0.0);
     gl.drawArrays(gl.POINTS,0,meteorPointSet.count); gl.depthMask(true);
 
@@ -830,6 +839,26 @@ void main(){{
   float core = smoothstep(1.0, 0.0, r);
   float halo = smoothstep(1.0, 0.0, r) * smoothstep(0.04, 0.65, r);
   gl_FragColor = vec4(v_col.rgb * (1.0 + 0.75 * halo), v_col.a * v_alpha * core);
+}}`);
+const planetProg = program(`
+attribute vec3 a_pos; attribute vec4 a_col; attribute float a_t; attribute float a_size;
+uniform mat4 u_mvp; varying vec4 v_col;
+void main(){{
+  gl_Position = u_mvp * vec4(a_pos, 1.0);
+  gl_PointSize = a_size;
+  v_col = a_col;
+}}`, `
+precision mediump float; varying vec4 v_col;
+void main(){{
+  vec2 p = gl_PointCoord * 2.0 - 1.0;
+  float r = length(p);
+  if (r > 1.0) discard;
+  float edge = smoothstep(1.0, 0.94, r);
+  vec2 light = normalize(vec2(-0.48, 0.74));
+  float limb = sqrt(max(0.0, 1.0 - r*r));
+  float shade = 0.50 + 0.42 * limb + 0.18 * max(0.0, dot(normalize(vec2(p.x + 0.0001, p.y + 0.0001)), light));
+  vec3 color = v_col.rgb * shade;
+  gl_FragColor = vec4(color, v_col.a * edge);
 }}`);
 const lineProg = program(`
 attribute vec3 a_pos; attribute vec4 a_col; uniform mat4 u_mvp; varying vec4 v_col;
