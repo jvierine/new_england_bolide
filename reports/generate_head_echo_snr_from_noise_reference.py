@@ -115,8 +115,13 @@ def process_station(
                 "idx": idx,
                 "time_unix": float(fit["time_unix"]),
                 "time_rel_s": float(fit["time_rel_s"]),
+                "seed_range_m": float(fit["seed_range_m"]),
                 "fit_range_m": fit_range_m,
+                "range_correction_m": float(fit["range_correction_m"]),
+                "seed_doppler_hz": float(fit["seed_doppler_hz"]),
                 "fit_doppler_hz": float(fit["fit_doppler_hz"]),
+                "doppler_correction_hz": float(fit["doppler_correction_hz"]),
+                "model_doppler_hz": float(fit["model_doppler_hz"]),
                 "fit_rel_doppler_hz": fit_rel_hz,
                 "noise_100khz_power": noise_100khz,
                 "noise_100hz_power": noise_100khz / 1000.0,
@@ -137,8 +142,14 @@ def process_station(
         "station": station,
         "time_rel": np.asarray([row["time_rel_s"] for row in rows], dtype=float),
         "time_unix": np.asarray([row["time_unix"] for row in rows], dtype=float),
+        "seed_ranges_km": np.asarray([row["seed_range_m"] / 1000.0 for row in rows], dtype=float),
         "ranges_km": np.asarray([row["fit_range_m"] / 1000.0 for row in rows], dtype=float),
+        "range_corrections_m": np.asarray([row["range_correction_m"] for row in rows], dtype=float),
+        "seed_dopplers_hz": np.asarray([row["seed_doppler_hz"] for row in rows], dtype=float),
         "fit_dopplers_hz": np.asarray([row["fit_doppler_hz"] for row in rows], dtype=float),
+        "doppler_corrections_hz": np.asarray([row["doppler_correction_hz"] for row in rows], dtype=float),
+        "model_dopplers_hz": np.asarray([row["model_doppler_hz"] for row in rows], dtype=float),
+        "fit_rel_dopplers_hz": np.asarray([row["fit_rel_doppler_hz"] for row in rows], dtype=float),
         "rel_freqs": rel_ref,
         "snr_db": spectra,
         "peak_snr_db": np.asarray([row["peak_snr_db"] for row in rows], dtype=float),
@@ -173,8 +184,14 @@ def save_results(results: list[dict], rows_by_station: dict[str, list[dict]], ar
             for key in (
                 "time_rel",
                 "time_unix",
+                "seed_ranges_km",
                 "ranges_km",
+                "range_corrections_m",
+                "seed_dopplers_hz",
                 "fit_dopplers_hz",
+                "doppler_corrections_hz",
+                "model_dopplers_hz",
+                "fit_rel_dopplers_hz",
                 "rel_freqs",
                 "snr_db",
                 "peak_snr_db",
@@ -199,7 +216,11 @@ def load_results(path: Path) -> tuple[list[dict], dict]:
                 {
                     "station": station,
                     "time_rel": g["time_rel"][()],
+                    "seed_ranges_km": g["seed_ranges_km"][()] if "seed_ranges_km" in g else g["ranges_km"][()],
                     "ranges_km": g["ranges_km"][()],
+                    "seed_dopplers_hz": g["seed_dopplers_hz"][()] if "seed_dopplers_hz" in g else g["fit_dopplers_hz"][()],
+                    "fit_dopplers_hz": g["fit_dopplers_hz"][()] if "fit_dopplers_hz" in g else np.zeros_like(g["time_rel"][()]),
+                    "model_dopplers_hz": g["model_dopplers_hz"][()] if "model_dopplers_hz" in g else g["fit_dopplers_hz"][()],
                     "rel_freqs": g["rel_freqs"][()],
                     "snr_db": g["snr_db"][()],
                     "peak_snr_db": g["peak_snr_db"][()],
@@ -228,6 +249,21 @@ def plot_results(results: list[dict], out_fig: Path) -> None:
             vmax=vmax,
         )
         ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.55)
+        seed_rel_hz = res["seed_dopplers_hz"] - res["fit_dopplers_hz"]
+        model_rel_hz = res["model_dopplers_hz"] - res["fit_dopplers_hz"]
+        ax.plot(res["time_rel"], seed_rel_hz, color="white", lw=0.85, alpha=0.95, label="seed Doppler - fit")
+        ax.plot(res["time_rel"], model_rel_hz, color="#67e8f9", lw=0.9, alpha=0.95, label="model Doppler - fit")
+        range_ax = ax.twinx()
+        range_ax.plot(res["time_rel"], res["ranges_km"], color="#86efac", lw=0.9, alpha=0.9, label="fit range")
+        range_ax.plot(res["time_rel"], res["seed_ranges_km"], color="#fde047", lw=0.85, ls=":", alpha=0.9, label="seed range")
+        range_vals = np.concatenate([res["ranges_km"], res["seed_ranges_km"]])
+        range_vals = range_vals[np.isfinite(range_vals)]
+        if range_vals.size:
+            center = 0.5 * (float(np.nanmin(range_vals)) + float(np.nanmax(range_vals)))
+            half_span = max(0.5 * (float(np.nanmax(range_vals)) - float(np.nanmin(range_vals))), 0.75)
+            range_ax.set_ylim(center - 1.2 * half_span, center + 1.2 * half_span)
+        range_ax.set_ylabel("range (km)", color="#86efac")
+        range_ax.tick_params(axis="y", colors="#86efac", labelsize=7)
         ax.set_ylabel("$f-f_{D,fit}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo SNR")
         ax.text(
@@ -241,6 +277,19 @@ def plot_results(results: list[dict], out_fig: Path) -> None:
             va="top",
             bbox={"facecolor": "black", "alpha": 0.55, "edgecolor": "none", "pad": 2},
         )
+        if ax is axes[0]:
+            handles, labels = ax.get_legend_handles_labels()
+            range_handles, range_labels = range_ax.get_legend_handles_labels()
+            ax.legend(
+                handles + range_handles,
+                labels + range_labels,
+                loc="lower right",
+                fontsize=6.5,
+                framealpha=0.55,
+                facecolor="black",
+                edgecolor="none",
+                labelcolor="white",
+            )
     axes[-1].set_xlabel("Seconds after 18:06:20 UTC")
     if mappable is not None:
         cb = fig.colorbar(mappable, ax=axes, pad=0.012)
