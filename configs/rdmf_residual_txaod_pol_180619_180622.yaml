@@ -1,0 +1,35 @@
+tag: residual_txaod_pol_180619_180622
+data_dir: 2026_05_30_bolide_residual
+out_dir: products/rdmf_residual_txaod_pol_180619_180622_frames
+stations: [beverly, clinton, pomfret]
+iso_hour: 2026-05-30T18-00-00
+channels: [0, 1]
+t0: "18:06:19"
+t1: "18:06:22"
+n_coh: 1
+codes_per_step: 1
+range_interp: 1
+doppler_zero_pad_factor: 16
+range_resolution_m: 3000
+trajectory_range_pad_pixels: 20
+trajectory_range_json: products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json
+fmin: -12000
+fmax: 12000
+ignore_freq: 150
+head_min_doppler_hz: 250
+doppler_whiten: false
+dc_cancel_stations: [clinton]
+dc_cancel_seconds: 5
+dc_cancel_start_second: 75
+spike_sigma: 0
+tx_aod_beamform: true
+tx_aod_trajectory_json: products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json
+tx_aod_phase_sign: -1
+polarization_combine: true
+save_rdmf_frames: true
+rdmf_frame_dir: products/rdmf_residual_txaod_pol_180619_180622_frames/frames
+rdmf_frame_vmin_db: 2
+rdmf_frame_vmax_db: 23
+rdmf_frame_every: 1
+progress_every: 25
+checkpoint_every: 100

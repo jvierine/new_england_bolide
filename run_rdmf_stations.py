@@ -8,8 +8,6 @@ import threading
 import time
 from pathlib import Path
 
-from range_doppler_mf_bolide import apply_t0_t1_args
-
 
 DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
 
@@ -67,6 +65,10 @@ def build_worker_cmd(args, station, out_file):
     ]
     if args.seconds is not None:
         cmd.extend(["--seconds", str(args.seconds)])
+    if args.t0 is not None:
+        cmd.extend(["--t0", str(args.t0)])
+    if args.t1 is not None:
+        cmd.extend(["--t1", str(args.t1)])
     if args.rmin_idx is not None:
         cmd.extend(["--rmin-idx", str(args.rmin_idx)])
     if args.rmax_idx is not None:
@@ -179,7 +181,6 @@ def main():
     p.add_argument("--snr-threshold", type=float, default=3.5)
     p.add_argument("--out-dir", default="products/full_run")
     args = p.parse_args()
-    apply_t0_t1_args(args)
     args.cwd = Path.cwd()
     args._last_plot_time = {}
     args._last_plot_mtime = {}

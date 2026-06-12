@@ -50,15 +50,132 @@ def parse_time_second(value, iso_hour):
     return (t - hour0).total_seconds()
 
 
-def apply_t0_t1_args(args):
-    t0 = parse_time_second(args.t0, args.iso_hour)
-    t1 = parse_time_second(args.t1, args.iso_hour)
-    if t0 is not None:
-        args.start_second = float(t0)
-    if t1 is not None:
-        args.seconds = float(t1) - float(args.start_second)
-        if args.seconds <= 0:
-            raise ValueError(f"t1 must be after t0/start_second; got start={args.start_second:g}, t1={t1:g}")
+def parse_time_unix(value, iso_hour):
+    text = str(value).strip()
+    try:
+        float(text)
+        return None
+    except ValueError:
+        pass
+    iso_text = str(iso_hour).replace("Z", "+00:00")
+    try:
+        hour0 = datetime.fromisoformat(iso_text)
+    except ValueError:
+        if "T" in iso_text:
+            date_part, time_part = iso_text.split("T", 1)
+            fields = time_part.split("-")
+            if len(fields) >= 3:
+                iso_text = f"{date_part}T{fields[0]}:{fields[1]}:{fields[2]}"
+        hour0 = datetime.fromisoformat(iso_text)
+    if hour0.tzinfo is None:
+        hour0 = hour0.replace(tzinfo=timezone.utc)
+    if "T" in text:
+        t = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=hour0.tzinfo)
+    else:
+        parts = text.split(":")
+        if len(parts) != 3:
+            raise ValueError(f"Cannot parse time {value!r}; use seconds, HH:MM:SS, or ISO timestamp")
+        hh, mm, ss = int(parts[0]), int(parts[1]), float(parts[2])
+        t = hour0.replace(hour=hh, minute=mm, second=int(ss), microsecond=int(round((ss % 1.0) * 1e6)))
+    return t.timestamp()
+
+
+def time_arg_is_numeric(value):
+    if value is None:
+        return False
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
+def rf_file_bounds(files):
+    sample_rate = None
+    bounds = []
+    for fn in files:
+        with h5py.File(fn, "r") as h:
+            ds = h["rf_data"]
+            sr = float(ds.attrs["sample_rate_numerator"]) / float(ds.attrs["sample_rate_denominator"])
+            if sample_rate is None:
+                sample_rate = sr
+            elif sample_rate != sr:
+                raise ValueError(f"Sample-rate mismatch in {fn}: {sr} != {sample_rate}")
+            start = int(h["rf_data_index"][0, 0])
+            bounds.append((start, start + int(ds.shape[0])))
+    if sample_rate is None or not bounds:
+        raise ValueError("No RF files available for bounds")
+    return int(min(b[0] for b in bounds)), int(max(b[1] for b in bounds)), float(sample_rate)
+
+
+def read_channel_files_by_sample(files, start_sample, stop_sample, *, dc_subtract="mean"):
+    chunks = []
+    sample_rate = None
+    current = int(start_sample)
+    stop_sample = int(stop_sample)
+    for fn in files:
+        with h5py.File(fn, "r") as h:
+            ds = h["rf_data"]
+            sr = float(ds.attrs["sample_rate_numerator"]) / float(ds.attrs["sample_rate_denominator"])
+            if sample_rate is None:
+                sample_rate = sr
+            elif sample_rate != sr:
+                raise ValueError(f"Sample-rate mismatch in {fn}: {sr} != {sample_rate}")
+            file_start = int(h["rf_data_index"][0, 0])
+            file_stop = file_start + int(ds.shape[0])
+            lo = max(current, file_start)
+            hi = min(stop_sample, file_stop)
+            if hi <= lo:
+                continue
+            if lo != current:
+                raise ValueError(f"RF sample gap before {lo}: expected {current}")
+            chunks.append(ds[lo - file_start : hi - file_start, 0].astype(np.complex64))
+            current = hi
+            if current >= stop_sample:
+                break
+    if current < stop_sample:
+        raise ValueError(f"Requested RF samples [{start_sample}, {stop_sample}) exceed available data")
+    out = np.concatenate(chunks) if chunks else np.asarray([], dtype=np.complex64)
+    if dc_subtract == "mean":
+        out = out - estimate_complex_dc(out)
+    elif dc_subtract != "none":
+        raise ValueError(f"Unknown dc_subtract method {dc_subtract!r}")
+    return out.astype(np.complex64, copy=False), float(sample_rate), int(start_sample)
+
+
+def resolve_t0_t1_from_rf_bounds(args, station_dir):
+    if args.t0 is None and args.t1 is None:
+        return None
+    files = rf_file_for_time(station_dir, int(args.channels[0]), args.iso_hour)
+    data_start, data_stop, sample_rate = rf_file_bounds(files)
+
+    def to_sample(value, default_sample):
+        if value is None:
+            return default_sample
+        if time_arg_is_numeric(value):
+            return data_start + int(round(float(value) * sample_rate))
+        unix = parse_time_unix(value, args.iso_hour)
+        return int(round(float(unix) * sample_rate))
+
+    start_sample = to_sample(args.t0, data_start + int(round(float(args.start_second) * sample_rate)))
+    if args.t1 is not None:
+        stop_sample = to_sample(args.t1, None)
+    elif args.seconds is not None:
+        stop_sample = start_sample + int(round(float(args.seconds) * sample_rate))
+    else:
+        stop_sample = data_stop
+    if stop_sample <= start_sample:
+        raise ValueError(f"t1/stop must be after t0/start; got samples {start_sample}:{stop_sample}")
+    if start_sample < data_start or stop_sample > data_stop:
+        raise ValueError(
+            f"Requested samples [{start_sample}, {stop_sample}) outside RF bounds "
+            f"[{data_start}, {data_stop})"
+        )
+    args.start_second = float(start_sample - data_start) / sample_rate
+    args.seconds = float(stop_sample - start_sample) / sample_rate
+    return int(start_sample), int(stop_sample)
 
 
 def geodetic_to_ecef(lat_deg, lon_deg, alt_m):
@@ -631,7 +748,6 @@ def main():
     p.add_argument("--checkpoint-every", type=int, default=25)
     p.add_argument("--out", default=None)
     args = p.parse_args()
-    apply_t0_t1_args(args)
 
     config = read_config(args.data_dir, args.station)
     rmin_idx = config["rmin_idx"] if args.rmin_idx is None else args.rmin_idx
@@ -644,9 +760,13 @@ def main():
     sample_rate = None
     abs_index0 = None
     station_dir = Path(args.data_dir) / args.station
+    sample_bounds = resolve_t0_t1_from_rf_bounds(args, station_dir)
     for ch in args.channels:
         files = rf_file_for_time(station_dir, ch, args.iso_hour)
-        z, sr, idx0 = read_channel_files(files, start_second=args.start_second, seconds=args.seconds)
+        if sample_bounds is None:
+            z, sr, idx0 = read_channel_files(files, start_second=args.start_second, seconds=args.seconds)
+        else:
+            z, sr, idx0 = read_channel_files_by_sample(files, sample_bounds[0], sample_bounds[1])
         z = interpolate_rect(z, args.range_interp)
         channel_data.append(z)
         sample_rate = sr if sample_rate is None else sample_rate
