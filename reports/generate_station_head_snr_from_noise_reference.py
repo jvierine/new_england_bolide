@@ -211,10 +211,24 @@ def load_results(path: Path) -> tuple[list[dict], dict]:
     return datasets, metadata
 
 
-def plot_results(datasets: list[dict], metadata: dict, out_fig: Path, *, vmin_db: float | None = None, vmax_db: float | None = None) -> None:
+def datasets_by_station(datasets: list[dict]) -> dict[str, dict]:
+    return {str(data["station"]): data for data in datasets}
+
+
+def plot_results(
+    datasets: list[dict],
+    metadata: dict,
+    out_fig: Path,
+    *,
+    vmin_db: float | None = None,
+    vmax_db: float | None = None,
+    contour_datasets: list[dict] | None = None,
+    contour_level_db: float = 16.0,
+) -> None:
     vals = np.concatenate([data["snr_db"][np.isfinite(data["snr_db"])] for data in datasets])
     vmin = float(vmin_db) if vmin_db is not None else (max(-10.0, float(np.nanpercentile(vals, 2.0))) if vals.size else -10.0)
     vmax = float(vmax_db) if vmax_db is not None else (min(35.0, max(vmin + 10.0, float(np.nanpercentile(vals, 99.5)))) if vals.size else 25.0)
+    contour_by_station = datasets_by_station(contour_datasets or [])
 
     plt.rcParams.update(
         {
@@ -231,8 +245,9 @@ def plot_results(datasets: list[dict], metadata: dict, out_fig: Path, *, vmin_db
     axes = np.atleast_1d(axes)
     mesh = None
     for ax, data in zip(axes, datasets, strict=True):
+        x = unix_to_mpl(data["time_unix"])
         mesh = ax.pcolormesh(
-            bin_edges(unix_to_mpl(data["time_unix"])),
+            bin_edges(x),
             bin_edges(data["range_km"]),
             data["snr_db"].T,
             shading="auto",
@@ -240,6 +255,19 @@ def plot_results(datasets: list[dict], metadata: dict, out_fig: Path, *, vmin_db
             vmin=vmin,
             vmax=vmax,
         )
+        contour_data = contour_by_station.get(data["station"])
+        if contour_data is not None:
+            contour_vals = np.asarray(contour_data["snr_db"], dtype=float)
+            if np.nanmin(contour_vals) < contour_level_db < np.nanmax(contour_vals):
+                ax.contour(
+                    unix_to_mpl(contour_data["time_unix"]),
+                    contour_data["range_km"],
+                    contour_vals.T,
+                    levels=[contour_level_db],
+                    colors="white",
+                    linewidths=1.15,
+                    alpha=0.95,
+                )
         ax.set_ylabel(f"{STATION_LABELS.get(data['station'], data['station'])}\nrange (km)")
         ax.set_ylim(data["rmin_km"], data["rmax_km"])
         ax.grid(True, color="0.9", linewidth=0.4)
@@ -258,6 +286,18 @@ def plot_results(datasets: list[dict], metadata: dict, out_fig: Path, *, vmin_db
         color="0.35",
         alpha=0.65,
     )
+    if contour_datasets is not None:
+        axes[0].text(
+            0.988,
+            0.94,
+            f"white contour: original SNR = {contour_level_db:g} dB",
+            transform=axes[0].transAxes,
+            ha="right",
+            va="top",
+            fontsize=9,
+            color="white",
+            bbox={"facecolor": "black", "alpha": 0.45, "edgecolor": "none", "pad": 2},
+        )
     axes[-1].set_xlabel("UTC on 2026-05-30")
     if mesh is not None:
         fig.colorbar(mesh, ax=axes, label="SNR from 1 s sparse-residual noise reference (dB)", shrink=0.93)
@@ -299,12 +339,25 @@ def main() -> None:
     parser.add_argument("--n-channels", type=int, default=2)
     parser.add_argument("--vmin-db", type=float, default=None)
     parser.add_argument("--vmax-db", type=float, default=None)
+    parser.add_argument("--contour-h5", type=Path, default=None)
+    parser.add_argument("--contour-level-db", type=float, default=16.0)
     args = parser.parse_args()
     if args.mode in {"compute", "both"}:
         compute(args)
     if args.mode in {"plot", "both"}:
         datasets, metadata = load_results(args.output_h5)
-        plot_results(datasets, metadata, args.output_fig, vmin_db=args.vmin_db, vmax_db=args.vmax_db)
+        contour_datasets = None
+        if args.contour_h5 is not None:
+            contour_datasets, _contour_metadata = load_results(args.contour_h5)
+        plot_results(
+            datasets,
+            metadata,
+            args.output_fig,
+            vmin_db=args.vmin_db,
+            vmax_db=args.vmax_db,
+            contour_datasets=contour_datasets,
+            contour_level_db=args.contour_level_db,
+        )
         print(args.output_fig, flush=True)
 
 
