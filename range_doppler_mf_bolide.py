@@ -439,30 +439,35 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
     with h5py.File(tmp_name, "w") as h:
         for key, val in result.items():
             h[key] = val
-        h["sample_rate"] = sample_rate
-        h["t0_sample"] = abs_index0
-        h["station"] = np.bytes_(args.station)
-        h["channels"] = np.array(args.channels, dtype=np.int32)
-        h["seeds"] = np.array(config["seeds"], dtype=np.int64)
-        h["code_len"] = config["code_len"]
-        h["n_coh"] = args.n_coh
-        h["codes_per_step"] = args.codes_per_step
-        h["range_interp"] = args.range_interp
-        h["doppler_zero_pad_factor"] = args.doppler_zero_pad_factor
-        h["range_resolution_m"] = args.range_resolution_m
-        h["ignore_freq"] = args.ignore_freq
-        h["head_min_doppler_hz"] = args.head_min_doppler_hz
-        h["dc_cancel"] = int(args.dc_cancel)
-        h["dc_cancel_seconds"] = args.dc_cancel_seconds
-        h["dc_cancel_start_second"] = args.dc_cancel_start_second
-        h["doppler_whiten"] = int(args.doppler_whiten)
-        h["tx_aod_beamform"] = int(args.tx_aod_beamform)
-        h["tx_aod_phase_sign"] = float(args.tx_aod_phase_sign)
-        h["polarization_combine"] = int(args.polarization_combine)
-        h["frequency_hz"] = config["frequency_hz"]
-        h["gps_rx"] = np.array(config["gps_rx"], dtype=np.float64)
-        h["gps_tx"] = np.array(config["gps_tx"], dtype=np.float64)
-        h["antenna_pos_tx"] = np.array(config["antenna_pos_tx"], dtype=np.float64)
+
+        def write_once(key, val):
+            if key not in h:
+                h[key] = val
+
+        write_once("sample_rate", sample_rate)
+        write_once("t0_sample", abs_index0)
+        write_once("station", np.bytes_(args.station))
+        write_once("channels", np.array(args.channels, dtype=np.int32))
+        write_once("seeds", np.array(config["seeds"], dtype=np.int64))
+        write_once("code_len", config["code_len"])
+        write_once("n_coh", args.n_coh)
+        write_once("codes_per_step", args.codes_per_step)
+        write_once("range_interp", args.range_interp)
+        write_once("doppler_zero_pad_factor", args.doppler_zero_pad_factor)
+        write_once("range_resolution_m", args.range_resolution_m)
+        write_once("ignore_freq", args.ignore_freq)
+        write_once("head_min_doppler_hz", args.head_min_doppler_hz)
+        write_once("dc_cancel", int(args.dc_cancel))
+        write_once("dc_cancel_seconds", args.dc_cancel_seconds)
+        write_once("dc_cancel_start_second", args.dc_cancel_start_second)
+        write_once("doppler_whiten", int(args.doppler_whiten))
+        write_once("tx_aod_beamform", int(args.tx_aod_beamform))
+        write_once("tx_aod_phase_sign", float(args.tx_aod_phase_sign))
+        write_once("polarization_combine", int(args.polarization_combine))
+        write_once("frequency_hz", config["frequency_hz"])
+        write_once("gps_rx", np.array(config["gps_rx"], dtype=np.float64))
+        write_once("gps_tx", np.array(config["gps_tx"], dtype=np.float64))
+        write_once("antenna_pos_tx", np.array(config["antenna_pos_tx"], dtype=np.float64))
         h.attrs["config_path"] = config["config_path"]
         h.attrs["iso_hour"] = args.iso_hour
         h.attrs["name_rx"] = config["name_rx"]
