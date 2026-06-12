@@ -26,7 +26,7 @@ DEFAULT_UIT_LOGO = "reports/assets/logos/uit_space_physics_logo.png"
 DEFAULT_IAP_LOGO = "reports/assets/logos/iap_logo.svg"
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
 CSS_VERSION = "2026.06.12.1"
-JS_VERSION = "2026.06.12.1"
+JS_VERSION = "2026.06.12.2"
 
 
 def read_rows(path: Path, key: str) -> list[dict]:
@@ -350,6 +350,7 @@ canvas{{display:block;width:100vw;height:100vh;touch-action:none;background:radi
 .panel{{pointer-events:auto;background:rgba(4,8,14,.72);border:1px solid rgba(150,210,255,.22);box-shadow:0 18px 55px rgba(0,0,0,.35);backdrop-filter:blur(10px);border-radius:8px;padding:12px 14px}}
 .titlepanel{{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}}
 h1{{font-size:15px;line-height:1.15;margin:0 0 7px 0;font-weight:700;letter-spacing:0}}
+.hud-time{{font-variant-numeric:tabular-nums;color:#d6f4ff;font-size:12px;line-height:1.15;margin:0 0 7px 0;white-space:nowrap}}
 .meta{{color:#aac1d3;font-size:12px;max-width:560px}}
 .drawer-body{{grid-column:1 / -1;display:grid;gap:10px;margin-top:10px}}
 .logo-links{{position:fixed;left:16px;bottom:16px;display:flex;gap:10px;align-items:center;z-index:5}}
@@ -368,9 +369,9 @@ button.active{{background:#1a5c7a;border-color:#57d0ff}}
 .hud.collapsed{{width:auto}}
 .hud.collapsed .drawer-body,.hud.collapsed .meta{{display:none}}
 .hud.collapsed .titlepanel{{grid-template-columns:auto auto;min-width:0}}
-.hud.collapsed .titlepanel h1{{margin:0}}
+.hud.collapsed .titlepanel h1{{margin:0 0 4px 0}}
+.hud.collapsed .hud-time{{margin:0}}
 input[type=range]{{width:100%;accent-color:#58d7ff}}
-.top-time{{position:fixed;top:14px;left:50%;transform:translateX(-50%);padding:7px 12px;border-radius:8px;background:rgba(4,8,14,.70);border:1px solid rgba(150,210,255,.18);box-shadow:0 12px 35px rgba(0,0,0,.25);color:#d6f4ff;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:4;pointer-events:none}}
 .readout{{font-variant-numeric:tabular-nums;color:#d6f4ff;text-align:right}}
 .legend{{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#bed3df}}
 .dot{{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;box-shadow:0 0 13px currentColor}}
@@ -390,6 +391,7 @@ input[type=range]{{width:100%;accent-color:#58d7ff}}
   .titlepanel{{width:calc(100vw - 20px);grid-template-columns:minmax(0,1fr) auto;gap:8px}}
   .titlepanel .menubtn{{grid-column:2;grid-row:1}}
   h1{{font-size:14px;margin-bottom:5px}}
+  .hud-time{{font-size:11px;max-width:calc(100vw - 94px);overflow:hidden;text-overflow:ellipsis}}
   .meta{{font-size:11px;max-width:none}}
   .logo-links{{left:10px;bottom:10px;gap:7px;flex-wrap:wrap;max-width:calc(100vw - 20px)}}
   .logo{{height:31px;max-width:112px;padding:5px 6px}}
@@ -401,7 +403,6 @@ input[type=range]{{width:100%;accent-color:#58d7ff}}
   .controls .readout{{text-align:left;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
   .controls input#time,.controls input#window{{grid-column:1 / -1}}
   .legend{{gap:7px;font-size:11px}}
-  .top-time{{top:10px;font-size:12px;max-width:calc(100vw - 124px);overflow:hidden;text-overflow:ellipsis}}
   .help,.altitude{{font-size:11px}}
   .station-label{{font-size:10px;padding:2px 5px}}
   .hud.collapsed{{right:auto;max-height:none;overflow:visible}}
@@ -411,11 +412,11 @@ input[type=range]{{width:100%;accent-color:#58d7ff}}
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div id="readout" class="top-time">2026-05-30T18:06:19Z</div>
 <div class="hud">
   <div class="panel titlepanel">
     <div>
       <h1>Cape Cod Bay Bolide May 30 2026</h1>
+      <div id="readout" class="hud-time">2026-05-30T18:06:19Z</div>
       <div class="meta">Actual measurements of bolide-created plasma using the MIT Haystack Observatory multi-static radar system, developed in collaboration with IAP Kühlungsborn, Germany and the University of Tromsø, Norway, painted onto the fitted ballistic path over a curved New England/Cape Cod map.</div>
     </div>
     <button id="menu" class="menubtn" aria-label="Collapse menu">≡</button>
