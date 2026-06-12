@@ -335,10 +335,10 @@ def combine_matched_filter_images(code_images, good_head_dop, steering=None, pol
     return power, pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
 
 
-def save_rdmf_frame(out_dir, station, ti, unix_time, range_km, fvec, power, vmin_db=None, vmax_db=None):
+def save_rdmf_frame(out_dir, station, ti, unix_time, range_km, fvec, snr, vmin_db=None, vmax_db=None):
     out_dir = Path(out_dir) / station
     out_dir.mkdir(parents=True, exist_ok=True)
-    img_db = 10.0 * np.log10(np.maximum(power, 1e-30))
+    img_db = 10.0 * np.log10(np.maximum(snr, 1e-30))
     if vmin_db is None:
         finite = img_db[np.isfinite(img_db)]
         vmin_db = float(np.nanpercentile(finite, 5.0)) if finite.size else 0.0
@@ -350,7 +350,7 @@ def save_rdmf_frame(out_dir, station, ti, unix_time, range_km, fvec, power, vmin
     fig, ax = plt.subplots(figsize=(7.2, 4.6), constrained_layout=True)
     mesh = ax.pcolormesh(fvec, range_km, img_db, shading="auto", cmap="inferno", vmin=vmin_db, vmax=vmax_db)
     cb = fig.colorbar(mesh, ax=ax)
-    cb.set_label("Matched-filter power (dB)")
+    cb.set_label("Matched-filter SNR (dB)")
     ax.set_xlabel("Doppler frequency (Hz)")
     ax.set_ylabel("Bistatic group range (km)")
     ax.set_title(f"{station} RDMF step {ti:04d}, unix {unix_time:.3f}")
@@ -543,19 +543,6 @@ def range_doppler_bank(
         pol_gamma[ti, :] = gamma
         pol_peak_range_idx[ti] = peak_ri
         pol_peak_doppler_idx[ti] = peak_di
-        if rdmf_frame_dir is not None and rdmf_frame_every > 0 and ti % int(rdmf_frame_every) == 0:
-            save_rdmf_frame(
-                rdmf_frame_dir,
-                rdmf_frame_station or "station",
-                ti,
-                float(t_sample[ti] / sample_rate),
-                (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
-                fvec0.astype(np.float32),
-                S,
-                vmin_db=rdmf_frame_vmin_db,
-                vmax_db=rdmf_frame_vmax_db,
-            )
-
         if doppler_whiten:
             # Normalize each Doppler bin by its median power over range before
             # peak picking. This suppresses Doppler-dependent clutter/leakage,
@@ -590,6 +577,19 @@ def range_doppler_bank(
         P_head[ti, :] = S_pick[np.arange(len(ridx)), imax_head]
         D_head[ti, :] = fvec0[imax_head]
         N[ti, :] = floor
+        if rdmf_frame_dir is not None and rdmf_frame_every > 0 and ti % int(rdmf_frame_every) == 0:
+            frame_snr = S_pick / np.maximum(floor[:, None], 1e-12)
+            save_rdmf_frame(
+                rdmf_frame_dir,
+                rdmf_frame_station or "station",
+                ti,
+                float(t_sample[ti] / sample_rate),
+                (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
+                fvec0.astype(np.float32),
+                frame_snr,
+                vmin_db=rdmf_frame_vmin_db,
+                vmax_db=rdmf_frame_vmax_db,
+            )
 
         snr = P_head[ti, :] / np.maximum(N[ti, :], 1e-12)
         best = int(np.argmax(snr))
