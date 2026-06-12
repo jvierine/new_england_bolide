@@ -98,7 +98,7 @@ input[type=range]{width:100%;accent-color:#58d7ff}
         <div class="bar"><div id="bartick" class="tick"></div></div>
       </div>
       <div id="altitude" class="altitude">viewer altitude 96.8 km</div>
-      <div class="help">W/A/S/D fly · Q/E vertical · left drag look · right drag orbit · wheel zoom · touch orbit · two-finger swipe/pinch zoom</div>
+      <div class="help">W/A/S/D fly · Q/E vertical · ←/→ orbit · left drag look · right drag orbit · wheel zoom · touch orbit · two-finger swipe/pinch zoom</div>
     </div>
   </div>
 </div>
@@ -487,7 +487,23 @@ slider.oninput=()=>{playProgress=+slider.value/1000; simT=progressToTime(playPro
 win.oninput=()=>{winread.textContent=(+win.value).toFixed(0)+' s loop';};
 barmin.textContent = tMin.toFixed(2) + ' s';
 barmax.textContent = tMax.toFixed(2) + ' s';
-addEventListener('keydown',e=>keys.add(e.key.toLowerCase())); addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
+function keyName(e) {
+  if (e.key === 'ArrowLeft') return 'arrowleft';
+  if (e.key === 'ArrowRight') return 'arrowright';
+  if (e.key === 'ArrowUp') return 'arrowup';
+  if (e.key === 'ArrowDown') return 'arrowdown';
+  return e.key.toLowerCase();
+}
+addEventListener('keydown',e=>{
+  const key = keyName(e);
+  keys.add(key);
+  if (key.startsWith('arrow')) e.preventDefault();
+});
+addEventListener('keyup',e=>{
+  const key = keyName(e);
+  keys.delete(key);
+  if (key.startsWith('arrow')) e.preventDefault();
+});
 let drag=false, orbitDrag=false, orbitFollow=true, lastX=0,lastY=0;
 aimAt(interpPath(simT));
 canvas.oncontextmenu=e=>e.preventDefault();
@@ -573,6 +589,8 @@ function frame(now) {
   if(keys.has('d')) for(let i=0;i<3;i++) cam[i]+=right[i]*step;
   if(keys.has('a')) for(let i=0;i<3;i++) cam[i]-=right[i]*step;
   if(keys.has('e')) cam[1]+=step; if(keys.has('q')) cam[1]-=step;
+  if(keys.has('arrowleft')) { orbitFollow=true; orbitAround(interpPath(simT), -180.0 * dt, 0.0); }
+  if(keys.has('arrowright')) { orbitFollow=true; orbitAround(interpPath(simT), 180.0 * dt, 0.0); }
   if(orbitFollow) aimAt(interpPath(simT));
   const w=canvas.clientWidth,h=canvas.clientHeight; if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h);}
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0.015,0.02,0.032,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
