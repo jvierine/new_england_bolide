@@ -19,14 +19,14 @@ from station_config import STATION_ORDER, load_all_station_configs, short_statio
 
 DEFAULT_HEAD = "products/aod_position_from_merged/aod_position_summary.json"
 DEFAULT_TRAIL = "products/specular_trail_positions/specular_trail_position_summary.json"
-DEFAULT_BALLISTIC = "products/ballistic_head_trail_fit/ballistic_head_trail_fit.json"
+DEFAULT_BALLISTIC = "products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json"
 DEFAULT_OUT = "reports/figures/bolide_webgl_volume_viewer.html"
 DEFAULT_HAYSTACK_LOGO = "/Users/j/Desktop/MIT_Haystack_Observatory_logo.svg"
 DEFAULT_UIT_LOGO = "/Users/j/Desktop/Screenshot 2026-06-05 at 22.28.53.png"
 DEFAULT_IAP_LOGO = "/Users/j/Desktop/logo_en.svg"
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
-CSS_VERSION = "2026.06.06.1"
-JS_VERSION = "2026.06.06.1"
+CSS_VERSION = "2026.06.12.1"
+JS_VERSION = "2026.06.12.1"
 
 
 def read_rows(path: Path, key: str) -> list[dict]:
@@ -317,6 +317,23 @@ def station_marker_rows(data_dir: Path | str) -> list[dict]:
 
 def build_html(asset: dict) -> str:
     asset_json = json.dumps(asset, separators=(",", ":"), allow_nan=False)
+    logos = asset.get("logos", {})
+
+    def logo_link(key: str, label: str, url: str, img_class: str) -> str:
+        src = logos.get(key)
+        if src:
+            content = f'<img class="logo {img_class}" src="{src}" alt="{label}">'
+        else:
+            content = f'<span class="logo logo-text {img_class}">{label}</span>'
+        return f'<a class="logo-link" href="{url}" target="_blank" rel="noopener">{content}</a>'
+
+    logo_html = "\n  ".join(
+        [
+            logo_link("iap", "IAP", "https://www.iap-kborn.de/", "iap"),
+            logo_link("haystack", "MIT Haystack", "https://www.haystack.mit.edu/", "haystack"),
+            logo_link("uit", "UiT Space Physics", "https://en.uit.no/forskning/forskningsgrupper/gruppe?p_document_id=397987", "uit"),
+        ]
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -329,59 +346,63 @@ def build_html(asset: dict) -> str:
 html,body{{margin:0;height:100%;overflow:hidden;background:#05070b;color:#eaf5ff;font:13px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}}
 *,*:before,*:after{{box-sizing:border-box}}
 canvas{{display:block;width:100vw;height:100vh;touch-action:none;background:radial-gradient(circle at 50% 38%,#15202d 0,#05070b 58%,#020307 100%)}}
-.hud{{position:fixed;left:16px;right:16px;top:14px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;pointer-events:none}}
+.hud{{position:fixed;right:16px;top:14px;width:min(520px,calc(100vw - 32px));pointer-events:none}}
 .panel{{pointer-events:auto;background:rgba(4,8,14,.72);border:1px solid rgba(150,210,255,.22);box-shadow:0 18px 55px rgba(0,0,0,.35);backdrop-filter:blur(10px);border-radius:8px;padding:12px 14px}}
-.titlepanel{{display:grid;grid-template-columns:minmax(280px,560px) auto auto;gap:16px;align-items:center}}
+.titlepanel{{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start}}
 h1{{font-size:15px;line-height:1.15;margin:0 0 7px 0;font-weight:700;letter-spacing:0}}
 .meta{{color:#aac1d3;font-size:12px;max-width:560px}}
-.logos{{display:flex;gap:10px;align-items:center;justify-content:flex-end}}
+.drawer-body{{grid-column:1 / -1;display:grid;gap:10px;margin-top:10px}}
+.logo-links{{position:fixed;left:16px;bottom:16px;display:flex;gap:10px;align-items:center;z-index:5}}
+.logo-link{{display:block;pointer-events:auto}}
 .logo{{height:46px;max-width:160px;object-fit:contain;background:rgba(255,255,255,.94);border:1px solid rgba(255,255,255,.28);border-radius:6px;padding:7px 9px;box-shadow:0 10px 26px rgba(0,0,0,.22)}}
+.logo-text{{display:inline-flex;align-items:center;justify-content:center;color:#102034;font-weight:700;text-decoration:none;min-width:64px}}
+.logo-text.uit{{max-width:150px}}
+.logo-text.haystack{{max-width:150px}}
 .logo.uit{{max-width:70px}}
 .logo.iap{{max-width:170px}}
-.controls{{display:grid;grid-template-columns:auto auto 220px 190px;gap:9px;align-items:center;min-width:615px}}
+.controls{{display:grid;grid-template-columns:auto auto minmax(180px,1fr);gap:9px;align-items:center}}
 button{{height:30px;border-radius:6px;border:1px solid rgba(175,225,255,.3);background:#0f1b25;color:#eaf5ff;cursor:pointer}}
 button{{min-width:0}}
 button.active{{background:#1a5c7a;border-color:#57d0ff}}
 .menubtn{{width:34px;padding:0;font-size:18px;line-height:1;justify-self:end}}
-.hud.collapsed .controls,.hud.collapsed .meta,.hud.collapsed .logos{{display:none}}
-.hud.collapsed{{right:auto}}
+.hud.collapsed{{width:auto}}
+.hud.collapsed .drawer-body,.hud.collapsed .meta{{display:none}}
 .hud.collapsed .titlepanel{{grid-template-columns:auto auto;min-width:0}}
 .hud.collapsed .titlepanel h1{{margin:0}}
-input[type=range]{{width:220px;accent-color:#58d7ff}}
-.readout{{font-variant-numeric:tabular-nums;color:#d6f4ff;min-width:184px;text-align:right}}
-.legend{{position:fixed;left:16px;bottom:16px;display:flex;gap:10px;align-items:center;pointer-events:none;background:rgba(4,8,14,.65);border:1px solid rgba(150,210,255,.16);border-radius:8px;padding:9px 11px;color:#bed3df}}
+input[type=range]{{width:100%;accent-color:#58d7ff}}
+.top-time{{position:fixed;top:14px;left:50%;transform:translateX(-50%);padding:7px 12px;border-radius:8px;background:rgba(4,8,14,.70);border:1px solid rgba(150,210,255,.18);box-shadow:0 12px 35px rgba(0,0,0,.25);color:#d6f4ff;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:4;pointer-events:none}}
+.readout{{font-variant-numeric:tabular-nums;color:#d6f4ff;text-align:right}}
+.legend{{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#bed3df}}
 .dot{{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;box-shadow:0 0 13px currentColor}}
-.help{{position:fixed;right:16px;bottom:16px;color:#9fb2c0;background:rgba(4,8,14,.58);border:1px solid rgba(150,210,255,.14);border-radius:8px;padding:8px 10px;pointer-events:none}}
-.altitude{{position:fixed;right:16px;bottom:54px;color:#d6f4ff;background:rgba(4,8,14,.66);border:1px solid rgba(150,210,255,.16);border-radius:8px;padding:8px 10px;pointer-events:none;font-variant-numeric:tabular-nums}}
+.help{{color:#9fb2c0;border-top:1px solid rgba(150,210,255,.12);padding-top:8px}}
+.altitude{{color:#d6f4ff;font-variant-numeric:tabular-nums}}
 .label-layer{{position:fixed;inset:0;pointer-events:none;overflow:hidden}}
 .station-label{{position:absolute;transform:translate(-50%,-140%);padding:3px 6px;border-radius:5px;background:rgba(3,7,12,.72);border:1px solid rgba(210,235,255,.22);color:#e8f8ff;font-size:11px;white-space:nowrap;text-shadow:0 1px 4px #000}}
 .station-label.tx{{color:#ffe88a;border-color:rgba(255,232,138,.45)}}
 .station-label.rx{{color:#9df7d0;border-color:rgba(157,247,208,.32)}}
-.colorbar{{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);width:min(460px,calc(100vw - 360px));min-width:260px;pointer-events:none;background:rgba(4,8,14,.66);border:1px solid rgba(150,210,255,.16);border-radius:8px;padding:9px 11px;color:#bed3df}}
+.colorbar{{width:100%;color:#bed3df}}
 .barlabel{{display:flex;justify-content:space-between;font-size:11px;color:#aebfcb;margin-bottom:5px}}
 .bar{{position:relative;height:12px;border-radius:6px;background:linear-gradient(90deg,#30123b,#4662d7,#1bcfd4,#70e75f,#f9c63d,#e1442f);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 0 22px rgba(88,215,255,.12)}}
 .tick{{position:absolute;top:-4px;width:2px;height:20px;border-radius:2px;background:white;box-shadow:0 0 10px rgba(255,255,255,.8)}}
 @media (max-width: 820px){{
-  .hud{{left:10px;right:10px;top:10px;flex-direction:column;gap:8px;max-height:calc(100vh - 20px);overflow:auto}}
+  .hud{{left:10px;right:10px;top:10px;width:auto;max-height:calc(100vh - 20px);overflow:auto}}
   .panel{{padding:9px 10px;border-radius:8px}}
   .titlepanel{{width:calc(100vw - 20px);grid-template-columns:minmax(0,1fr) auto;gap:8px}}
-  .titlepanel .logos{{grid-column:1 / -1;grid-row:2;justify-content:flex-start;gap:7px;flex-wrap:wrap}}
   .titlepanel .menubtn{{grid-column:2;grid-row:1}}
   h1{{font-size:14px;margin-bottom:5px}}
   .meta{{font-size:11px;max-width:none}}
+  .logo-links{{left:10px;bottom:10px;gap:7px;flex-wrap:wrap;max-width:calc(100vw - 20px)}}
   .logo{{height:31px;max-width:112px;padding:5px 6px}}
   .logo.uit{{max-width:48px}}
   .logo.iap{{max-width:120px}}
-  .controls{{width:calc(100vw - 20px);min-width:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}}
+  .controls{{width:100%;min-width:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}}
   .controls button{{width:100%;padding:0 8px}}
-  .controls span{{display:none}}
   .controls input[type=range]{{width:100%;min-width:0}}
-  .controls .readout{{grid-column:1 / -1;min-width:0;text-align:left;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+  .controls .readout{{text-align:left;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
   .controls input#time,.controls input#window{{grid-column:1 / -1}}
-  .legend{{left:10px;right:10px;bottom:10px;flex-wrap:wrap;gap:7px;font-size:11px;padding:7px 8px}}
-  .colorbar{{left:10px;right:10px;bottom:62px;transform:none;width:auto;min-width:0;padding:7px 8px}}
-  .help{{left:10px;right:auto;bottom:154px;max-width:calc(100vw - 20px);font-size:11px;padding:7px 8px}}
-  .altitude{{left:10px;right:auto;bottom:112px;font-size:11px;padding:7px 8px}}
+  .legend{{gap:7px;font-size:11px}}
+  .top-time{{top:10px;font-size:12px;max-width:calc(100vw - 124px);overflow:hidden;text-overflow:ellipsis}}
+  .help,.altitude{{font-size:11px}}
   .station-label{{font-size:10px;padding:2px 5px}}
   .hud.collapsed{{right:auto;max-height:none;overflow:visible}}
   .hud.collapsed .titlepanel{{width:auto;grid-template-columns:auto auto}}
@@ -390,37 +411,36 @@ input[type=range]{{width:220px;accent-color:#58d7ff}}
 </head>
 <body>
 <canvas id="gl"></canvas>
+<div id="readout" class="top-time">2026-05-30T18:06:19Z</div>
 <div class="hud">
   <div class="panel titlepanel">
     <div>
       <h1>Cape Cod Bay Bolide May 30 2026</h1>
       <div class="meta">Actual measurements of bolide-created plasma using the MIT Haystack Observatory multi-static radar system, developed in collaboration with IAP Kühlungsborn, Germany and the University of Tromsø, Norway, painted onto the fitted ballistic path over a curved New England/Cape Cod map.</div>
     </div>
-    <div class="logos">
-      {f'<img class="logo haystack" src="{asset.get("logos", {}).get("haystack", "")}" alt="MIT Haystack Observatory">' if asset.get("logos", {}).get("haystack") else ""}
-      {f'<img class="logo uit" src="{asset.get("logos", {}).get("uit", "")}" alt="UiT The Arctic University of Norway">' if asset.get("logos", {}).get("uit") else ""}
-      {f'<img class="logo iap" src="{asset.get("logos", {}).get("iap", "")}" alt="Leibniz Institute of Atmospheric Physics">' if asset.get("logos", {}).get("iap") else ""}
-    </div>
     <button id="menu" class="menubtn" aria-label="Collapse menu">≡</button>
-  </div>
-  <div class="panel controls">
-    <button id="play" class="active">Pause</button>
-    <button id="radar" class="active">Radar</button>
-    <input id="time" type="range" min="0" max="1000" value="0">
-    <div id="readout" class="readout">2026-05-30T18:06:19.150Z</div>
-    <button id="density">Density</button>
-    <span></span>
-    <input id="window" type="range" min="8" max="80" value="26">
-    <div id="winread" class="readout">26 s loop</div>
+    <div class="drawer-body">
+      <div class="controls">
+        <button id="play" class="active">Pause</button>
+        <button id="radar" class="active">Radar</button>
+        <input id="time" type="range" min="0" max="1000" value="0">
+        <button id="density">Density</button>
+        <div id="winread" class="readout">26 s loop</div>
+        <input id="window" type="range" min="8" max="80" value="26">
+      </div>
+      <div class="legend"><span style="color:#d8f5ff"><span class="dot"></span>plasma blobs</span><span style="color:#f6d56a"><span class="dot"></span>radar legs</span><span style="color:#8b7460"><span class="dot"></span>meteoroid rock</span><span style="color:#ffffff"><span class="dot"></span>painted tail</span><span style="color:#c08a5a"><span class="dot"></span>falling/landed fragments</span></div>
+      <div class="colorbar">
+        <div class="barlabel"><span id="barmin">-1.11 s</span><span>eased UTC playback</span><span id="barmax">3.29 s</span></div>
+        <div class="bar"><div id="bartick" class="tick"></div></div>
+      </div>
+      <div id="altitude" class="altitude">viewer altitude 96.8 km</div>
+      <div class="help">W/A/S/D fly · Q/E vertical · left drag look · right drag orbit · wheel zoom · touch orbit · two-finger swipe/pinch zoom</div>
+    </div>
   </div>
 </div>
-<div class="legend"><span style="color:#d8f5ff"><span class="dot"></span>plasma blobs</span><span style="color:#f6d56a"><span class="dot"></span>radar legs</span><span style="color:#8b7460"><span class="dot"></span>meteoroid rock</span><span style="color:#ffffff"><span class="dot"></span>painted tail</span><span style="color:#c08a5a"><span class="dot"></span>falling/landed fragments</span></div>
-<div class="colorbar">
-  <div class="barlabel"><span id="barmin">-1.11 s</span><span>eased UTC playback</span><span id="barmax">3.29 s</span></div>
-  <div class="bar"><div id="bartick" class="tick"></div></div>
+<div class="logo-links">
+  {logo_html}
 </div>
-<div id="altitude" class="altitude">viewer altitude 96.8 km</div>
-<div class="help">W/A/S/D fly · Q/E vertical · left drag look · right drag orbit · wheel zoom · touch orbit · two-finger swipe/pinch zoom</div>
 <div id="labels" class="label-layer"></div>
 <script id="asset" type="application/json">{asset_json}</script>
 <script data-version="{JS_VERSION}">
