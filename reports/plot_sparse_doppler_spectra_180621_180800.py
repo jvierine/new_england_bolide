@@ -10,10 +10,13 @@ import numpy as np
 
 
 PRODUCT_DIR = Path("products/trail_echo_sparse_deconv_full_3km_50code_rdmf_avx_dcfit_20260607")
+NOISE_POWER_H5 = Path("products/sparse_residual_noise_power/sparse_residual_noise_power_1s.h5")
 OUT = Path("reports/figures/sparse_solver_memo/sparse_doppler_spectra_180621_180800.png")
 STATIONS = ["beverly", "clinton", "pomfret", "amherstnh", "siena"]
 START = datetime(2026, 5, 30, 18, 6, 21, tzinfo=timezone.utc).timestamp()
 STOP = datetime(2026, 5, 30, 18, 8, 0, tzinfo=timezone.utc).timestamp()
+RAW_NOISE_BANDWIDTH_HZ = 100e3
+SPECTRAL_NOISE_BANDWIDTH_HZ = 2.0
 BOLIDE_RANGE_KM = {
     "beverly": (190.0, 285.0),
     "clinton": (230.0, 300.0),
@@ -33,6 +36,14 @@ def short_station_name(station: str) -> str:
     }.get(station, station.title())
 
 
+def load_noise_power_2hz(station: str, times: np.ndarray) -> np.ndarray:
+    with h5py.File(NOISE_POWER_H5, "r") as h:
+        noise_time = h[station]["time_unix"][:]
+        noise_100khz = h[station]["dc_subtracted_power"][:]
+    noise_interp = np.interp(times, noise_time, noise_100khz)
+    return noise_interp * (SPECTRAL_NOISE_BANDWIDTH_HZ / RAW_NOISE_BANDWIDTH_HZ)
+
+
 def load_station(station: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     path = PRODUCT_DIR / f"trail_sparse_deconv_{station}.h5"
     with h5py.File(path, "r") as h:
@@ -45,10 +56,15 @@ def load_station(station: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.n
         support_voltage = h["support_voltage"][keep_time, :, :, :, :]
         support_count = h["support_count"][keep_time]
 
-    spectra = np.zeros((len(keep_time), len(doppler_hz)), dtype=np.float64)
+    spectra_power = np.zeros((len(keep_time), len(doppler_hz)), dtype=np.float64)
     range_power = np.zeros((len(keep_time), len(range_idx_grid)), dtype=np.float64)
     idx_to_dense = {int(v): i for i, v in enumerate(range_idx_grid)}
     range_min_km, range_max_km = BOLIDE_RANGE_KM[station]
+    window = np.hanning(len(doppler_hz)).astype(np.float64)
+    coherent_gain = float(np.sum(window))
+    if coherent_gain <= 0:
+        raise ValueError("Hann window coherent gain is zero")
+    noise_power_2hz = load_noise_power_2hz(station, time_unix[keep_time])
 
     for row in range(len(keep_time)):
         for support_i in range(int(support_count[row])):
@@ -63,13 +79,15 @@ def load_station(station: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.n
             coeff = support_voltage[row, :, :, :, support_i]
             if not np.any(coeff):
                 continue
-            spec = np.fft.fftshift(np.fft.fft(coeff, axis=0), axes=0)
-            power = np.mean(np.abs(spec) ** 2, axis=(1, 2))
-            spectra[row] += power
+            spec = np.fft.fftshift(np.fft.fft(coeff * window[:, None, None], axis=0), axes=0)
+            power = np.mean(np.abs(spec) ** 2, axis=(1, 2)) / (coherent_gain**2)
+            spectra_power[row] += power
             range_power[row, dense_i] += float(np.sum(power))
 
-    spectra_db = 10.0 * np.log10(np.maximum(spectra, 1e-30))
-    return time_unix[keep_time], doppler_hz, spectra_db, range_km, range_power
+    spectra_snr = spectra_power / np.maximum(noise_power_2hz[:, None], 1e-30)
+    range_snr = range_power / np.maximum(noise_power_2hz[:, None], 1e-30)
+    spectra_snr_db = 10.0 * np.log10(np.maximum(spectra_snr, 1e-30))
+    return time_unix[keep_time], doppler_hz, spectra_snr_db, range_km, range_snr
 
 
 def main() -> None:
@@ -123,10 +141,10 @@ def main() -> None:
         ax.xaxis.set_major_formatter(time_formatter)
 
         axr = axrow[1]
-        range_power_db = np.full_like(range_power, np.nan, dtype=np.float64)
+        range_snr_db = np.full_like(range_power, np.nan, dtype=np.float64)
         keep = range_power > 0
-        range_power_db[keep] = 10.0 * np.log10(range_power[keep])
-        vals = range_power_db[np.isfinite(range_power_db)]
+        range_snr_db[keep] = 10.0 * np.log10(range_power[keep])
+        vals = range_snr_db[np.isfinite(range_snr_db)]
         if vals.size:
             rvmax = float(np.nanpercentile(vals, 99.0))
             rvmin = rvmax - 35.0
@@ -135,7 +153,7 @@ def main() -> None:
         axr.pcolormesh(
             time_edges_dt,
             np.r_[range_km - 1.5, range_km[-1] + 1.5],
-            range_power_db.T,
+            range_snr_db.T,
             shading="flat",
             cmap="viridis",
             vmin=rvmin,
@@ -148,12 +166,12 @@ def main() -> None:
         axr.xaxis.set_major_locator(time_locator)
         axr.xaxis.set_major_formatter(time_formatter)
 
-    axes[0, 0].set_title("Sparse Doppler spectra in bolide-related range band")
-    axes[0, 1].set_title("Bolide-related active sparse range support")
+    axes[0, 0].set_title("Hann-windowed sparse Doppler SNR")
+    axes[0, 1].set_title("Bolide-related sparse range-support SNR")
     axes[-1, 0].set_xlabel("UTC on 2026-05-30")
     axes[-1, 1].set_xlabel("UTC on 2026-05-30")
-    fig.colorbar(mesh, ax=axes[:, 0], label="Sparse coefficient spectral power (dB)", shrink=0.8)
-    fig.suptitle("Low-altitude non-specular trail sparse spectra, 18:06:21-18:08:00 UTC", y=1.02)
+    fig.colorbar(mesh, ax=axes[:, 0], label="Sparse coefficient SNR (dB, 2 Hz noise BW)", shrink=0.8)
+    fig.suptitle("Low-altitude non-specular trail sparse SNR spectra, 18:06:21-18:08:00 UTC", y=1.02)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT, dpi=220, bbox_inches="tight")
