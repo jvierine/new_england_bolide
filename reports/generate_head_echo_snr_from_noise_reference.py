@@ -248,28 +248,19 @@ def plot_results(results: list[dict], out_fig: Path) -> None:
             vmin=vmin,
             vmax=vmax,
         )
-        ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.55)
+        ax.axhline(0.0, color="white", lw=0.8, ls="--", alpha=0.75, label="fit Doppler")
         seed_rel_hz = res["seed_dopplers_hz"] - res["fit_dopplers_hz"]
-        model_rel_hz = res["model_dopplers_hz"] - res["fit_dopplers_hz"]
-        ax.plot(res["time_rel"], seed_rel_hz, color="white", lw=0.85, alpha=0.95, label="seed Doppler - fit")
-        ax.plot(res["time_rel"], model_rel_hz, color="#67e8f9", lw=0.9, alpha=0.95, label="model Doppler - fit")
-        range_ax = ax.twinx()
-        range_ax.plot(res["time_rel"], res["ranges_km"], color="#86efac", lw=0.9, alpha=0.9, label="fit range")
-        range_ax.plot(res["time_rel"], res["seed_ranges_km"], color="#fde047", lw=0.85, ls=":", alpha=0.9, label="seed range")
-        range_vals = np.concatenate([res["ranges_km"], res["seed_ranges_km"]])
-        range_vals = range_vals[np.isfinite(range_vals)]
-        if range_vals.size:
-            center = 0.5 * (float(np.nanmin(range_vals)) + float(np.nanmax(range_vals)))
-            half_span = max(0.5 * (float(np.nanmax(range_vals)) - float(np.nanmin(range_vals))), 0.75)
-            range_ax.set_ylim(center - 1.2 * half_span, center + 1.2 * half_span)
-        range_ax.set_ylabel("range (km)", color="#86efac")
-        range_ax.tick_params(axis="y", colors="#86efac", labelsize=7)
+        ax.plot(res["time_rel"], seed_rel_hz, color="#67e8f9", lw=0.9, alpha=0.95, label="seed Doppler - fit")
+        right_ax = ax.secondary_yaxis("right", functions=(lambda y: y, lambda y: y))
+        right_ax.set_ylabel("Doppler residual (Hz)", color="black")
+        right_ax.tick_params(axis="y", colors="black", labelsize=7)
+        right_ax.spines["right"].set_color("black")
         ax.set_ylabel("$f-f_{D,fit}$ (Hz)")
         ax.set_title(f"{STATION_LABELS[res['station']]} head echo SNR")
         ax.text(
             0.01,
             0.93,
-            f"range {np.nanmedian(res['ranges_km']):.0f} km, peak median {np.nanmedian(res['peak_snr_db']):.1f} dB",
+            f"peak median {np.nanmedian(res['peak_snr_db']):.1f} dB",
             transform=ax.transAxes,
             color="white",
             fontsize=8,
@@ -279,10 +270,9 @@ def plot_results(results: list[dict], out_fig: Path) -> None:
         )
         if ax is axes[0]:
             handles, labels = ax.get_legend_handles_labels()
-            range_handles, range_labels = range_ax.get_legend_handles_labels()
             ax.legend(
-                handles + range_handles,
-                labels + range_labels,
+                handles,
+                labels,
                 loc="lower right",
                 fontsize=6.5,
                 framealpha=0.55,
