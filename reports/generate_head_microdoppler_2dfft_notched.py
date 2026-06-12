@@ -996,9 +996,9 @@ def main() -> None:
     p.add_argument("--sparse-product-dir", type=Path, default=DEFAULT_SPARSE_PRODUCT_DIR)
     p.add_argument("--sparse-voltage-mode", choices=("full", "dc"), default="full")
     p.add_argument("--sparse-voltage-gain", type=float, default=1.0)
-    p.add_argument("--polarization-combine", action="store_true")
-    p.add_argument("--polarization-method", choices=("phase", "grid", "grid_image"), default="phase")
-    p.add_argument("--polarization-equalize-noise", action="store_true")
+    p.add_argument("--polarization-combine", action=argparse.BooleanOptionalAction, default=True)
+    p.add_argument("--polarization-method", choices=("phase", "grid", "grid_image"), default="grid")
+    p.add_argument("--polarization-equalize-noise", action=argparse.BooleanOptionalAction, default=None)
     p.add_argument("--polarization-equalize-block-samples", type=int, default=100000)
     p.add_argument("--polarization-grid-theta", type=int, default=91)
     p.add_argument("--polarization-grid-phase", type=int, default=361)
@@ -1015,6 +1015,8 @@ def main() -> None:
     p.add_argument("--vmin-db", type=float, default=None)
     p.add_argument("--vmax-db", type=float, default=None)
     args = p.parse_args()
+    if args.polarization_equalize_noise is None:
+        args.polarization_equalize_noise = bool(args.polarization_combine)
 
     if args.from_patch_cache:
         run_patch_cache_mode(args)

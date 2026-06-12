@@ -28,7 +28,7 @@ DEFAULT_PATCH_H5 = (
     ROOT
     / "products"
     / "head_echo_gaussian_patches"
-    / "head_echo_gaussian_patches_v0p2p7_1coh_2incoh_zp16_sparse_dcmean_retained_ext0p5.h5"
+    / "head_echo_gaussian_patches_v0p2p7_1coh_2incoh_zp16_sparse_dcmean_polgrid_retained_ext0p5.h5"
 )
 DEFAULT_FIT_SUMMARY = ROOT / "reports" / "head_echo_gaussian_fit_summary_v0p2p7_1coh_2incoh_zp16_sparse_dcmean.csv"
 DEFAULT_NOISE_H5 = ROOT / "products" / "sparse_residual_noise_power" / "sparse_residual_noise_power_1s.h5"
@@ -63,6 +63,27 @@ def load_noise_reference(path: Path) -> dict[str, dict[str, np.ndarray]]:
 def nearest_noise_power(noise: dict[str, np.ndarray], time_unix: float) -> float:
     idx = int(np.argmin(np.abs(noise["time_unix"] - float(time_unix))))
     return float(noise["dc_subtracted_power"][idx])
+
+
+def patch_noise_gain(patch: h5py.Group, fallback_n_channels: int) -> tuple[float, bool]:
+    """Noise gain relative to the channel-averaged 100 kHz noise reference."""
+    if "polarization_gamma" not in patch:
+        return float(fallback_n_channels), False
+    gamma = np.asarray(patch["polarization_gamma"][()], dtype=np.complex128)
+    equalizer = np.asarray(patch.get("channel_noise_equalizer", []), dtype=float)
+    powers = np.asarray(patch.get("channel_noise_powers", []), dtype=float)
+    if (
+        gamma.size == 0
+        or equalizer.size != gamma.size
+        or powers.size != gamma.size
+        or not np.all(np.isfinite(gamma))
+        or not np.all(np.isfinite(equalizer))
+        or not np.all(np.isfinite(powers))
+        or np.nanmean(powers) <= 0.0
+    ):
+        return float(fallback_n_channels), False
+    gain = float(np.sum(np.abs(gamma) ** 2 * equalizer**2 * powers) / np.nanmean(powers))
+    return max(gain, 1e-12), True
 
 
 def process_station(
@@ -102,8 +123,12 @@ def process_station(
         # normalized RDMF-bin noise is noise_100khz / 1000. The cached patch
         # stores unnormalized summed FFT powers, hence the equivalent
         # denominator below includes the coherent code length and summed
-        # channel/code/incoherent accumulations.
-        noise_rdmf_power = noise_100khz * code_len * n_channels * n_codes * n_incoh
+        # code/incoherent accumulations.  For uncombined patches, noise_gain is
+        # the number of summed channels.  For polarization-matched patches, it
+        # is the effective combined-stream noise gain implied by gamma and the
+        # channel equalization stored in the patch cache.
+        noise_gain, polarization_matched = patch_noise_gain(patch, n_channels)
+        noise_rdmf_power = noise_100khz * code_len * noise_gain * n_codes * n_incoh
         snr_db = 10.0 * np.log10(np.maximum(raw_power[row_i, :] / max(noise_rdmf_power, 1e-300), 1e-300))
         shifted_rel = rel_freqs - fit_rel_hz
         if rel_ref is None:
@@ -126,6 +151,8 @@ def process_station(
                 "noise_100khz_power": noise_100khz,
                 "noise_100hz_power": noise_100khz / 1000.0,
                 "noise_rdmf_power": noise_rdmf_power,
+                "noise_gain": noise_gain,
+                "polarization_matched": polarization_matched,
                 "n_channels": n_channels,
                 "n_codes": n_codes,
                 "n_incoh": n_incoh,
@@ -156,6 +183,8 @@ def process_station(
         "noise_100khz_power": np.asarray([row["noise_100khz_power"] for row in rows], dtype=float),
         "noise_100hz_power": np.asarray([row["noise_100hz_power"] for row in rows], dtype=float),
         "noise_rdmf_power": np.asarray([row["noise_rdmf_power"] for row in rows], dtype=float),
+        "noise_gain": np.asarray([row["noise_gain"] for row in rows], dtype=float),
+        "polarization_matched": np.asarray([row["polarization_matched"] for row in rows], dtype=bool),
     }
     return result, rows
 
@@ -170,7 +199,7 @@ def save_results(results: list[dict], rows_by_station: dict[str, list[dict]], ar
         "noise_h5": str(args.noise_h5),
         "stations": [res["station"] for res in results],
         "noise_bandwidth_conversion": "100 kHz residual voltage power divided by 1000 gives 100 Hz one-code RDMF-bin noise power",
-        "snr_definition": "cached unnormalized RDMF row power / (noise_100khz * code_len * n_channels * n_codes * n_incoh)",
+        "snr_definition": "cached unnormalized RDMF row power / (noise_100khz * code_len * noise_gain * n_codes * n_incoh)",
         "n_codes": int(args.n_codes),
         "code_len": int(args.code_len),
     }
@@ -198,6 +227,8 @@ def save_results(results: list[dict], rows_by_station: dict[str, list[dict]], ar
                 "noise_100khz_power",
                 "noise_100hz_power",
                 "noise_rdmf_power",
+                "noise_gain",
+                "polarization_matched",
             ):
                 g.create_dataset(key, data=res[key])
             rows_json = json.dumps(rows_by_station[res["station"]], indent=2)

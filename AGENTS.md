@@ -33,6 +33,11 @@ When adding or updating memo figures, cite the script that generated each plot
 in the memo text or caption/provenance list before compiling and pushing the
 memo repository.
 
+For head-echo RDMF products used in RCS or SNR work, use noise-equalized
+SNR-maximizing two-channel polarization matching by default. Only generate
+uncombined channel-summed RDMF products when explicitly making a comparison or
+diagnostic, and label those products/figures as unpolarized.
+
 ## Remote Compute On avaruus
 
 Use `juha@avaruus.uit.no` for expensive matched-filter and RDMF jobs that are

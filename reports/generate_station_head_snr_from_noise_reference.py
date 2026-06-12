@@ -32,11 +32,11 @@ DEFAULT_PATCH_H5 = (
     ROOT
     / "products"
     / "head_echo_gaussian_patches"
-    / "head_echo_gaussian_patches_v0p2p7_1coh_2incoh_zp16_sparse_dcmean_retained_ext0p5.h5"
+    / "head_echo_gaussian_patches_v0p2p7_1coh_2incoh_zp16_sparse_dcmean_polgrid_retained_ext0p5.h5"
 )
 DEFAULT_NOISE_H5 = ROOT / "products" / "sparse_residual_noise_power" / "sparse_residual_noise_power_1s.h5"
-OUT_H5 = ROOT / "products" / "sparse_residual_noise_power" / "station_range_time_head_snr_from_1s_noise_reference.h5"
-OUT_FIG = ROOT / "reports" / "figures" / "station_range_time_head_snr_noise_reference.png"
+OUT_H5 = ROOT / "products" / "sparse_residual_noise_power" / "station_range_time_head_snr_polgrid_from_1s_noise_reference.h5"
+OUT_FIG = ROOT / "reports" / "figures" / "station_range_time_head_snr_polgrid_noise_reference.png"
 
 
 def load_noise_reference(path: Path) -> dict[str, dict[str, np.ndarray]]:
