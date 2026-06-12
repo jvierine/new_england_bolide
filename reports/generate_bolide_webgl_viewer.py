@@ -29,7 +29,7 @@ DEFAULT_TYCHO = str(Path.home() / "src/meteor_viz/web/data/tycho2_mag8_embedded.
 DEFAULT_EARTH_TEXTURE = "reports/figures/world.jpg"
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
 CSS_VERSION = "2026.06.12.1"
-JS_VERSION = "2026.06.12.27"
+JS_VERSION = "2026.06.12.28"
 AU_M = 149_597_870_700.0
 
 
@@ -1724,7 +1724,7 @@ def main() -> None:
         extra_geo.append(strewn["nominal"])
     extra_geo.extend(strewn["samples"])
     extra_geo.extend(stations)
-    map_geo = center_points + strewn["nominalPath"] + strewn["samples"]
+    map_geo = center_points + strewn["nominalPath"] + extra_geo
     if strewn["nominal"]:
         map_geo.append(strewn["nominal"])
     center_source = strewn["nominal"] if strewn["nominal"] else fit_center
@@ -1732,10 +1732,10 @@ def main() -> None:
     lat_vals = [p["lat"] for p in map_geo]
     lon_vals = [p["lon"] for p in map_geo]
     bbox = (
-        min(lon_vals) - 0.32,
-        min(lat_vals) - 0.22,
-        max(lon_vals) + 0.32,
-        max(lat_vals) + 0.24,
+        min(min(lon_vals) - 1.0, -73.2),
+        min(min(lat_vals) - 0.7, 40.6),
+        max(max(lon_vals) + 1.1, -68.8),
+        max(max(lat_vals) + 0.9, 43.6),
     )
     asset = {
         "schema": "new_england_bolide.webgl_viewer.v1",
