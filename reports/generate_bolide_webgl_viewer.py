@@ -26,15 +26,18 @@ DEFAULT_UIT_LOGO = "reports/assets/logos/uit_space_physics_logo.png"
 DEFAULT_IAP_LOGO = "reports/assets/logos/iap_logo.svg"
 DEFAULT_ORBIT = "products/orbit_determination/best_fit_orbit.h5"
 DEFAULT_TYCHO = str(Path.home() / "src/meteor_viz/web/data/tycho2_mag8_embedded.js")
+DEFAULT_EARTH_TEXTURE = "reports/figures/world.jpg"
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
 CSS_VERSION = "2026.06.12.1"
-JS_VERSION = "2026.06.12.4"
+JS_VERSION = "2026.06.12.27"
 AU_M = 149_597_870_700.0
 
 
 SOLAR_APPROACH_SCENE_JS = r"""
 const SolarApproachScene = (() => {
   const MU = 0.00029592115654562346;
+  const AU_KM = 149597870.7;
+  const EARTH_RADIUS_KM = 6371.0;
   const J2000_UNIX_SECOND = 946728000;
   const J2000_OBLIQUITY = 23.4392911 * DEG;
   const PLANETS = [
@@ -57,6 +60,7 @@ const SolarApproachScene = (() => {
   function add(a,b) { return [a[0]+b[0], a[1]+b[1], a[2]+b[2]]; }
   function mul(a,s) { return [a[0]*s, a[1]*s, a[2]*s]; }
   function mix(a,b,u) { return [a[0]+(b[0]-a[0])*u, a[1]+(b[1]-a[1])*u, a[2]+(b[2]-a[2])*u]; }
+  function cross(a,b) { return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
   function smoother(x) { x = Math.max(0, Math.min(1, x)); return x*x*x*(x*(x*6-15)+10); }
   function solarVec(v) { return [v[0], v[2], -v[1]]; }
   function planetElements(planet) {
@@ -129,14 +133,89 @@ const SolarApproachScene = (() => {
   const meteorN = Math.sqrt(MU / Math.pow(meteorElements.a, 3));
   const periodDays = 2 * Math.PI / meteorN;
   const entryTDay = (solar.entry_unix - J2000_UNIX_SECOND) / 86400.0;
+  const CLOSE_START_U = 0.542;
+  const CLOSE_EASE_POWER = 0.36;
+  const CLOSE_START_ALTITUDE_KM = 300000.0;
+  const FREEZE_ALTITUDE_KM = 40000.0;
+  const FINAL_APPROACH_DISTANCE_KM = 40000.0;
+  const FINAL_APPROACH_STEP_KM = 100.0;
+  const ENTRY_SPEED_KM_S = 25.8;
+  const FREEZE_CAMERA_START_U = 0.62;
+  const FREEZE_CAMERA_END_U = 0.84;
   function meteorPositionAtUnix(unix) {
     const dtDay = (unix - solar.entry_unix) / 86400.0;
     return solarVec(positionFromElements(meteorElements, meteorMeanAtEntry + meteorN * dtDay));
   }
-  function timeUnix(u) {
+  function closeUForAltitude(altitudeKm) {
+    const denom = Math.max(1e-6, CLOSE_START_ALTITUDE_KM - solar.entry_altitude_km);
+    const fraction = Math.max(0.0, Math.min(1.0, (CLOSE_START_ALTITUDE_KM - altitudeKm) / denom));
+    const q = Math.pow(fraction, 1.0 / CLOSE_EASE_POWER);
+    return CLOSE_START_U + (1.0 - CLOSE_START_U) * q;
+  }
+  const FREEZE_MOTION_U = closeUForAltitude(FREEZE_ALTITUDE_KM);
+  function motionUForCameraU(u) {
+    u = Math.max(0, Math.min(1, u));
+    if (u < FREEZE_CAMERA_START_U) {
+      return FREEZE_MOTION_U * u / FREEZE_CAMERA_START_U;
+    }
+    if (u < FREEZE_CAMERA_END_U) {
+      return FREEZE_MOTION_U;
+    }
+    return FREEZE_MOTION_U + (1.0 - FREEZE_MOTION_U) * (u - FREEZE_CAMERA_END_U) / Math.max(1e-6, 1.0 - FREEZE_CAMERA_END_U);
+  }
+  function orbitalTimeUnix(u) {
     const introDays = 2.0 * periodDays;
-    const warped = Math.pow(Math.max(0, Math.min(1, u)), 0.72);
-    return solar.entry_unix - introDays * 86400 * (1 - warped);
+    u = Math.max(0, Math.min(1, u));
+    const closeStart = CLOSE_START_U;
+    const closeApproachSeconds = (CLOSE_START_ALTITUDE_KM - solar.entry_altitude_km) / 25.8;
+    const closeStartUnix = solar.entry_unix - closeApproachSeconds;
+    if (u < closeStart) {
+      const q = u / closeStart;
+      const cruiseWarp = Math.pow(q, 0.58);
+      return solar.entry_unix - introDays * 86400 * (1.0 - cruiseWarp) - closeApproachSeconds * cruiseWarp;
+    } else {
+      const q = (u - closeStart) / (1.0 - closeStart);
+      const eased = Math.pow(q, CLOSE_EASE_POWER);
+      return closeStartUnix + closeApproachSeconds * eased;
+    }
+  }
+  function timeUnix(u) {
+    return orbitalTimeUnix(motionUForCameraU(u));
+  }
+  const finalApproach = (() => {
+    const samples = [];
+    const n = Math.max(2, Math.round(FINAL_APPROACH_DISTANCE_KM / FINAL_APPROACH_STEP_KM));
+    for (let i=0; i<=n; i++) {
+      const rangeKm = FINAL_APPROACH_DISTANCE_KM * (1.0 - i / n);
+      const unix = solar.entry_unix - rangeKm / ENTRY_SPEED_KM_S;
+      samples.push({ rangeKm, unix, pos: meteorPositionAtUnix(unix) });
+    }
+    return samples;
+  })();
+  function finalApproachPosition(fraction) {
+    fraction = Math.max(0, Math.min(1, fraction));
+    const x = fraction * (finalApproach.length - 1);
+    const i = Math.min(finalApproach.length - 2, Math.max(0, Math.floor(x)));
+    return mix(finalApproach[i].pos, finalApproach[i + 1].pos, x - i);
+  }
+  function finalApproachFractionForCameraU(u) {
+    if (u < FREEZE_CAMERA_END_U) return 0.0;
+    return (u - FREEZE_CAMERA_END_U) / Math.max(1e-6, 1.0 - FREEZE_CAMERA_END_U);
+  }
+  const finalApproachSet = { buf: gl.createBuffer(), count: 0 };
+  const finalApproachLowResDiffAu = (() => {
+    let maxDiff = 0.0;
+    for (const sample of finalApproach) {
+      const p = meteorPositionAtUnix(sample.unix);
+      const d = Math.hypot(p[0] - sample.pos[0], p[1] - sample.pos[1], p[2] - sample.pos[2]);
+      maxDiff = Math.max(maxDiff, d);
+    }
+    return maxDiff;
+  })();
+  console.debug('final approach sanity: samples=', finalApproach.length, 'max orbit/path diff AU=', finalApproachLowResDiffAu);
+  function earthRotationAngle(unix) {
+    const days = (unix - J2000_UNIX_SECOND) / 86400.0;
+    return 2.0 * Math.PI * (0.7790572732640 + 1.00273781191135448 * days);
   }
 
   const stars = [];
@@ -155,17 +234,12 @@ const SolarApproachScene = (() => {
   }
   const starSet = buffer9(stars);
   const planetOrbitLines = [];
-  const planetPoints = [];
   for (const planet of PLANETS) {
     const el = planetElements(planet);
     planetOrbitLines.push(...makeOrbitLine(el, [...planet.color, 0.30], 1, 0, 2*Math.PI, 220));
-    const p = planetPosition(planet, entryTDay);
-    const size = planet.name === "Jupiter" ? 17 : planet.name === "Saturn" ? 15 : planet.name === "Earth" ? 18 : 10;
-    planetPoints.push(...p, ...planet.color, 1.0, -1.0, size);
   }
-  planetPoints.push(0,0,0, 1.0,0.90,0.36,1.0, -1.0, 24.0);
   const planetOrbitSet = buffer7(planetOrbitLines);
-  const planetPointSet = buffer9(planetPoints);
+  const planetPointSet = { buf: gl.createBuffer(), count: 0 };
   const meteorOrbitSet = buffer7(makeOrbitLine(meteorElements, [1.0,0.55,0.26,0.72], 2, meteorMeanAtEntry - 4*Math.PI, meteorMeanAtEntry, 280));
   const earthSphere = [];
   function pushSphere(center, radius, rows=28, cols=44) {
@@ -184,8 +258,48 @@ const SolarApproachScene = (() => {
   }
   pushSphere([0,0,0], 1.0);
   const earthSphereSet = { buf: buffer(earthSphere), count: earthSphere.length / 7 };
+  const earthTextureMesh = [];
+  function pushTexturedSphere(rows=96, cols=192) {
+    function vertex(lat, lon) {
+      const cl = Math.cos(lat);
+      const u = 1.0 - (lon + Math.PI) / (2 * Math.PI);
+      const v = 0.5 - lat / Math.PI;
+      earthTextureMesh.push(cl*Math.cos(lon), Math.sin(lat), cl*Math.sin(lon), u, v);
+    }
+    for (let iy=0; iy<rows; iy++) for (let ix=0; ix<cols; ix++) {
+      const latA = -Math.PI/2 + Math.PI*iy/rows, latB = -Math.PI/2 + Math.PI*(iy+1)/rows;
+      const lonA = -Math.PI + 2*Math.PI*ix/cols, lonB = -Math.PI + 2*Math.PI*(ix+1)/cols;
+      vertex(latA,lonA); vertex(latB,lonA); vertex(latB,lonB);
+      vertex(latA,lonA); vertex(latB,lonB); vertex(latA,lonB);
+    }
+  }
+  pushTexturedSphere();
+  const earthTextureSet = { buf: buffer(earthTextureMesh), count: earthTextureMesh.length / 5 };
+  const earthTexture = gl.createTexture();
+  let earthTextureReady = false;
+  gl.bindTexture(gl.TEXTURE_2D, earthTexture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([48,96,160,255]));
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  if (ASSET.earth_texture) {
+    const earthImage = new Image();
+    earthImage.onload = () => {
+      gl.bindTexture(gl.TEXTURE_2D, earthTexture);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, earthImage);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      earthTextureReady = true;
+    };
+    earthImage.src = ASSET.earth_texture;
+  }
   const meteorPointSet = { buf: gl.createBuffer(), count: 0 };
   const meteorTrailSet = { buf: gl.createBuffer(), count: 0 };
+  const entryBurstSet = { buf: gl.createBuffer(), count: 0 };
   const flash = document.getElementById('flash');
   let orbitYaw = 0.0;
 
@@ -220,7 +334,72 @@ const SolarApproachScene = (() => {
     gl.enableVertexAttribArray(ac); gl.vertexAttribPointer(ac,4,gl.FLOAT,false,36,12);
     gl.enableVertexAttribArray(as); gl.vertexAttribPointer(as,1,gl.FLOAT,false,36,32);
   }
-  function updateMeteorBuffers(u, unixNow, meteorPos, earthPos) {
+  function bindEarthTexture(mvp, earthRot, sunDirWorld) {
+    gl.useProgram(earthProg);
+    gl.uniformMatrix4fv(gl.getUniformLocation(earthProg,'u_mvp'),false,mvp);
+    gl.uniform1i(gl.getUniformLocation(earthProg,'u_tex'),0);
+    gl.uniformMatrix3fv(gl.getUniformLocation(earthProg,'u_rot'),false,new Float32Array(earthRot));
+    gl.uniform3fv(gl.getUniformLocation(earthProg,'u_sun_dir'),new Float32Array(sunDirWorld));
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, earthTexture);
+    gl.bindBuffer(gl.ARRAY_BUFFER,earthTextureSet.buf);
+    const ap=gl.getAttribLocation(earthProg,'a_pos'), au=gl.getAttribLocation(earthProg,'a_uv');
+    gl.enableVertexAttribArray(ap); gl.vertexAttribPointer(ap,3,gl.FLOAT,false,20,0);
+    gl.enableVertexAttribArray(au); gl.vertexAttribPointer(au,2,gl.FLOAT,false,20,12);
+  }
+  function updatePlanetPoints(tDay) {
+    const data = [];
+    for (const planet of PLANETS) {
+      const p = planetPosition(planet, tDay);
+      const size = planet.name === "Jupiter" ? 17 : planet.name === "Saturn" ? 15 : planet.name === "Earth" ? 18 : 10;
+      data.push(...p, ...planet.color, 1.0, -1.0, size);
+    }
+    data.push(0,0,0, 1.0,0.90,0.36,1.0, -1.0, 24.0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, planetPointSet.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
+    planetPointSet.count = data.length / 9;
+  }
+  function earthGeoPoint(earthPos, earthScale, earthTheta, latDeg, lonDeg, altKm=0.0) {
+    const lat = latDeg * DEG, lon = -lonDeg * DEG;
+    const radius = earthScale * (1.0 + altKm / 6371.0);
+    const cl = Math.cos(lat);
+    const x = radius * cl * Math.cos(lon);
+    const y = radius * Math.sin(lat);
+    const z = radius * cl * Math.sin(lon);
+    const ec = Math.cos(earthTheta), es = Math.sin(earthTheta);
+    return [earthPos[0] + ec*x + es*z, earthPos[1] + y, earthPos[2] - es*x + ec*z];
+  }
+  function fittedEntryBackDirection(earthPos, earthScale, earthTheta, entryLat, entryLon) {
+    let ref = null;
+    for (const row of ASSET.trajectory) {
+      if (row.altKm > solar.entry_altitude_km + 1.0 && (!ref || row.altKm > ref.altKm)) ref = row;
+    }
+    if (!ref) return null;
+    const high = earthGeoPoint(earthPos, earthScale, earthTheta, ref.lat, ref.lon, ref.altKm);
+    const entry = earthGeoPoint(earthPos, earthScale, earthTheta, entryLat, entryLon, solar.entry_altitude_km);
+    return norm(sub(high, entry));
+  }
+  function finalApproachDisplayPosition(fraction, entryPos, earthScale, backDirection) {
+    fraction = Math.max(0, Math.min(1, fraction));
+    const distanceKm = FINAL_APPROACH_DISTANCE_KM * (1.0 - fraction);
+    return add(entryPos, mul(backDirection, earthScale * distanceKm / EARTH_RADIUS_KM));
+  }
+  function updateFinalApproachLine(entryPos, earthScale, backDirection) {
+    const line = [];
+    const n = Math.max(1, finalApproach.length - 1);
+    let prev = finalApproachDisplayPosition(0.0, entryPos, earthScale, backDirection);
+    for (let i=1; i<finalApproach.length; i++) {
+      const q0 = (i - 1) / n;
+      const q1 = i / n;
+      const p = finalApproachDisplayPosition(q1, entryPos, earthScale, backDirection);
+      line.push(...prev, 1.0,0.55,0.26,0.30 + 0.42*q0, ...p, 1.0,0.70,0.30,0.30 + 0.42*q1);
+      prev = p;
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, finalApproachSet.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(line), gl.DYNAMIC_DRAW);
+    finalApproachSet.count = line.length / 7;
+  }
+  function updateMeteorBuffers(u, unixNow, meteorPos, earthPos, visualMeteorPos, markerAlpha) {
     const trail = [];
     const steps = 120, startUnix = solar.entry_unix - 0.55 * periodDays * 86400;
     let prev = meteorPositionAtUnix(startUnix);
@@ -234,29 +413,55 @@ const SolarApproachScene = (() => {
     gl.bindBuffer(gl.ARRAY_BUFFER, meteorTrailSet.buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(trail), gl.DYNAMIC_DRAW);
     meteorTrailSet.count = trail.length / 7;
-    const close = smoother((u - 0.68) / 0.30);
-    const size = 15 + 42 * close;
-    const data = [...meteorPos, 1.0,0.62,0.20,1.0, -1.0, size, ...earthPos, 0.30,0.66,1.0,0.70, -1.0, 12 + 18*close];
+    const close = smoother((u - 0.54) / 0.34);
+    const size = 11 + 43 * close;
+    const data = [...visualMeteorPos, 1.0,0.62,0.20,markerAlpha, -1.0, size];
     gl.bindBuffer(gl.ARRAY_BUFFER, meteorPointSet.buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
     meteorPointSet.count = data.length / 9;
+    const burst = smoother((u - 0.965) / 0.035);
+    const burstData = burst > 0 ? [
+      ...visualMeteorPos, 1.0,0.96,0.62,0.85, -1.0, 140.0 * burst,
+      ...visualMeteorPos, 0.55,0.82,1.0,0.60, -1.0, 220.0 * burst,
+    ] : [];
+    gl.bindBuffer(gl.ARRAY_BUFFER, entryBurstSet.buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(burstData), gl.DYNAMIC_DRAW);
+    entryBurstSet.count = burstData.length / 9;
   }
-  function draw(u, w, h) {
+  function draw(u, w, h, flashAlpha=null) {
+    const motionU = motionUForCameraU(u);
     const unixNow = timeUnix(u);
     const tDay = (unixNow - J2000_UNIX_SECOND) / 86400.0;
     const meteorPos = meteorPositionAtUnix(unixNow);
     const earthPos = planetPosition(PLANETS[2], tDay);
-    const approach = smoother((u - 0.58) / 0.36);
-    const close = smoother((u - 0.76) / 0.20);
-    const chase = smoother((u - 0.44) / 0.34);
-    const earthToMeteor = norm(sub(meteorPos, earthPos));
+    const approach = smoother((u - 0.42) / 0.42);
+    const close = smoother((u - 0.58) / 0.32);
+    const chase = smoother((u - 0.28) / 0.42);
+    const earthScale = 0.020 + 0.072 * close;
+    const earthTheta = earthRotationAngle(unixNow);
+    const entryLat = Number.isFinite(solar.entry_lat_deg) ? solar.entry_lat_deg : 41.98;
+    const entryLon = Number.isFinite(solar.entry_lon_deg) ? solar.entry_lon_deg : -70.67;
+    const entryPos = earthGeoPoint(earthPos, earthScale, earthTheta, entryLat, entryLon, solar.entry_altitude_km);
+    const entryNormal = norm(sub(entryPos, earthPos));
+    const entryBackDirection = fittedEntryBackDirection(earthPos, earthScale, earthTheta, entryLat, entryLon) || entryNormal;
+    let entryRight = norm(cross([0,1,0], entryNormal));
+    if (!Number.isFinite(entryRight[0])) entryRight = [1,0,0];
+    const entryUp = norm(cross(entryNormal, entryRight));
+    const offscreenPos = add(entryPos, add(mul(entryRight, earthScale * 7.2), add(mul(entryUp, earthScale * 3.2), mul(entryNormal, earthScale * 0.9))));
+    const finalFraction = finalApproachFractionForCameraU(u);
+    const visualMeteorPos = u >= FREEZE_CAMERA_START_U ? finalApproachDisplayPosition(finalFraction, entryPos, earthScale, entryBackDirection) : meteorPos;
+    const markerAlpha = 1.0;
+    updateFinalApproachLine(entryPos, earthScale, entryBackDirection);
     const solarEye = [10*Math.cos(0.78 + orbitYaw), 5.6, 13*Math.sin(0.78 + orbitYaw)];
-    const chaseEye = add(meteorPos, add(mul(earthToMeteor, 1.12 - 0.74*close), [0.0, 0.34 + 0.12*Math.sin(5*u), 0.0]));
-    const target = mix([0,0,0], mix(meteorPos, earthPos, close * 0.74), chase);
+    const fortyThousandKmEarthRadii = (6371.0 + 40000.0) / 6371.0;
+    const chaseDistance = 0.22 + close * (earthScale * fortyThousandKmEarthRadii - 0.22);
+    const chaseEye = add(entryPos, add(mul(entryNormal, chaseDistance), [0.0, 0.10 + 0.07*Math.sin(5*u), 0.0]));
+    const target = mix([0,0,0], mix(entryPos, earthPos, close * 0.48), chase);
     const eye = mix(solarEye, chaseEye, approach);
     const view = lookAt(eye, target, [0,1,0]);
-    const mvp = matMul(perspective((46 - 18*close)*DEG, w/h, 0.003, 180), view);
-    updateMeteorBuffers(u, unixNow, meteorPos, earthPos);
+    const mvp = matMul(perspective((46 - 22*close)*DEG, w/h, 0.003, 180), view);
+    updatePlanetPoints(tDay);
+    updateMeteorBuffers(motionU, unixNow, meteorPos, earthPos, visualMeteorPos, markerAlpha);
 
     gl.disable(gl.DEPTH_TEST);
     bind9Points(starSet.buf, mvp, 0.0, 2.0, 0.0);
@@ -264,21 +469,46 @@ const SolarApproachScene = (() => {
     gl.enable(gl.DEPTH_TEST);
 
     bind7Global(lineProg, planetOrbitSet.buf, mvp); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.drawArrays(gl.LINES,0,planetOrbitSet.count);
-    bind7Global(lineProg, meteorOrbitSet.buf, mvp); gl.drawArrays(gl.LINES,0,meteorOrbitSet.count);
-    bind7Global(lineProg, meteorTrailSet.buf, mvp); gl.drawArrays(gl.LINES,0,meteorTrailSet.count);
+    if (u < FREEZE_CAMERA_START_U) {
+      bind7Global(lineProg, meteorOrbitSet.buf, mvp); gl.drawArrays(gl.LINES,0,meteorOrbitSet.count);
+      bind7Global(lineProg, meteorTrailSet.buf, mvp); gl.drawArrays(gl.LINES,0,meteorTrailSet.count);
+    }
+    bind7Global(lineProg, finalApproachSet.buf, mvp); gl.drawArrays(gl.LINES,0,finalApproachSet.count);
 
-    const earthScale = 0.020 + 0.072 * close;
-    const earthModel = new Float32Array([earthScale,0,0,0, 0,earthScale,0,0, 0,0,earthScale,0, earthPos[0],earthPos[1],earthPos[2],1]);
+    const ec = Math.cos(earthTheta), es = Math.sin(earthTheta);
+    const earthModel = new Float32Array([
+      earthScale*ec,0,-earthScale*es,0,
+      0,earthScale,0,0,
+      earthScale*es,0,earthScale*ec,0,
+      earthPos[0],earthPos[1],earthPos[2],1
+    ]);
     const earthMvp = matMul(mvp, earthModel);
-    bind7Global(surfProg, earthSphereSet.buf, earthMvp);
-    gl.disable(gl.BLEND); gl.drawArrays(gl.TRIANGLES,0,earthSphereSet.count);
+    const earthRot = [
+      ec,0,-es,
+      0,1,0,
+      es,0,ec,
+    ];
+    const sunDirGlobal = norm(mul(earthPos, -1.0));
+    if (earthTextureReady) {
+      bindEarthTexture(earthMvp, earthRot, sunDirGlobal);
+      gl.disable(gl.BLEND); gl.drawArrays(gl.TRIANGLES,0,earthTextureSet.count);
+    } else {
+      bind7Global(surfProg, earthSphereSet.buf, earthMvp);
+      gl.disable(gl.BLEND); gl.drawArrays(gl.TRIANGLES,0,earthSphereSet.count);
+    }
 
     bind9PlanetPoints(planetPointSet.buf, mvp);
     gl.depthMask(false); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.drawArrays(gl.POINTS,0,planetPointSet.count);
-    bind9Points(meteorPointSet.buf, mvp, 0.0, 2.0, 0.0);
-    gl.drawArrays(gl.POINTS,0,meteorPointSet.count); gl.depthMask(true);
+    bind9PlanetPoints(meteorPointSet.buf, mvp);
+    gl.disable(gl.DEPTH_TEST);
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
+    gl.drawArrays(gl.POINTS,0,meteorPointSet.count);
+    bind9PlanetPoints(entryBurstSet.buf, mvp);
+    gl.drawArrays(gl.POINTS,0,entryBurstSet.count);
+    gl.depthMask(true);
+    gl.enable(gl.DEPTH_TEST);
 
-    flash.style.opacity = String(smoother((u - 0.965) / 0.030));
+    flash.style.opacity = '0';
   }
   return {
     draw,
@@ -307,6 +537,14 @@ def data_uri(path: Path | None) -> str | None:
     mime = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
+
+
+def optional_data_uri(path: Path | None) -> str | None:
+    try:
+        return data_uri(path)
+    except OSError as exc:
+        print(f"warning: could not read optional asset {path}: {exc}", file=sys.stderr)
+        return None
 
 
 def load_tycho_catalog(path: Path | None) -> dict | None:
@@ -349,6 +587,27 @@ def trajectory_crossing_unix(trajectory: list[dict], altitude_km: float) -> floa
     return min(rows, key=lambda row: abs(row["altKm"] - altitude_km))["t_unix"]
 
 
+def trajectory_crossing_llh(trajectory: list[dict], altitude_km: float) -> dict[str, float] | None:
+    if not trajectory:
+        return None
+    rows = sorted(trajectory, key=lambda row: row["t_unix"])
+    for a, b in zip(rows[:-1], rows[1:]):
+        da = a["altKm"] - altitude_km
+        db = b["altKm"] - altitude_km
+        if da == 0.0:
+            return {"lat": a["lat"], "lon": a["lon"], "altKm": a["altKm"], "t_unix": a["t_unix"]}
+        if da * db <= 0.0:
+            u = abs(da) / max(1e-9, abs(da) + abs(db))
+            return {
+                "lat": a["lat"] + u * (b["lat"] - a["lat"]),
+                "lon": a["lon"] + u * (b["lon"] - a["lon"]),
+                "altKm": a["altKm"] + u * (b["altKm"] - a["altKm"]),
+                "t_unix": a["t_unix"] + u * (b["t_unix"] - a["t_unix"]),
+            }
+    row = min(rows, key=lambda r: abs(r["altKm"] - altitude_km))
+    return {"lat": row["lat"], "lon": row["lon"], "altKm": row["altKm"], "t_unix": row["t_unix"]}
+
+
 def load_solar_orbit(path: Path | None, trajectory: list[dict]) -> dict | None:
     if path is None or not path.exists():
         return None
@@ -365,15 +624,20 @@ def load_solar_orbit(path: Path | None, trajectory: list[dict]) -> dict | None:
     omega_deg = float(elements[3])
     omega_node_deg = float(elements[4])
     nu_deg = float(elements[5])
-    entry_unix = trajectory_crossing_unix(trajectory, 100.0)
+    entry = trajectory_crossing_llh(trajectory, 100.0)
+    entry_unix = entry["t_unix"] if entry is not None else None
     if entry_unix is None or not math.isfinite(entry_unix):
         entry_unix = t_ref_unix
+    if entry is None:
+        entry = {"lat": math.nan, "lon": math.nan, "altKm": 100.0, "t_unix": entry_unix}
     return {
         "source": str(path),
         "t_ref_unix": t_ref_unix,
         "t_ref_utc": t_ref_utc,
         "entry_unix": float(entry_unix),
         "entry_altitude_km": 100.0,
+        "entry_lat_deg": float(entry["lat"]),
+        "entry_lon_deg": float(entry["lon"]),
         "orbit": {
             "a_au": a_au,
             "e": e,
@@ -678,8 +942,8 @@ def build_html(asset: dict) -> str:
 
     logo_html = "\n  ".join(
         [
-            logo_link("iap", "IAP", "https://www.iap-kborn.de/", "iap"),
             logo_link("haystack", "MIT Haystack", "https://www.haystack.mit.edu/", "haystack"),
+            logo_link("iap", "IAP", "https://www.iap-kborn.de/", "iap"),
             logo_link("uit", "UiT Space Physics", "https://en.uit.no/forskning/forskningsgrupper/gruppe?p_document_id=397987", "uit"),
         ]
     )
@@ -726,7 +990,7 @@ input[type=range]{{width:100%;accent-color:#58d7ff}}
 .dot{{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;box-shadow:0 0 13px currentColor}}
 .help{{color:#9fb2c0;border-top:1px solid rgba(150,210,255,.12);padding-top:8px}}
 .altitude{{color:#d6f4ff;font-variant-numeric:tabular-nums}}
-.scene-flash{{position:fixed;inset:0;background:white;opacity:0;pointer-events:none;z-index:7;transition:opacity 80ms linear}}
+.scene-flash{{position:fixed;inset:0;background:white;opacity:0;pointer-events:none;z-index:100;transition:opacity 80ms linear}}
 .label-layer{{position:fixed;inset:0;pointer-events:none;overflow:hidden}}
 .station-label{{position:absolute;transform:translate(-50%,-140%);padding:3px 6px;border-radius:5px;background:rgba(3,7,12,.72);border:1px solid rgba(210,235,255,.22);color:#e8f8ff;font-size:11px;white-space:nowrap;text-shadow:0 1px 4px #000}}
 .station-label.tx{{color:#ffe88a;border-color:rgba(255,232,138,.45)}}
@@ -868,6 +1132,23 @@ const surfProg = program(`
 attribute vec3 a_pos; attribute vec4 a_col; uniform mat4 u_mvp; varying vec4 v_col;
 void main(){{gl_Position=u_mvp*vec4(a_pos,1.0); v_col=a_col;}}`, `
 precision mediump float; varying vec4 v_col; void main(){{gl_FragColor=v_col;}}`);
+const earthProg = program(`
+attribute vec3 a_pos; attribute vec2 a_uv; uniform mat4 u_mvp; uniform mat3 u_rot; varying vec2 v_uv; varying vec3 v_norm_world;
+void main(){{
+  gl_Position = u_mvp * vec4(a_pos, 1.0);
+  v_uv = a_uv;
+  v_norm_world = normalize(u_rot * normalize(a_pos));
+}}`, `
+precision mediump float; uniform sampler2D u_tex; uniform vec3 u_sun_dir; varying vec2 v_uv; varying vec3 v_norm_world;
+void main(){{
+  vec3 tex = texture2D(u_tex, v_uv).rgb;
+  float sun = dot(normalize(v_norm_world), normalize(u_sun_dir));
+  float day = smoothstep(-0.035, 0.075, sun);
+  vec3 night = tex * 0.055 + vec3(0.005, 0.012, 0.030);
+  vec3 daylight = tex * (0.44 + 0.72 * max(sun, 0.0));
+  vec3 terminator = vec3(0.12, 0.28, 0.55) * (1.0 - abs(day - 0.5) * 2.0) * 0.10;
+  gl_FragColor = vec4(mix(night, daylight, day) + terminator, 1.0);
+}}`);
 
 function buffer(data) {{ const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW); return b; }}
 function timeColor(x) {{
@@ -1302,13 +1583,18 @@ function frame(now) {{
   gl.enable(gl.DEPTH_TEST); gl.clearColor(0.015,0.02,0.032,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   if (SolarApproachScene && playProgress < solarIntroSplit) {{
     const solarU = Math.max(0.0, Math.min(1.0, playProgress / solarIntroSplit));
+    const holdU = Math.min(0.26, Math.max(0.08, 2.0 / (Math.max(1.0, +win.value) * solarIntroSplit)));
+    const impactU = 1.0 - holdU;
+    const motionU = solarU < impactU ? solarU / impactU : 1.0;
+    const flashQ = Math.max(0.0, Math.min(1.0, (solarU - impactU) / Math.max(1e-6, holdU)));
+    const flashAlpha = 0.0;
     if(keys.has('arrowleft')) SolarApproachScene.orbitBy(-0.85 * dt);
     if(keys.has('arrowright')) SolarApproachScene.orbitBy(0.85 * dt);
     for (const el of stationLabels) el.style.display = 'none';
-    SolarApproachScene.draw(solarU, w, h);
+    SolarApproachScene.draw(motionU, w, h, flashAlpha);
     slider.value = Math.round(1000 * playProgress);
-    readout.textContent = formatUnix(SolarApproachScene.timeUnix(solarU));
-    altitude.textContent = SolarApproachScene.status(solarU);
+    readout.textContent = formatUnix(SolarApproachScene.timeUnix(motionU));
+    altitude.textContent = flashQ > 0 ? '100 km entry flash' : SolarApproachScene.status(motionU);
     bartick.style.left = `calc(${{Math.max(0, Math.min(1, playProgress)) * 100}}% - 1px)`;
     requestAnimationFrame(frame);
     return;
@@ -1348,6 +1634,7 @@ function frame(now) {{
   gl.enableVertexAttribArray(at); gl.vertexAttribPointer(at,1,gl.FLOAT,false,36,28);
   gl.enableVertexAttribArray(as); gl.vertexAttribPointer(as,1,gl.FLOAT,false,36,32);
   gl.depthMask(false); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.drawArrays(gl.POINTS,0,pointCount); gl.depthMask(true);
+  gl.disable(gl.DEPTH_TEST);
   gl.uniform1f(gl.getUniformLocation(pointProg,'u_time'),0.0);
   gl.bindBuffer(gl.ARRAY_BUFFER,fragmentBuf);
   gl.vertexAttribPointer(ap,3,gl.FLOAT,false,36,0);
@@ -1369,6 +1656,7 @@ function frame(now) {{
   gl.vertexAttribPointer(at,1,gl.FLOAT,false,36,28);
   gl.vertexAttribPointer(as,1,gl.FLOAT,false,36,32);
   gl.depthMask(false); gl.blendFunc(gl.SRC_ALPHA,gl.ONE); gl.drawArrays(gl.POINTS,0,rockCount); gl.depthMask(true);
+  gl.enable(gl.DEPTH_TEST);
   gl.uniform1f(gl.getUniformLocation(pointProg,'u_time'),0.0);
   gl.bindBuffer(gl.ARRAY_BUFFER,stationBuf);
   gl.vertexAttribPointer(ap,3,gl.FLOAT,false,36,0);
@@ -1400,6 +1688,7 @@ def main() -> None:
     parser.add_argument("--iap-logo", default=DEFAULT_IAP_LOGO)
     parser.add_argument("--orbit", default=DEFAULT_ORBIT)
     parser.add_argument("--tycho", default=DEFAULT_TYCHO)
+    parser.add_argument("--earth-texture", default=DEFAULT_EARTH_TEXTURE)
     parser.add_argument("--out", default=DEFAULT_OUT)
     args = parser.parse_args()
 
@@ -1413,11 +1702,11 @@ def main() -> None:
         point["t_unix"] = point["t"]
         point["t"] = point["t"] - t0_unix
     center_points = raw_points + trajectory
-    center = {
+    fit_center = {
         "lat": sum(p["lat"] for p in center_points) / len(center_points),
         "lon": sum(p["lon"] for p in center_points) / len(center_points),
     }
-    points, rejected_points = annotate_by_ballistic_path(raw_points, trajectory, center, args.path_residual_max_km)
+    points, rejected_points = annotate_by_ballistic_path(raw_points, trajectory, fit_center, args.path_residual_max_km)
     strewn = strewn_field_rows(ballistic, t0_unix)
     stations = station_marker_rows("2026_05_30_bolide")
     solar = load_solar_orbit(Path(args.orbit) if args.orbit else None, trajectory)
@@ -1435,13 +1724,18 @@ def main() -> None:
         extra_geo.append(strewn["nominal"])
     extra_geo.extend(strewn["samples"])
     extra_geo.extend(stations)
-    lat_vals = [p["lat"] for p in center_points + extra_geo]
-    lon_vals = [p["lon"] for p in center_points + extra_geo]
+    map_geo = center_points + strewn["nominalPath"] + strewn["samples"]
+    if strewn["nominal"]:
+        map_geo.append(strewn["nominal"])
+    center_source = strewn["nominal"] if strewn["nominal"] else fit_center
+    center = {"lat": center_source["lat"], "lon": center_source["lon"]}
+    lat_vals = [p["lat"] for p in map_geo]
+    lon_vals = [p["lon"] for p in map_geo]
     bbox = (
-        min(min(lon_vals) - 1.0, -73.2),
-        min(min(lat_vals) - 0.7, 40.6),
-        max(max(lon_vals) + 1.1, -68.8),
-        max(max(lat_vals) + 0.9, 43.6),
+        min(lon_vals) - 0.32,
+        min(lat_vals) - 0.22,
+        max(lon_vals) + 0.32,
+        max(lat_vals) + 0.24,
     )
     asset = {
         "schema": "new_england_bolide.webgl_viewer.v1",
@@ -1464,6 +1758,7 @@ def main() -> None:
         "stations": stations,
         "solar": solar,
         "tycho": tycho,
+        "earth_texture": optional_data_uri(Path(args.earth_texture)) if args.earth_texture else None,
         "logos": {
             "haystack": data_uri(Path(args.haystack_logo)) if args.haystack_logo else None,
             "uit": data_uri(Path(args.uit_logo)) if args.uit_logo else None,
