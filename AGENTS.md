@@ -523,3 +523,141 @@ products/rdmf_fft16_txaod_pol_standard_be10bb6/
 - Local validation showed all HDF5 products have `P`/`N` shape `(999, 351)`,
   `n_done=999`, `tx_aod_beamform=1`, `polarization_combine=1`, and
   `doppler_whiten=0`.
+
+## Residual AoD/Polarization RDMF Frame Run, 2026-06-12
+
+Completed the short head-echo interval RDMF verification run on `avaruus`.
+
+Source Digital RF path on server:
+
+```text
+/home/juha/src/new_england_bolide/2026_05_30_bolide_residual/
+```
+
+This is the residual raw voltage tree with the compressed-sensing/sparse
+voltage solution already subtracted. No script-side sparse subtraction was
+enabled.
+
+Config:
+
+```text
+configs/rdmf_residual_txaod_pol_180619_180622.yaml
+```
+
+Important options:
+
+- `t0: "18:06:19"` and `t1: "18:06:22"`
+- `doppler_zero_pad_factor: 16`
+- `trajectory_range_pad_pixels: 20`
+- `tx_aod_beamform: true`
+- `polarization_combine: true`
+- `doppler_whiten: false`
+- `save_rdmf_frames: true`
+- frame color scale: `2` to `23` dB
+
+Server command:
+
+```bash
+cd ~/src/new_england_bolide
+mpirun -np 3 /home/juha/venv/bin/python run_rdmf_stations_mpi.py \
+  configs/rdmf_residual_txaod_pol_180619_180622.yaml
+```
+
+Server log:
+
+```text
+logs/rdmf_residual_txaod_pol_180619_180622_mpi.log
+```
+
+Products were pulled locally to:
+
+```text
+products/rdmf_residual_txaod_pol_180619_180622_frames/
+```
+
+Frame PNGs:
+
+```text
+products/rdmf_residual_txaod_pol_180619_180622_frames/frames/
+```
+
+Completion/validation:
+
+- 897 frame PNGs were written and pulled locally: 299 time steps for each of
+  Beverly, Clinton, and Pomfret.
+- HDF5 products were written for all three stations.
+- Validation showed `n_done=299`, `n_steps=299`, `tx_aod_beamform=1`,
+  `polarization_combine=1`, and `doppler_whiten=0` for all three outputs.
+- Max SNR from local validation:
+  - Beverly: 19.07 dB at 237 km, Doppler -2443.75 Hz.
+  - Clinton: 18.23 dB at 261 km, Doppler -1950.0 Hz.
+  - Pomfret: 18.16 dB at 387 km, Doppler -975.0 Hz.
+
+## Residual AoD/Polarization RDMF Frame Run, 2026-06-12
+
+Completed the short head-echo interval RDMF verification run on `avaruus`.
+
+Source Digital RF path on server:
+
+```text
+/home/juha/src/new_england_bolide/2026_05_30_bolide_residual/
+```
+
+This is the residual raw voltage tree with the compressed-sensing/sparse
+voltage solution already subtracted. No script-side sparse subtraction was
+enabled.
+
+Config:
+
+```text
+configs/rdmf_residual_txaod_pol_180619_180622.yaml
+```
+
+Important options:
+
+- `t0: "18:06:19"` and `t1: "18:06:22"`
+- `doppler_zero_pad_factor: 16`
+- `trajectory_range_pad_pixels: 20`
+- `tx_aod_beamform: true`
+- `polarization_combine: true`
+- `doppler_whiten: false`
+- `save_rdmf_frames: true`
+- frame color scale: `2` to `23` dB
+
+Server command:
+
+```bash
+cd ~/src/new_england_bolide
+mpirun -np 3 /home/juha/venv/bin/python run_rdmf_stations_mpi.py \
+  configs/rdmf_residual_txaod_pol_180619_180622.yaml
+```
+
+Server log:
+
+```text
+logs/rdmf_residual_txaod_pol_180619_180622_mpi.log
+```
+
+Products were pulled locally to:
+
+```text
+products/rdmf_residual_txaod_pol_180619_180622_frames/
+```
+
+Frame PNGs:
+
+```text
+products/rdmf_residual_txaod_pol_180619_180622_frames/frames/
+```
+
+Completion/validation:
+
+- 897 frame PNGs were written and pulled locally: 299 time steps for each of
+  Beverly, Clinton, and Pomfret.
+- HDF5 products were written for all three stations.
+- Validation showed `n_done=299`, `n_steps=299`, `tx_aod_beamform=1`,
+  `polarization_combine=1`, and `doppler_whiten=0` for all three outputs.
+- Max SNR from local validation:
+  - Beverly: 19.07 dB at 237 km, Doppler -2443.75 Hz.
+  - Clinton: 18.23 dB at 261 km, Doppler -1950.0 Hz.
+  - Pomfret: 18.16 dB at 387 km, Doppler -975.0 Hz.
