@@ -2,6 +2,7 @@
 import argparse
 import json
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import h5py
@@ -12,6 +13,43 @@ C = 299792458.0
 WGS84_A = 6378137.0
 WGS84_F = 1.0 / 298.257223563
 WGS84_E2 = WGS84_F * (2.0 - WGS84_F)
+
+
+def parse_time_second(value, iso_hour):
+    """Parse seconds from the hour for numeric, HH:MM:SS, or ISO timestamps."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    try:
+        return float(text)
+    except ValueError:
+        pass
+
+    hour0 = datetime.fromisoformat(str(iso_hour).replace("Z", "+00:00"))
+    if hour0.tzinfo is None:
+        hour0 = hour0.replace(tzinfo=timezone.utc)
+    if "T" in text:
+        t = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=hour0.tzinfo)
+    else:
+        parts = text.split(":")
+        if len(parts) != 3:
+            raise ValueError(f"Cannot parse time {value!r}; use seconds, HH:MM:SS, or ISO timestamp")
+        hh, mm, ss = int(parts[0]), int(parts[1]), float(parts[2])
+        t = hour0.replace(hour=hh, minute=mm, second=int(ss), microsecond=int(round((ss % 1.0) * 1e6)))
+    return (t - hour0).total_seconds()
+
+
+def apply_t0_t1_args(args):
+    t0 = parse_time_second(args.t0, args.iso_hour)
+    t1 = parse_time_second(args.t1, args.iso_hour)
+    if t0 is not None:
+        args.start_second = float(t0)
+    if t1 is not None:
+        args.seconds = float(t1) - float(args.start_second)
+        if args.seconds <= 0:
+            raise ValueError(f"t1 must be after t0/start_second; got start={args.start_second:g}, t1={t1:g}")
 
 
 def geodetic_to_ecef(lat_deg, lon_deg, alt_m):
@@ -115,6 +153,19 @@ def tx_aod_steering_vector(config, traj, time_unix, phase_sign=-1.0):
     return np.exp(1.0j * phase).astype(np.complex64), unit.astype(np.float32)
 
 
+def trajectory_range_index_bounds(config, traj, time_unix, range_resolution_m, range_interp, pad_pixels):
+    times = np.asarray(time_unix, dtype=np.float64)
+    target = target_ecef(traj, times)
+    tx_ecef = geodetic_to_ecef(*config["gps_tx"])
+    rx_ecef = geodetic_to_ecef(*config["gps_rx"])
+    range_m = np.linalg.norm(target - tx_ecef[None, :], axis=1) + np.linalg.norm(target - rx_ecef[None, :], axis=1)
+    gate_m = float(range_resolution_m) / float(range_interp)
+    idx = range_m / gate_m
+    rmin = int(np.floor(np.nanmin(idx))) - int(pad_pixels)
+    rmax = int(np.ceil(np.nanmax(idx))) + int(pad_pixels)
+    return max(0, rmin), max(0, rmax)
+
+
 def combine_matched_filter_images(code_images, good_head_dop, steering=None, polarization_combine=False):
     """
     Combine channel/code matched-filter voltage images.
@@ -156,6 +207,29 @@ def combine_matched_filter_images(code_images, good_head_dop, steering=None, pol
         combined = np.einsum("c,crf->rf", np.conj(pol_gamma), tx_beam, optimize=True)
         power = (np.abs(combined) ** 2 / tx_norm).astype(np.float32)
     return power, pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
+
+
+def save_rdmf_frame(out_dir, station, ti, unix_time, range_km, fvec, power, vmin_db=None, vmax_db=None):
+    out_dir = Path(out_dir) / station
+    out_dir.mkdir(parents=True, exist_ok=True)
+    img_db = 10.0 * np.log10(np.maximum(power, 1e-30))
+    if vmin_db is None:
+        finite = img_db[np.isfinite(img_db)]
+        vmin_db = float(np.nanpercentile(finite, 5.0)) if finite.size else 0.0
+    if vmax_db is None:
+        finite = img_db[np.isfinite(img_db)]
+        vmax_db = float(np.nanpercentile(finite, 99.5)) if finite.size else 1.0
+    from matplotlib import pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.6), constrained_layout=True)
+    mesh = ax.pcolormesh(fvec, range_km, img_db, shading="auto", cmap="inferno", vmin=vmin_db, vmax=vmax_db)
+    cb = fig.colorbar(mesh, ax=ax)
+    cb.set_label("Matched-filter power (dB)")
+    ax.set_xlabel("Doppler frequency (Hz)")
+    ax.set_ylabel("Bistatic group range (km)")
+    ax.set_title(f"{station} RDMF step {ti:04d}, unix {unix_time:.3f}")
+    fig.savefig(out_dir / f"{station}_rdmf_{ti:04d}_{unix_time:.3f}.png", dpi=160, bbox_inches="tight")
+    plt.close(fig)
 
 
 def rf_file_for_time(station_dir, channel, iso_hour):
@@ -256,6 +330,11 @@ def range_doppler_bank(
     tx_aod_config=None,
     tx_aod_phase_sign=-1.0,
     polarization_combine=False,
+    rdmf_frame_dir=None,
+    rdmf_frame_station=None,
+    rdmf_frame_vmin_db=None,
+    rdmf_frame_vmax_db=None,
+    rdmf_frame_every=1,
     progress_every=1,
     checkpoint_every=0,
     checkpoint_func=None,
@@ -338,6 +417,18 @@ def range_doppler_bank(
         pol_gamma[ti, :] = gamma
         pol_peak_range_idx[ti] = peak_ri
         pol_peak_doppler_idx[ti] = peak_di
+        if rdmf_frame_dir is not None and rdmf_frame_every > 0 and ti % int(rdmf_frame_every) == 0:
+            save_rdmf_frame(
+                rdmf_frame_dir,
+                rdmf_frame_station or "station",
+                ti,
+                float(t_sample[ti] / sample_rate),
+                (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
+                fvec0.astype(np.float32),
+                S,
+                vmin_db=rdmf_frame_vmin_db,
+                vmax_db=rdmf_frame_vmax_db,
+            )
 
         if doppler_whiten:
             # Normalize each Doppler bin by its median power over range before
@@ -489,6 +580,8 @@ def main():
     p.add_argument("--channels", nargs="+", type=int, default=[0, 1])
     p.add_argument("--start-second", type=float, default=0.0)
     p.add_argument("--seconds", type=float, default=None)
+    p.add_argument("--t0", default=None, help="Start time as seconds from iso-hour, HH:MM:SS, or ISO timestamp.")
+    p.add_argument("--t1", default=None, help="Stop time as seconds from iso-hour, HH:MM:SS, or ISO timestamp.")
     p.add_argument("--n-coh", type=int, default=8)
     p.add_argument("--codes-per-step", type=int, default=8)
     p.add_argument("--range-interp", type=int, default=1)
@@ -497,6 +590,12 @@ def main():
     p.add_argument("--max-range-km", type=float)
     p.add_argument("--rmin-idx", type=int)
     p.add_argument("--rmax-idx", type=int)
+    p.add_argument(
+        "--trajectory-range-json",
+        default=None,
+        help="Trajectory JSON used to restrict evaluated range gates around the predicted bistatic range.",
+    )
+    p.add_argument("--trajectory-range-pad-pixels", type=int, default=None)
     p.add_argument("--fmin", type=float, default=-40000.0)
     p.add_argument("--fmax", type=float, default=40000.0)
     p.add_argument("--ignore-freq", type=float, default=150.0)
@@ -514,10 +613,16 @@ def main():
     )
     p.add_argument("--tx-aod-phase-sign", type=float, default=-1.0)
     p.add_argument("--polarization-combine", action="store_true")
+    p.add_argument("--save-rdmf-frames", action="store_true", help="Write one range-frequency RDMF PNG for each processed time step.")
+    p.add_argument("--rdmf-frame-dir", type=Path, default=None, help="Directory for per-time-step RDMF PNGs.")
+    p.add_argument("--rdmf-frame-vmin-db", type=float, default=None)
+    p.add_argument("--rdmf-frame-vmax-db", type=float, default=None)
+    p.add_argument("--rdmf-frame-every", type=int, default=1)
     p.add_argument("--progress-every", type=int, default=5)
     p.add_argument("--checkpoint-every", type=int, default=25)
     p.add_argument("--out", default=None)
     args = p.parse_args()
+    apply_t0_t1_args(args)
 
     config = read_config(args.data_dir, args.station)
     rmin_idx = config["rmin_idx"] if args.rmin_idx is None else args.rmin_idx
@@ -538,11 +643,41 @@ def main():
         sample_rate = sr if sample_rate is None else sample_rate
         abs_index0 = idx0 if abs_index0 is None else abs_index0
 
+    if args.trajectory_range_pad_pixels is not None:
+        traj_path = args.trajectory_range_json or args.tx_aod_trajectory_json
+        range_traj = load_trajectory(traj_path)
+        seconds = float(args.seconds) if args.seconds is not None else max(0.0, (min(map(len, channel_data)) / (sample_rate * args.range_interp)))
+        t_start = float(abs_index0) / float(sample_rate)
+        t_stop = t_start + seconds
+        t_grid = np.linspace(t_start, t_stop, max(2, int(np.ceil(seconds / 0.01)) + 1))
+        r0, r1 = trajectory_range_index_bounds(
+            config,
+            range_traj,
+            t_grid,
+            args.range_resolution_m,
+            args.range_interp,
+            args.trajectory_range_pad_pixels,
+        )
+        rmin_idx = max(rmin_idx, r0)
+        rmax_idx = min(rmax_idx, r1)
+        print(
+            f"trajectory range gate window idx={rmin_idx}:{rmax_idx} "
+            f"pad={args.trajectory_range_pad_pixels} trajectory={traj_path}",
+            flush=True,
+        )
+        if rmax_idx < rmin_idx:
+            raise ValueError("Trajectory range gate window is empty")
+
     codes = get_codes(config["seeds"], config["code_len"], args.n_coh, range_interp=args.range_interp)
     tx_aod_trajectory = load_trajectory(args.tx_aod_trajectory_json) if args.tx_aod_beamform else None
     ofname = args.out
     if ofname is None:
         ofname = f"rdmf_{args.station}_{args.iso_hour}_{int(args.start_second):04d}s.h5"
+    rdmf_frame_dir = None
+    if args.save_rdmf_frames:
+        rdmf_frame_dir = args.rdmf_frame_dir
+        if rdmf_frame_dir is None:
+            rdmf_frame_dir = Path(ofname).with_suffix("").parent / f"{Path(ofname).with_suffix('').name}_frames"
 
     def checkpoint(result_part, n_done, n_steps):
         args.n_done = n_done
@@ -582,6 +717,11 @@ def main():
         tx_aod_config=config,
         tx_aod_phase_sign=args.tx_aod_phase_sign,
         polarization_combine=args.polarization_combine,
+        rdmf_frame_dir=rdmf_frame_dir,
+        rdmf_frame_station=args.station,
+        rdmf_frame_vmin_db=args.rdmf_frame_vmin_db,
+        rdmf_frame_vmax_db=args.rdmf_frame_vmax_db,
+        rdmf_frame_every=args.rdmf_frame_every,
         fmin=args.fmin,
         fmax=args.fmax,
         ignore_freq=args.ignore_freq,

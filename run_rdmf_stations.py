@@ -8,6 +8,8 @@ import threading
 import time
 from pathlib import Path
 
+from range_doppler_mf_bolide import apply_t0_t1_args
+
 
 DEFAULT_STATIONS = ["amherstnh", "beverly", "clinton", "pomfret", "siena"]
 
@@ -71,6 +73,10 @@ def build_worker_cmd(args, station, out_file):
         cmd.extend(["--rmax-idx", str(args.rmax_idx)])
     if args.max_range_km is not None:
         cmd.extend(["--max-range-km", str(args.max_range_km)])
+    if args.trajectory_range_pad_pixels is not None:
+        cmd.extend(["--trajectory-range-pad-pixels", str(args.trajectory_range_pad_pixels)])
+        if args.trajectory_range_json is not None:
+            cmd.extend(["--trajectory-range-json", str(args.trajectory_range_json)])
     if args.doppler_whiten:
         cmd.append("--doppler-whiten")
     else:
@@ -81,6 +87,15 @@ def build_worker_cmd(args, station, out_file):
         cmd.extend(["--tx-aod-phase-sign", str(args.tx_aod_phase_sign)])
     if args.polarization_combine:
         cmd.append("--polarization-combine")
+    if args.save_rdmf_frames:
+        cmd.append("--save-rdmf-frames")
+        if args.rdmf_frame_dir is not None:
+            cmd.extend(["--rdmf-frame-dir", str(args.rdmf_frame_dir)])
+        if args.rdmf_frame_vmin_db is not None:
+            cmd.extend(["--rdmf-frame-vmin-db", str(args.rdmf_frame_vmin_db)])
+        if args.rdmf_frame_vmax_db is not None:
+            cmd.extend(["--rdmf-frame-vmax-db", str(args.rdmf_frame_vmax_db)])
+        cmd.extend(["--rdmf-frame-every", str(args.rdmf_frame_every)])
     if station in set(args.dc_cancel_stations):
         cmd.append("--dc-cancel")
     return cmd
@@ -124,6 +139,8 @@ def main():
     p.add_argument("--channels", nargs="+", type=int, default=[0, 1])
     p.add_argument("--start-second", type=float, default=0.0)
     p.add_argument("--seconds", type=float, default=None)
+    p.add_argument("--t0", default=None, help="Start time as seconds from iso-hour, HH:MM:SS, or ISO timestamp.")
+    p.add_argument("--t1", default=None, help="Stop time as seconds from iso-hour, HH:MM:SS, or ISO timestamp.")
     p.add_argument("--n-coh", type=int, default=8)
     p.add_argument("--codes-per-step", type=int, default=8)
     p.add_argument("--range-interp", type=int, default=1)
@@ -132,6 +149,8 @@ def main():
     p.add_argument("--max-range-km", type=float)
     p.add_argument("--rmin-idx", type=int)
     p.add_argument("--rmax-idx", type=int)
+    p.add_argument("--trajectory-range-json", default=None)
+    p.add_argument("--trajectory-range-pad-pixels", type=int, default=None)
     p.add_argument("--fmin", type=float, default=-12000.0)
     p.add_argument("--fmax", type=float, default=12000.0)
     p.add_argument("--ignore-freq", type=float, default=250.0)
@@ -149,12 +168,18 @@ def main():
     )
     p.add_argument("--tx-aod-phase-sign", type=float, default=-1.0)
     p.add_argument("--polarization-combine", action="store_true")
+    p.add_argument("--save-rdmf-frames", action="store_true")
+    p.add_argument("--rdmf-frame-dir", type=Path, default=None)
+    p.add_argument("--rdmf-frame-vmin-db", type=float, default=None)
+    p.add_argument("--rdmf-frame-vmax-db", type=float, default=None)
+    p.add_argument("--rdmf-frame-every", type=int, default=1)
     p.add_argument("--progress-every", type=int, default=10)
     p.add_argument("--checkpoint-every", type=int, default=50)
     p.add_argument("--plot-every", type=float, default=60.0)
     p.add_argument("--snr-threshold", type=float, default=3.5)
     p.add_argument("--out-dir", default="products/full_run")
     args = p.parse_args()
+    apply_t0_t1_args(args)
     args.cwd = Path.cwd()
     args._last_plot_time = {}
     args._last_plot_mtime = {}
