@@ -1026,14 +1026,14 @@ input[type=range]{{width:100%;accent-color:#58d7ff}}
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div class="hud">
+<div class="hud collapsed">
   <div class="panel titlepanel">
     <div>
       <h1>Cape Cod Bay Bolide May 30 2026</h1>
       <div id="readout" class="hud-time">2026-05-30T18:06:19Z</div>
       <div class="meta">Actual measurements of bolide-created plasma using the MIT Haystack Observatory multi-static radar system, developed in collaboration with IAP Kühlungsborn, Germany and the University of Tromsø, Norway, painted onto the fitted ballistic path over a curved New England/Cape Cod map.</div>
     </div>
-    <button id="menu" class="menubtn" aria-label="Collapse menu">≡</button>
+    <button id="menu" class="menubtn" aria-label="Expand menu">≡</button>
     <div class="drawer-body">
       <div class="controls">
         <button id="play" class="active">Pause</button>
