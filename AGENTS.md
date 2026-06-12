@@ -25,6 +25,10 @@ tables, bibliography, figure PNGs, and TeX support files under its local
 When report-support assets are regenerated here, copy the needed files into
 `../cape_cod_bay/reports/` before pushing the manuscript to Overleaf.
 
+Data products must be stored as HDF5 (`.h5`) unless there is an explicit,
+documented external format requirement. Do not create NumPy `.npz` data
+products for analysis or manuscript support assets.
+
 ## Remote Compute On avaruus
 
 Use `juha@avaruus.uit.no` for expensive matched-filter and RDMF jobs that are
