@@ -57,6 +57,27 @@ def nearest_noise_power(noise: dict[str, np.ndarray], time_unix: float) -> float
     return float(noise["dc_subtracted_power"][idx])
 
 
+def patch_noise_gain(patch: h5py.Group, fallback_n_channels: int) -> tuple[float, bool]:
+    """Noise gain relative to the channel-averaged 100 kHz noise reference."""
+    if "polarization_gamma" not in patch:
+        return float(fallback_n_channels), False
+    gamma = np.asarray(patch["polarization_gamma"][()], dtype=np.complex128)
+    equalizer = np.asarray(patch.get("channel_noise_equalizer", []), dtype=float)
+    powers = np.asarray(patch.get("channel_noise_powers", []), dtype=float)
+    if (
+        gamma.size == 0
+        or equalizer.size != gamma.size
+        or powers.size != gamma.size
+        or not np.all(np.isfinite(gamma))
+        or not np.all(np.isfinite(equalizer))
+        or not np.all(np.isfinite(powers))
+        or np.nanmean(powers) <= 0.0
+    ):
+        return float(fallback_n_channels), False
+    gain = float(np.sum(np.abs(gamma) ** 2 * equalizer**2 * powers) / np.nanmean(powers))
+    return max(gain, 1e-12), True
+
+
 def process_station(
     patch_h5: h5py.File,
     station: str,
@@ -79,6 +100,8 @@ def process_station(
     noise_100khz = np.full(len(patch_names), np.nan, dtype=float)
     noise_100hz = np.full(len(patch_names), np.nan, dtype=float)
     noise_rdmf = np.full(len(patch_names), np.nan, dtype=float)
+    noise_gain = np.full(len(patch_names), np.nan, dtype=float)
+    polarization_matched = np.full(len(patch_names), False, dtype=bool)
 
     for ti, name in enumerate(patch_names):
         patch = group[name]
@@ -88,10 +111,13 @@ def process_station(
         n_incoh = int(patch.attrs["n_incoh"])
         noise_100khz[ti] = nearest_noise_power(noise, times[ti])
         noise_100hz[ti] = noise_100khz[ti] / 1000.0
-        # The 1 s reference is channel-averaged 100 kHz voltage power. The
-        # one-code RDMF bin is 100 Hz, and the cached patches store summed,
-        # unnormalized FFT powers over channel/code/incoherent accumulations.
-        noise_rdmf[ti] = noise_100khz[ti] * code_len * n_channels * n_codes * n_incoh
+        # The 1 s reference is channel-averaged 100 kHz voltage power. For
+        # uncombined patches the RDMF image sums over channels, so the noise
+        # gain is n_channels. For polarization-combined patches the RDMF image
+        # has one combined stream; its effective noise gain is determined from
+        # gamma, channel equalization, and the stored channel-noise powers.
+        noise_gain[ti], polarization_matched[ti] = patch_noise_gain(patch, n_channels)
+        noise_rdmf[ti] = noise_100khz[ti] * code_len * noise_gain[ti] * n_codes * n_incoh
         cols = np.searchsorted(ranges_m, patch_ranges)
         snr_db[ti, cols] = 10.0 * np.log10(np.maximum(peak_power / max(noise_rdmf[ti], 1e-300), 1e-300))
 
@@ -111,6 +137,8 @@ def process_station(
         "noise_100khz_power": noise_100khz,
         "noise_100hz_power": noise_100hz,
         "noise_rdmf_power": noise_rdmf,
+        "noise_gain": noise_gain,
+        "polarization_matched": polarization_matched,
         "rmin_km": rmin_km - pad_km,
         "rmax_km": rmax_km + pad_km,
     }
@@ -122,6 +150,8 @@ def process_station(
         "n_codes": int(n_codes),
         "n_channels": int(n_channels),
         "n_incoh": int(group[patch_names[0]].attrs["n_incoh"]),
+        "polarization_matched": bool(np.any(polarization_matched)),
+        "median_noise_gain": float(np.nanmedian(noise_gain)),
         "snr_definition": "per-range Doppler peak raw RDMF power divided by 100 kHz sparse-residual noise converted to 100 Hz and scaled to cached unnormalized RDMF power",
     }
     return data, meta
@@ -135,7 +165,7 @@ def save_results(datasets: list[dict], metas: list[dict], args: argparse.Namespa
         "patch_h5": str(args.patch_h5),
         "noise_h5": str(args.noise_h5),
         "noise_bandwidth_conversion": "100 kHz residual voltage power divided by 1000 gives 100 Hz one-code RDMF-bin noise power",
-        "snr_definition": "per-range Doppler peak raw RDMF power / (noise_100khz * code_len * n_channels * n_codes * n_incoh)",
+        "snr_definition": "per-range Doppler peak raw RDMF power / (noise_100khz * code_len * noise_gain * n_codes * n_incoh)",
         "stations": metas,
     }
     with h5py.File(tmp, "w") as h:
@@ -152,6 +182,8 @@ def save_results(datasets: list[dict], metas: list[dict], args: argparse.Namespa
                 "noise_100khz_power",
                 "noise_100hz_power",
                 "noise_rdmf_power",
+                "noise_gain",
+                "polarization_matched",
             ):
                 g.create_dataset(key, data=data[key])
             g.attrs["rmin_km"] = float(data["rmin_km"])
@@ -179,10 +211,10 @@ def load_results(path: Path) -> tuple[list[dict], dict]:
     return datasets, metadata
 
 
-def plot_results(datasets: list[dict], metadata: dict, out_fig: Path) -> None:
+def plot_results(datasets: list[dict], metadata: dict, out_fig: Path, *, vmin_db: float | None = None, vmax_db: float | None = None) -> None:
     vals = np.concatenate([data["snr_db"][np.isfinite(data["snr_db"])] for data in datasets])
-    vmin = max(-10.0, float(np.nanpercentile(vals, 2.0))) if vals.size else -10.0
-    vmax = min(35.0, max(vmin + 10.0, float(np.nanpercentile(vals, 99.5)))) if vals.size else 25.0
+    vmin = float(vmin_db) if vmin_db is not None else (max(-10.0, float(np.nanpercentile(vals, 2.0))) if vals.size else -10.0)
+    vmax = float(vmax_db) if vmax_db is not None else (min(35.0, max(vmin + 10.0, float(np.nanpercentile(vals, 99.5)))) if vals.size else 25.0)
 
     plt.rcParams.update(
         {
@@ -265,12 +297,14 @@ def main() -> None:
     parser.add_argument("--n-codes", type=int, default=5)
     parser.add_argument("--code-len", type=int, default=1000)
     parser.add_argument("--n-channels", type=int, default=2)
+    parser.add_argument("--vmin-db", type=float, default=None)
+    parser.add_argument("--vmax-db", type=float, default=None)
     args = parser.parse_args()
     if args.mode in {"compute", "both"}:
         compute(args)
     if args.mode in {"plot", "both"}:
         datasets, metadata = load_results(args.output_h5)
-        plot_results(datasets, metadata, args.output_fig)
+        plot_results(datasets, metadata, args.output_fig, vmin_db=args.vmin_db, vmax_db=args.vmax_db)
         print(args.output_fig, flush=True)
 
 
