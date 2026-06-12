@@ -61,8 +61,14 @@ and should not be committed unless explicitly needed.
 
 ## Web Server Deploys
 
-Use `j@juha.no` as the web server for public static deployments. The Cape Cod
-Bay bolide WebGL viewer is deployed as:
+Use `j@juha.no` as the web server for public static deployments. Web
+directories on that server live under:
+
+```text
+/var/www/html/
+```
+
+The Cape Cod Bay bolide WebGL viewer is deployed as:
 
 ```text
 /var/www/html/bolide/index.html
