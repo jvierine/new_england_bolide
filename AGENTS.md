@@ -388,3 +388,110 @@ In short:
 - Manuscript driver, copied report assets, and Overleaf sync: `../cape_cod_bay/`.
 - Do not recreate `reports/processing_report.tex` here as the canonical
   manuscript entry point; update `../cape_cod_bay/main.tex`.
+
+## 2026-06-12 RDMF AoD/Polarization Server Run
+
+Dinner handoff state, written 2026-06-12 20:39 CST.
+
+The routine RDMF processing chain was updated and pushed to Git:
+
+```text
+be10bb6 Add trajectory steered RDMF polarization mode
+```
+
+Files in the focused commit:
+
+```text
+range_doppler_mf_bolide.py
+run_rdmf_stations.py
+```
+
+What changed:
+
+- `range_doppler_mf_bolide.py` now has standard-chain TX AoD steering via
+  `--tx-aod-beamform`, using the best-fit trajectory JSON to compute the
+  physical transmit-array steering vector.
+- It now supports `--polarization-combine`. The order is: form the
+  trajectory-steered TX beam, incoherently average the RX polarizations for peak
+  selection, select the peak head-echo pixel, derive one RX polarization vector
+  from that peak pixel, and apply that same polarization vector to the full
+  range-Doppler window.
+- No arbitrary gain is applied to the data. The coherent TX voltage sum is
+  normalized by the number of TX codes when forming power, so the noise scale is
+  kept comparable while coherent SNR improvement remains in the signal.
+- Doppler whitening is now off by default in both the worker and station runner.
+- HDF5 outputs include diagnostics: `pol_gamma`, `pol_peak_range_idx`,
+  `pol_peak_doppler_idx`, `tx_aod_unit_enu`, `tx_aod_beamform`,
+  `tx_aod_phase_sign`, `polarization_combine`, and `antenna_pos_tx`.
+
+Remote host:
+
+```text
+juha@avaruus.uit.no
+/home/juha/src/new_england_bolide
+```
+
+The server checkout is at `be10bb6`. Note: the server did not expose a conda
+executable over SSH, but `/home/juha/venv/bin/python` has `numpy`, `h5py`,
+`yaml`, and `matplotlib`, so the active run uses that interpreter.
+
+Running server job:
+
+```text
+parent PID: 2011338
+launcher shell PID: 2011336
+station workers at launch: 2011339, 2011341, 2011343, 2011345, 2011347
+```
+
+Output directory:
+
+```text
+products/rdmf_fft16_txaod_pol_standard_be10bb6/
+```
+
+Log:
+
+```text
+logs/rdmf_fft16_txaod_pol_standard_be10bb6.log
+```
+
+Command that was started on the server:
+
+```bash
+/home/juha/venv/bin/python run_rdmf_stations.py \
+  --out-dir products/rdmf_fft16_txaod_pol_standard_be10bb6 \
+  --stations amherstnh beverly clinton pomfret siena \
+  --start-second 75 \
+  --seconds 10 \
+  --n-coh 1 \
+  --codes-per-step 1 \
+  --range-interp 1 \
+  --doppler-zero-pad-factor 16 \
+  --range-resolution-m 3000 \
+  --fmin -12000 \
+  --fmax 12000 \
+  --ignore-freq 150 \
+  --head-min-doppler-hz 250 \
+  --no-doppler-whiten \
+  --tx-aod-beamform \
+  --tx-aod-trajectory-json products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json \
+  --tx-aod-phase-sign -1 \
+  --polarization-combine \
+  --progress-every 25 \
+  --checkpoint-every 100 \
+  --plot-every 120 \
+  --snr-threshold 3.5
+```
+
+At the latest check before this handoff was committed, all five station workers
+had reached checkpoint 100/999. Checkpoint HDF5 files and refreshed RTI PNGs
+had been written for all five stations. The first estimate was about
+13--15 minutes per station, running in parallel.
+
+Useful continuation commands:
+
+```bash
+ssh juha@avaruus.uit.no 'pgrep -af "range_doppler_mf_bolide|run_rdmf_stations"'
+ssh juha@avaruus.uit.no 'tail -n 120 ~/src/new_england_bolide/logs/rdmf_fft16_txaod_pol_standard_be10bb6.log'
+rsync -av juha@avaruus.uit.no:~/src/new_england_bolide/products/rdmf_fft16_txaod_pol_standard_be10bb6/ products/rdmf_fft16_txaod_pol_standard_be10bb6/
+```
