@@ -59,6 +59,31 @@ After a remote run, `rsync` generated products and figures back to the local
 checkout before committing. HDF5 products under `products/` are normally ignored
 and should not be committed unless explicitly needed.
 
+## Web Server Deploys
+
+Use `j@juha.no` as the web server for public static deployments. The Cape Cod
+Bay bolide WebGL viewer is deployed as:
+
+```text
+/var/www/html/bolide/index.html
+```
+
+The local generated source file for that single-page viewer is:
+
+```text
+reports/figures/bolide_webgl_volume_viewer.html
+```
+
+Before replacing the deployed file, make a timestamped backup on the server,
+then copy the regenerated local HTML, for example:
+
+```bash
+ssh j@juha.no 'cp /var/www/html/bolide/index.html /var/www/html/bolide/index.html.bak-$(date -u +%Y%m%dT%H%M%SZ)'
+rsync -av --checksum reports/figures/bolide_webgl_volume_viewer.html j@juha.no:/var/www/html/bolide/index.html
+```
+
+Verify the public page at `https://juha.no/bolide/` after deployment.
+
 ## Current Analysis State
 
 As of 2026-06-03, the head-echo trajectory products use the 4x zero-padded
