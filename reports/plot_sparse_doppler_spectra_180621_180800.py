@@ -87,7 +87,10 @@ def load_station(station: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.n
     spectra_snr = spectra_power / np.maximum(noise_power_2hz[:, None], 1e-30)
     range_snr = range_power / np.maximum(noise_power_2hz[:, None], 1e-30)
     spectra_snr_db = 10.0 * np.log10(np.maximum(spectra_snr, 1e-30))
-    return time_unix[keep_time], doppler_hz, spectra_snr_db, range_km, range_snr
+    range_snr_db = np.full_like(range_snr, np.nan, dtype=np.float64)
+    keep = range_snr > 0
+    range_snr_db[keep] = 10.0 * np.log10(range_snr[keep])
+    return time_unix[keep_time], doppler_hz, spectra_snr_db, range_km, range_snr_db
 
 
 def main() -> None:
@@ -96,9 +99,10 @@ def main() -> None:
     for station in STATIONS:
         item = load_station(station)
         data.append((station, *item))
-        vals = item[2][np.isfinite(item[2])]
-        if vals.size:
-            all_db.append(vals)
+        for arr in (item[2], item[4]):
+            vals = arr[np.isfinite(arr)]
+            if vals.size:
+                all_db.append(vals)
     all_db = np.concatenate(all_db)
     vmax = float(np.nanpercentile(all_db, 99.0))
     vmin = vmax - 35.0
@@ -115,7 +119,7 @@ def main() -> None:
         axes = axes[None, :]
 
     mesh = None
-    for axrow, (station, times, doppler_hz, spectra_db, range_km, range_power) in zip(axes, data, strict=True):
+    for axrow, (station, times, doppler_hz, spectra_db, range_km, range_snr_db) in zip(axes, data, strict=True):
         time_edges = np.r_[times - 0.25, times[-1] + 0.25]
         doppler_step = float(np.median(np.diff(doppler_hz)))
         doppler_edges = np.r_[doppler_hz - 0.5 * doppler_step, doppler_hz[-1] + 0.5 * doppler_step]
@@ -141,23 +145,14 @@ def main() -> None:
         ax.xaxis.set_major_formatter(time_formatter)
 
         axr = axrow[1]
-        range_snr_db = np.full_like(range_power, np.nan, dtype=np.float64)
-        keep = range_power > 0
-        range_snr_db[keep] = 10.0 * np.log10(range_power[keep])
-        vals = range_snr_db[np.isfinite(range_snr_db)]
-        if vals.size:
-            rvmax = float(np.nanpercentile(vals, 99.0))
-            rvmin = rvmax - 35.0
-        else:
-            rvmin, rvmax = 0.0, 1.0
         axr.pcolormesh(
             time_edges_dt,
             np.r_[range_km - 1.5, range_km[-1] + 1.5],
             range_snr_db.T,
             shading="flat",
-            cmap="viridis",
-            vmin=rvmin,
-            vmax=rvmax,
+            cmap="magma",
+            vmin=vmin,
+            vmax=vmax,
         )
         axr.set_ylabel("Range (km)")
         range_min_km, range_max_km = BOLIDE_RANGE_KM[station]
@@ -170,7 +165,7 @@ def main() -> None:
     axes[0, 1].set_title("Bolide-related sparse range-support SNR")
     axes[-1, 0].set_xlabel("UTC on 2026-05-30")
     axes[-1, 1].set_xlabel("UTC on 2026-05-30")
-    fig.colorbar(mesh, ax=axes[:, 0], label="Sparse coefficient SNR (dB, 2 Hz noise BW)", shrink=0.8)
+    fig.colorbar(mesh, ax=axes, label="Sparse coefficient SNR (dB, 2 Hz noise BW)", shrink=0.8)
     fig.suptitle("Low-altitude non-specular trail sparse SNR spectra, 18:06:21-18:08:00 UTC", y=1.02)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
