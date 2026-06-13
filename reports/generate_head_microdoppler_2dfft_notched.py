@@ -475,6 +475,8 @@ def compute_filtered_patch(item: tuple[int, dict]) -> dict | None:
         "polarization_noise_power": float(polarization_result.get("noise_power", np.nan)),
         "polarization_metric_kind": str(polarization_result.get("metric_kind", "")),
         "polarization_metric_mask_pixels": int(polarization_result.get("mask_pixels", 0)),
+        "polarization_peak_range_idx": int(polarization_result.get("peak_range_idx", -1)),
+        "polarization_peak_doppler_idx": int(polarization_result.get("peak_doppler_idx", -1)),
         "tx_aod_beamformed": bool(steering is not None),
         "tx_aod_unit_enu": np.asarray(tx_unit_enu, dtype=np.float32),
         "tx_aod_steering": np.asarray(steering, dtype=np.complex64) if steering is not None else np.asarray([], dtype=np.complex64),
@@ -582,23 +584,8 @@ def estimate_image_peak_polarization_gamma(
         raise ValueError("Polarization combining currently expects exactly two channels")
     args = G["args"]
     images = channel_code_images(start_i, read_len, ridx, fidx, dc_offsets)
-    z0 = images[:, 0]
-    z1 = images[:, 1]
-    raw0 = np.empty((args.n_incoh, read_len), dtype=np.complex64)
-    raw1 = np.empty((args.n_incoh, read_len), dtype=np.complex64)
-    for incoh_i in range(args.n_incoh):
-        incoh_start_i = start_i + incoh_i * G["step_len"]
-        raw0[incoh_i] = detrend_window(G["zc"][0][incoh_start_i : incoh_start_i + read_len])
-        raw1[incoh_i] = detrend_window(G["zc"][1][incoh_start_i : incoh_start_i + read_len])
-    n_theta = int(getattr(args, "polarization_grid_theta", 91))
-    n_phase = int(getattr(args, "polarization_grid_phase", 361))
-    theta = np.linspace(0.0, 0.5 * np.pi, max(2, n_theta), dtype=np.float64)
-    phase = np.linspace(-np.pi, np.pi, max(4, n_phase), endpoint=False, dtype=np.float64)
-    best_metric = -np.inf
-    best_signal_power = np.nan
-    best_noise_power = np.nan
-    best_gamma = np.array([1.0 + 0.0j, 0.0 + 0.0j], dtype=np.complex64)
-    best_image = None
+    if steering is None:
+        raise ValueError("Image-peak polarization matching requires trajectory TX steering")
     metric_mask = G.get("polarization_metric_mask")
     if metric_mask is not None:
         metric_mask = np.asarray(metric_mask, dtype=bool)
@@ -609,41 +596,45 @@ def estimate_image_peak_polarization_gamma(
             )
         if not np.any(metric_mask):
             raise ValueError("polarization_metric_mask is empty")
-    phase_chunk = int(getattr(args, "polarization_phase_chunk", 32))
-    phase_chunk = max(1, phase_chunk)
-    for th in theta:
-        a = np.cos(th)
-        b_amp = np.sin(th)
-        for p0 in range(0, len(phase), phase_chunk):
-            ph = phase[p0 : p0 + phase_chunk]
-            gamma1 = (b_amp * np.exp(1.0j * ph)).astype(np.complex64)
-            combined = a * z0[None, ...] + gamma1[:, None, None, None, None] * z1[None, ...]
-            power_by_incoh = power_from_code_images(combined, steering)
-            power_images = np.sum(power_by_incoh, axis=1, dtype=np.float64)
-            if metric_mask is None:
-                signal_power = np.nanmax(power_images.reshape(power_images.shape[0], -1), axis=1)
-            else:
-                signal_power = np.nansum(power_images[:, metric_mask], axis=1)
-            raw_combined = a * raw0[None, ...] + gamma1[:, None, None] * raw1[None, ...]
-            noise_power = np.mean(np.abs(raw_combined) ** 2, axis=(1, 2), dtype=np.float64)
-            metric = signal_power / np.maximum(noise_power, 1e-30)
-            idx = int(np.nanargmax(metric))
-            score = float(metric[idx])
-            if score > best_metric:
-                best_metric = score
-                best_signal_power = float(signal_power[idx])
-                best_noise_power = float(noise_power[idx])
-                best_gamma = np.array([a + 0.0j, gamma1[idx]], dtype=np.complex64)
-                best_image = power_images[idx].copy()
-    best_gamma /= np.sqrt(float(np.sum(np.abs(best_gamma) ** 2)))
-    if best_image is None:
-        raise RuntimeError("Polarization grid-image search failed")
+
+    tx_beam = np.sum(images * np.conj(steering)[None, None, :, None, None], axis=2)
+    selection_power = np.sum(np.abs(tx_beam) ** 2, axis=(0, 1), dtype=np.float64) / float(len(steering))
+    search = selection_power if metric_mask is None else np.where(metric_mask, selection_power, -np.inf)
+    if not np.any(np.isfinite(search)):
+        raise RuntimeError("Polarization image peak search has no finite pixels")
+    best_range_idx, best_doppler_idx = np.unravel_index(int(np.nanargmax(search)), search.shape)
+
+    incoh_power = np.sum(np.abs(tx_beam[:, :, best_range_idx, best_doppler_idx]) ** 2, axis=1, dtype=np.float64)
+    best_incoh_idx = int(np.nanargmax(incoh_power))
+    peak_vec = tx_beam[best_incoh_idx, :, best_range_idx, best_doppler_idx].astype(np.complex128)
+    norm = float(np.linalg.norm(peak_vec))
+    if norm <= 0.0 or not np.isfinite(norm):
+        best_gamma = np.array([1.0 + 0.0j, 0.0 + 0.0j], dtype=np.complex64)
+    else:
+        best_gamma = np.conj(peak_vec / norm).astype(np.complex64)
+
+    combined = np.einsum("c,icrf->irf", best_gamma, tx_beam, optimize=True)
+    best_image = np.sum(np.abs(combined) ** 2, axis=0, dtype=np.float64) / float(len(steering))
+
+    raw0 = np.empty((args.n_incoh, read_len), dtype=np.complex64)
+    raw1 = np.empty((args.n_incoh, read_len), dtype=np.complex64)
+    for incoh_i in range(args.n_incoh):
+        incoh_start_i = start_i + incoh_i * G["step_len"]
+        raw0[incoh_i] = detrend_window(G["zc"][0][incoh_start_i : incoh_start_i + read_len])
+        raw1[incoh_i] = detrend_window(G["zc"][1][incoh_start_i : incoh_start_i + read_len])
+    raw_combined = best_gamma[0] * raw0 + best_gamma[1] * raw1
+    best_noise_power = float(np.mean(np.abs(raw_combined) ** 2, dtype=np.float64))
+    best_signal_power = float(selection_power[best_range_idx, best_doppler_idx])
+    best_metric = best_signal_power / max(best_noise_power, 1e-30)
+
     G["polarization_result"] = {
         "metric": best_metric,
         "signal_power": best_signal_power,
         "noise_power": best_noise_power,
-        "metric_kind": "gaussian_mask_sum" if metric_mask is not None else "image_peak",
+        "metric_kind": "gaussian_mask_peak_matched" if metric_mask is not None else "image_peak_matched",
         "mask_pixels": int(np.sum(metric_mask)) if metric_mask is not None else 0,
+        "peak_range_idx": int(best_range_idx),
+        "peak_doppler_idx": int(best_doppler_idx),
     }
     return best_gamma, best_image
 

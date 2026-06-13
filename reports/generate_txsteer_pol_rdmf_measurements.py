@@ -89,6 +89,11 @@ def compute_station_product(
         model_range_km = model_bistatic_range_km(h, traj, time_unix)
         pol_gamma = h["pol_gamma"][()].astype(np.complex64) if "pol_gamma" in h else None
         pol_reference_range_idx = h["pol_peak_range_idx"][()].astype(np.int32) if "pol_peak_range_idx" in h else None
+        pol_reference_doppler_idx = h["pol_peak_doppler_idx"][()].astype(np.int32) if "pol_peak_doppler_idx" in h else None
+        rdmf_n_coh = int(h["n_coh"][()]) if "n_coh" in h else 1
+        rdmf_n_incoh = int(h["head_incoherent_codes"][()]) if "head_incoherent_codes" in h else 1
+        rdmf_step_codes = int(h["codes_per_step"][()]) if "codes_per_step" in h else 1
+        rdmf_code_offsets = h["head_incoherent_code_offsets"][()].astype(np.int32) if "head_incoherent_code_offsets" in h else np.array([0], dtype=np.int32)
 
     if voltage is None:
         txsteer_pol_snr_db = 10.0 * np.log10(np.maximum(p_head / np.maximum(noise, 1e-30), 1e-30))
@@ -96,6 +101,8 @@ def compute_station_product(
             pol_gamma = np.full((len(time_unix), 2), np.nan + 1.0j * np.nan, dtype=np.complex64)
         if pol_reference_range_idx is None:
             pol_reference_range_idx = np.full(len(time_unix), -1, dtype=np.int32)
+        if pol_reference_doppler_idx is None:
+            pol_reference_doppler_idx = np.full(len(time_unix), -1, dtype=np.int32)
         gaussian_valid = np.ones(len(time_unix), dtype=np.uint8)
     else:
         site = load_station_yaml(DATA_DIR, station)
@@ -153,11 +160,13 @@ def compute_station_product(
         "model_doppler_hz": model_doppler_hz,
         "txsteer_pol_snr_db": txsteer_pol_snr_db,
         "pol_reference_range_idx": pol_reference_range_idx,
+        "pol_reference_doppler_idx": pol_reference_doppler_idx,
         "pol_gamma": pol_gamma,
         "gaussian_valid": gaussian_valid,
-        "rdmf_n_coh": 1,
-        "rdmf_n_incoh": 2,
-        "rdmf_step_codes": 1,
+        "rdmf_n_coh": rdmf_n_coh,
+        "rdmf_n_incoh": rdmf_n_incoh,
+        "rdmf_step_codes": rdmf_step_codes,
+        "rdmf_code_offsets": rdmf_code_offsets,
     }
 
 
@@ -174,13 +183,21 @@ def measurement_rows(data: dict, args: argparse.Namespace) -> list[dict]:
     for ti, center_km in enumerate(model_range):
         if not np.isfinite(center_km):
             continue
-        center = int(np.nanargmin(np.abs(ranges - center_km)))
-        lo = max(0, center - int(args.search_range_half_width_px))
-        hi = min(len(ranges), center + int(args.search_range_half_width_px) + 1)
-        search = snr[ti, lo:hi]
+        if args.search_range_half_width_km is not None:
+            range_mask = np.abs(ranges - center_km) <= float(args.search_range_half_width_km)
+        else:
+            center = int(np.nanargmin(np.abs(ranges - center_km)))
+            range_mask = np.zeros(len(ranges), dtype=bool)
+            lo = max(0, center - int(args.search_range_half_width_px))
+            hi = min(len(ranges), center + int(args.search_range_half_width_px) + 1)
+            range_mask[lo:hi] = True
+        if args.search_doppler_half_width_hz is not None:
+            doppler_mask = np.abs(d_head[ti] - model_doppler[ti]) <= float(args.search_doppler_half_width_hz)
+            range_mask &= doppler_mask
+        search = np.where(range_mask, snr[ti], -np.inf)
         if not np.any(np.isfinite(search)):
             continue
-        ri = lo + int(np.nanargmax(search))
+        ri = int(np.nanargmax(search))
         amp = float(snr[ti, ri])
         if not np.isfinite(amp):
             continue
@@ -215,9 +232,9 @@ def measurement_rows(data: dict, args: argparse.Namespace) -> list[dict]:
                 "cost": 0.0,
                 "success": True,
                 "error": "",
-                "n_coh": 1,
-                "n_incoh": 2,
-                "step_codes": 1,
+                "n_coh": int(data["rdmf_n_coh"]),
+                "n_incoh": int(data["rdmf_n_incoh"]),
+                "step_codes": int(data["rdmf_step_codes"]),
                 "notch_half_width": np.nan,
                 "fft_filter_domain": "",
                 "inpaint_notched_columns": "",
@@ -246,6 +263,16 @@ def measurement_rows(data: dict, args: argparse.Namespace) -> list[dict]:
                 "code_period_s": 0.01,
                 "rdmf_range_idx": int(ri),
                 "rdmf_pol_reference_range_idx": int(data["pol_reference_range_idx"][ti]),
+                "rdmf_pol_reference_doppler_idx": int(data["pol_reference_doppler_idx"][ti])
+                if data["pol_reference_doppler_idx"] is not None
+                else -1,
+                "rdmf_incoherent_code_offsets": " ".join(str(int(x)) for x in data["rdmf_code_offsets"]),
+                "rdmf_search_range_half_km": float(args.search_range_half_width_km)
+                if args.search_range_half_width_km is not None
+                else np.nan,
+                "rdmf_search_doppler_half_hz": float(args.search_doppler_half_width_hz)
+                if args.search_doppler_half_width_hz is not None
+                else np.nan,
                 "gaussian_reference_valid": bool(data["gaussian_valid"][ti]),
                 "figure": "",
             }
@@ -263,6 +290,8 @@ def write_h5(path: Path, products: list[dict], rows: pd.DataFrame, args: argpars
         h.attrs["trajectory_json"] = str(args.trajectory_json)
         h.attrs["gaussian_summary_csv"] = str(args.gaussian_summary_csv)
         h.attrs["search_range_half_width_px"] = int(args.search_range_half_width_px)
+        h.attrs["search_range_half_width_km"] = np.nan if args.search_range_half_width_km is None else float(args.search_range_half_width_km)
+        h.attrs["search_doppler_half_width_hz"] = np.nan if args.search_doppler_half_width_hz is None else float(args.search_doppler_half_width_hz)
         h.attrs["phase_sign"] = float(args.phase_sign)
         h.create_dataset("stations", data=np.asarray([p["station"].encode("utf-8") for p in products]))
         for product in products:
@@ -279,6 +308,10 @@ def write_h5(path: Path, products: list[dict], rows: pd.DataFrame, args: argpars
                 "gaussian_valid",
             ):
                 g.create_dataset(key, data=product[key], compression="gzip" if np.ndim(product[key]) else None)
+            g.attrs["rdmf_n_coh"] = int(product["rdmf_n_coh"])
+            g.attrs["rdmf_n_incoh"] = int(product["rdmf_n_incoh"])
+            g.attrs["rdmf_step_codes"] = int(product["rdmf_step_codes"])
+            g.create_dataset("rdmf_code_offsets", data=product["rdmf_code_offsets"])
         rec = rows.to_records(index=False)
         h.attrs["measurement_csv"] = str(args.out_dir / "head_echo_measurement_candidates.csv")
 
@@ -323,6 +356,8 @@ def main() -> None:
     p.add_argument("--gaussian-max-dt-s", type=float, default=0.03)
     p.add_argument("--phase-sign", type=float, default=-1.0)
     p.add_argument("--search-range-half-width-px", type=int, default=10)
+    p.add_argument("--search-range-half-width-km", type=float, default=None)
+    p.add_argument("--search-doppler-half-width-hz", type=float, default=None)
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     p.add_argument("--output-h5", type=Path, default=DEFAULT_OUTPUT_H5)
     p.add_argument("--output-plot", type=Path, default=DEFAULT_OUTPUT_PNG)

@@ -64,6 +64,8 @@ def command_for_station(station: str, args: argparse.Namespace) -> list[str]:
         "1",
         "--codes-per-step",
         "1",
+        "--head-incoherent-codes",
+        str(args.head_incoherent_codes),
         "--range-interp",
         str(args.range_interp),
         "--doppler-zero-pad-factor",
@@ -84,6 +86,10 @@ def command_for_station(station: str, args: argparse.Namespace) -> list[str]:
         str(args.head_min_doppler_hz),
         "--head-search-range-half-px",
         str(args.head_search_range_half_px),
+        "--head-search-range-half-km",
+        str(args.head_search_range_half_km),
+        "--head-search-doppler-half-hz",
+        str(args.head_search_doppler_half_hz),
         "--no-doppler-whiten",
         "--tx-aod-beamform",
         "--tx-aod-trajectory-json",
@@ -137,6 +143,9 @@ def main() -> None:
     p.add_argument("--ignore-freq", type=float, default=150.0)
     p.add_argument("--head-min-doppler-hz", type=float, default=250.0)
     p.add_argument("--head-search-range-half-px", type=int, default=20)
+    p.add_argument("--head-search-range-half-km", type=float, default=20.0)
+    p.add_argument("--head-search-doppler-half-hz", type=float, default=1000.0)
+    p.add_argument("--head-incoherent-codes", type=int, default=1)
     p.add_argument("--trajectory-json", type=Path, default=DEFAULT_TRAJECTORY)
     p.add_argument("--tx-aod-phase-sign", type=float, default=-1.0)
     p.add_argument("--progress-every", type=int, default=10)
@@ -149,10 +158,22 @@ def main() -> None:
     p.add_argument("--rdmf-frame-zoom-range-half-km", type=float, default=12.0)
     p.add_argument("--rdmf-frame-zoom-doppler-half-hz", type=float, default=700.0)
     p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--mpi-dispatch", action="store_true", help="When run under mpi4py, split stations over ranks.")
     args = p.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    for station in args.stations:
+    stations = list(args.stations)
+    if args.mpi_dispatch:
+        try:
+            from mpi4py import MPI
+        except ModuleNotFoundError as exc:
+            raise SystemExit("--mpi-dispatch requires mpi4py") from exc
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        size = comm.Get_size()
+        stations = stations[rank::size]
+        print(f"MPI rank {rank}/{size} assigned stations: {stations}", flush=True)
+    for station in stations:
         cmd = command_for_station(station, args)
         print(" ".join(cmd), flush=True)
         if not args.dry_run:

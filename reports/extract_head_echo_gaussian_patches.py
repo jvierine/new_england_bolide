@@ -27,6 +27,7 @@ import reports.generate_head_microdoppler_2dfft_notched as md2d  # noqa: E402
 from reports.generate_head_microdoppler_2dfft_notched import (  # noqa: E402
     DATA_DIR,
     DEFAULT_SPARSE_PRODUCT_DIR,
+    DEFAULT_TX_AOD_TRAJECTORY_FIT,
     EVENT_T0,
     compute_filtered_patch,
     init_station,
@@ -34,6 +35,15 @@ from reports.generate_head_microdoppler_2dfft_notched import (  # noqa: E402
 
 DEFAULT_ANNOTATIONS = ROOT / "annotations" / "head_echo_rois.json"
 DEFAULT_OUT = ROOT / "products" / "head_echo_gaussian_patches" / "head_echo_gaussian_patches_16code.h5"
+
+
+def mpi_context() -> tuple[object | None, int, int]:
+    try:
+        from mpi4py import MPI
+    except Exception:
+        return None, 0, 1
+    comm = MPI.COMM_WORLD
+    return comm, int(comm.Get_rank()), int(comm.Get_size())
 
 
 def common_time_grid(annotations_path: Path, stations: list[str], pad_s: float, dt_s: float) -> np.ndarray:
@@ -175,10 +185,17 @@ def write_station_group(h: h5py.File, station: str, rows: list[dict]) -> None:
         p.attrs["n_incoh"] = int(row.get("n_incoh", -1))
         p.attrs["step_codes"] = int(row.get("step_codes", -1))
         p.attrs["doppler_zero_pad_factor"] = int(row.get("doppler_zero_pad_factor", -1))
+        p.attrs["tx_aod_beamformed"] = bool(row.get("tx_aod_beamformed", False))
+        p.attrs["tx_aod_ideal_snr_gain"] = float(row.get("tx_aod_ideal_snr_gain", 1.0))
+        p.attrs["tx_aod_noise_code_gain"] = float(row.get("tx_aod_noise_code_gain", np.nan))
         if "channel_noise_equalizer" in row and len(row["channel_noise_equalizer"]):
             p.create_dataset("channel_noise_equalizer", data=np.asarray(row["channel_noise_equalizer"], dtype=np.float32))
         if "channel_noise_powers" in row and len(row["channel_noise_powers"]):
             p.create_dataset("channel_noise_powers", data=np.asarray(row["channel_noise_powers"], dtype=np.float64))
+        if "tx_aod_unit_enu" in row and len(row["tx_aod_unit_enu"]):
+            p.create_dataset("tx_aod_unit_enu", data=np.asarray(row["tx_aod_unit_enu"], dtype=np.float32))
+        if "tx_aod_steering" in row and len(row["tx_aod_steering"]):
+            p.create_dataset("tx_aod_steering", data=np.asarray(row["tx_aod_steering"], dtype=np.complex64))
         if "polarization_gamma" in row and len(row["polarization_gamma"]):
             p.create_dataset("polarization_gamma", data=np.asarray(row["polarization_gamma"], dtype=np.complex64))
         for key in ("polarization_metric", "polarization_signal_power", "polarization_noise_power"):
@@ -188,6 +205,10 @@ def write_station_group(h: h5py.File, station: str, rows: list[dict]) -> None:
             p.attrs["polarization_metric_kind"] = str(row["polarization_metric_kind"])
         if int(row.get("polarization_metric_mask_pixels", 0)) > 0:
             p.attrs["polarization_metric_mask_pixels"] = int(row["polarization_metric_mask_pixels"])
+        if int(row.get("polarization_peak_range_idx", -1)) >= 0:
+            p.attrs["polarization_peak_range_idx"] = int(row["polarization_peak_range_idx"])
+        if int(row.get("polarization_peak_doppler_idx", -1)) >= 0:
+            p.attrs["polarization_peak_doppler_idx"] = int(row["polarization_peak_doppler_idx"])
         if "polarization_metric_mask" in row:
             p.create_dataset("polarization_metric_mask", data=np.asarray(row["polarization_metric_mask"], dtype=np.uint8), compression="gzip", compression_opts=1)
         if "polarization_reference_fit" in row:
@@ -199,23 +220,45 @@ def write_station_group(h: h5py.File, station: str, rows: list[dict]) -> None:
         p.create_dataset("raw_db", data=np.asarray(row["raw_db"], dtype=np.float32), compression="gzip", compression_opts=1)
 
 
-def run_station(station: str, observations: list[dict], payload: dict, args: argparse.Namespace) -> list[dict]:
-    print(f"{station}: loading raw data", flush=True)
+def run_station(
+    station: str,
+    observations: list[dict],
+    payload: dict,
+    args: argparse.Namespace,
+    comm=None,
+    rank: int = 0,
+    size: int = 1,
+) -> list[dict]:
+    prefix = station if size == 1 else f"{station} rank {rank}/{size}"
+    print(f"{prefix}: loading raw data", flush=True)
     init_station(payload, station, args)
     items = list(enumerate(observations))
-    n_workers = min(max(1, args.workers), len(items))
-    print(f"{station}: extracting {len(items)} predicted patches with {n_workers} worker(s)", flush=True)
-    if n_workers == 1:
-        rows = [process_item(item) for item in items]
+    if size > 1:
+        local_items = items[rank::size]
+        print(f"{prefix}: extracting {len(local_items)}/{len(items)} predicted patches", flush=True)
+        rows = []
+        for local_i, item in enumerate(local_items, start=1):
+            rows.append(process_item(item))
+            if local_i == 1 or local_i == len(local_items) or local_i % max(1, len(local_items) // 4) == 0:
+                print(f"{prefix}: {local_i}/{len(local_items)} local patches returned", flush=True)
+        gathered = comm.gather(rows, root=0)
+        if rank != 0:
+            return []
+        rows = [row for chunk in gathered for row in chunk]
     else:
-        ctx = mp.get_context("fork")
-        with ctx.Pool(n_workers) as pool:
-            rows = []
-            for row in pool.imap(process_item, items, chunksize=1):
-                rows.append(row)
-                done = len(rows)
-                if done == 1 or done == len(items) or done % max(1, len(items) // 8) == 0:
-                    print(f"{station}: {done}/{len(items)} patches returned", flush=True)
+        n_workers = min(max(1, args.workers), len(items))
+        print(f"{station}: extracting {len(items)} predicted patches with {n_workers} worker(s)", flush=True)
+        if n_workers == 1:
+            rows = [process_item(item) for item in items]
+        else:
+            ctx = mp.get_context("fork")
+            with ctx.Pool(n_workers) as pool:
+                rows = []
+                for row in pool.imap(process_item, items, chunksize=1):
+                    rows.append(row)
+                    done = len(rows)
+                    if done == 1 or done == len(items) or done % max(1, len(items) // 8) == 0:
+                        print(f"{station}: {done}/{len(items)} patches returned", flush=True)
     return [row for row in rows if row is not None]
 
 
@@ -271,12 +314,18 @@ def main() -> None:
     p.add_argument("--polarization-grid-theta", type=int, default=16)
     p.add_argument("--polarization-grid-phase", type=int, default=32)
     p.add_argument("--polarization-phase-chunk", type=int, default=32)
+    p.add_argument("--tx-aod-beamform", action=argparse.BooleanOptionalAction, default=False)
+    p.add_argument("--tx-aod-trajectory-json", type=Path, default=DEFAULT_TX_AOD_TRAJECTORY_FIT)
+    p.add_argument("--tx-aod-phase-sign", type=float, default=1.0)
     p.add_argument("--product-version", default="unspecified")
     p.add_argument("--product-version-description", default="")
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     args = p.parse_args()
     if args.polarization_equalize_noise is None:
         args.polarization_equalize_noise = bool(args.polarization_combine)
+    comm, rank, size = mpi_context()
+    if size > 1:
+        args.workers = 1
 
     DATA_DIR = args.data_dir
     md2d.DATA_DIR = args.data_dir
@@ -300,6 +349,15 @@ def main() -> None:
         times = common_time_grid(args.annotations, stations, args.time_pad_s, args.time_step_s)
         observations = predicted_observations(payload, stations, times)
     observations = restrict_observations(observations, args)
+
+    station_rows = {}
+    for station in stations:
+        rows = run_station(station, observations[station], payload, args, comm=comm, rank=rank, size=size)
+        if rank == 0:
+            rows.sort(key=lambda row: row["idx"])
+            station_rows[station] = rows
+    if rank != 0:
+        return
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with h5py.File(args.out, "w") as h:
@@ -342,12 +400,15 @@ def main() -> None:
         h.attrs["polarization_equalize_block_samples"] = int(args.polarization_equalize_block_samples)
         h.attrs["polarization_grid_theta"] = int(args.polarization_grid_theta)
         h.attrs["polarization_grid_phase"] = int(args.polarization_grid_phase)
+        h.attrs["tx_aod_beamform"] = bool(args.tx_aod_beamform)
+        h.attrs["tx_aod_trajectory_json"] = str(args.tx_aod_trajectory_json)
+        h.attrs["tx_aod_phase_sign"] = float(args.tx_aod_phase_sign)
+        h.attrs["tx_aod_combination"] = "unnormalized coherent code sum" if args.tx_aod_beamform else "incoherent code power sum"
+        h.attrs["tx_aod_ideal_snr_gain"] = 5.0 if args.tx_aod_beamform else 1.0
         h.create_dataset("common_time_unix", data=times)
         h["stations"] = np.asarray([s.encode("utf-8") for s in stations])
         for station in stations:
-            rows = run_station(station, observations[station], payload, args)
-            rows.sort(key=lambda row: row["idx"])
-            write_station_group(h, station, rows)
+            write_station_group(h, station, station_rows[station])
             h.flush()
     print(f"Wrote {args.out}", flush=True)
 

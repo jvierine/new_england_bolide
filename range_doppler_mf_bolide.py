@@ -256,7 +256,11 @@ def read_config(data_dir, station):
 def load_trajectory(path):
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     model = payload["model"]
-    return {key: np.asarray(model[key], dtype=np.float64) for key in ("time_unix", "lat_deg", "lon_deg", "alt_m")}
+    out = {key: np.asarray(model[key], dtype=np.float64) for key in ("time_unix", "lat_deg", "lon_deg", "alt_m")}
+    for key in ("position_gcrs_m", "velocity_gcrs_mps"):
+        if key in model:
+            out[key] = np.asarray(model[key], dtype=np.float64)
+    return out
 
 
 def target_ecef(traj, time_unix):
@@ -290,6 +294,34 @@ def trajectory_range_index_bounds(config, traj, time_unix, range_resolution_m, r
     rmin = int(np.floor(np.nanmin(idx))) - int(pad_pixels)
     rmax = int(np.ceil(np.nanmax(idx))) + int(pad_pixels)
     return max(0, rmin), max(0, rmax)
+
+
+def trajectory_bistatic_range_m(config, traj, time_unix):
+    target = target_ecef(traj, np.asarray(time_unix, dtype=np.float64))
+    tx_ecef = geodetic_to_ecef(*config["gps_tx"])
+    rx_ecef = geodetic_to_ecef(*config["gps_rx"])
+    return np.linalg.norm(target - tx_ecef[None, :], axis=1) + np.linalg.norm(target - rx_ecef[None, :], axis=1)
+
+
+def trajectory_doppler_hz(config, data_dir, station, traj, time_unix):
+    from estimate_head_echo_trajectory import station_geometry
+    from fit_ballistic_head_trail import head_predictions_from_states
+    from fit_combined_head_trail_eci import cache_head_station_states
+
+    if "position_gcrs_m" not in traj or "velocity_gcrs_mps" not in traj:
+        raise ValueError("Doppler prior requires position_gcrs_m and velocity_gcrs_mps in trajectory JSON")
+    times = np.asarray(time_unix, dtype=np.float64)
+    tm = np.asarray(traj["time_unix"], dtype=np.float64)
+    order = np.argsort(tm)
+    tm = tm[order]
+    pos = np.asarray(traj["position_gcrs_m"], dtype=np.float64)[order]
+    vel = np.asarray(traj["velocity_gcrs_mps"], dtype=np.float64)[order]
+    pos_i = np.column_stack([np.interp(times, tm, pos[:, i]) for i in range(3)])
+    vel_i = np.column_stack([np.interp(times, tm, vel[:, i]) for i in range(3)])
+    geom = station_geometry(Path(data_dir), [station])
+    obs = cache_head_station_states([{"station": station, "unix_time": float(t)} for t in times], geom)
+    _ranges, dopplers = head_predictions_from_states(pos_i, vel_i, obs)
+    return np.asarray(dopplers, dtype=np.float64)
 
 
 def combine_matched_filter_images(code_images, good_head_dop, steering=None, polarization_combine=False, search_range_mask=None):
@@ -335,6 +367,51 @@ def combine_matched_filter_images(code_images, good_head_dop, steering=None, pol
         combined = np.einsum("c,crf->rf", np.conj(pol_gamma), tx_beam, optimize=True)
         power = (np.abs(combined) ** 2 / tx_norm).astype(np.float32)
     return power, pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
+
+
+def tx_steer_code_images(code_images, steering):
+    n_channels, n_codes = code_images.shape[:2]
+    if steering is None:
+        return None, (np.sum(np.abs(code_images) ** 2, axis=(0, 1)) / float(n_codes)).astype(np.float32)
+    if len(steering) != n_codes:
+        raise ValueError(f"steering vector has {len(steering)} TX channels, expected {n_codes}")
+    tx_beam = np.einsum("ckrf,k->crf", code_images, np.conj(steering), optimize=True)
+    selection_power = (np.sum(np.abs(tx_beam) ** 2, axis=0) / float(n_codes)).astype(np.float32)
+    return tx_beam.astype(np.complex64, copy=False), selection_power
+
+
+def combine_incoherent_code_window(tx_beam_window, selection_power_window, search_mask, n_tx):
+    selection_stack = np.stack(selection_power_window, axis=0).astype(np.float32, copy=False)
+    selection_power = np.mean(selection_stack, axis=0, dtype=np.float64).astype(np.float32)
+    pol_gamma = np.full(tx_beam_window[0].shape[0], np.nan + 1.0j * np.nan, dtype=np.complex64)
+    peak_range_idx = np.int32(-1)
+    peak_doppler_idx = np.int32(-1)
+    if tx_beam_window[0] is None:
+        return selection_power, pol_gamma, peak_range_idx, peak_doppler_idx
+
+    search = np.where(search_mask, selection_power, -np.inf)
+    if not np.any(np.isfinite(search)):
+        return selection_power, pol_gamma, peak_range_idx, peak_doppler_idx
+    peak_range_idx, peak_doppler_idx = np.unravel_index(int(np.nanargmax(search)), search.shape)
+
+    cov = np.zeros((tx_beam_window[0].shape[0], tx_beam_window[0].shape[0]), dtype=np.complex128)
+    for tx_beam in tx_beam_window:
+        peak_vec = tx_beam[:, peak_range_idx, peak_doppler_idx].astype(np.complex128)
+        cov += np.outer(peak_vec, np.conj(peak_vec))
+    vals, vecs = np.linalg.eigh(cov)
+    gamma = vecs[:, int(np.argmax(vals))]
+    norm = float(np.linalg.norm(gamma))
+    if norm <= 0.0 or not np.isfinite(norm):
+        return selection_power, pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
+    gamma = gamma / norm
+    pol_gamma = gamma.astype(np.complex64)
+
+    combined_power = np.zeros_like(selection_power, dtype=np.float64)
+    for tx_beam in tx_beam_window:
+        combined = np.einsum("c,crf->rf", np.conj(gamma), tx_beam, optimize=True)
+        combined_power += np.abs(combined) ** 2 / float(n_tx)
+    combined_power /= float(len(tx_beam_window))
+    return combined_power.astype(np.float32), pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
 
 
 def save_rdmf_frame(
@@ -484,6 +561,11 @@ def range_doppler_bank(
     tx_aod_config=None,
     tx_aod_phase_sign=-1.0,
     polarization_combine=False,
+    head_incoherent_codes=1,
+    head_search_range_half_km=None,
+    head_search_doppler_half_hz=None,
+    data_dir=None,
+    station=None,
     rdmf_frame_dir=None,
     rdmf_frame_station=None,
     rdmf_frame_vmin_db=None,
@@ -521,16 +603,34 @@ def range_doppler_bank(
             f"within [{fmin:g}, {fmax:g}] Hz"
         )
 
-    P_rti = np.zeros((n_steps, len(ridx)), dtype=np.float32)
+    head_incoherent_codes = max(1, int(head_incoherent_codes))
+    n_out = n_steps - head_incoherent_codes + 1
+    if n_out <= 0:
+        raise ValueError("Requested head incoherent code window is longer than the available code steps")
+    center_offset = head_incoherent_codes // 2
+
+    P_rti = np.zeros((n_out, len(ridx)), dtype=np.float32)
     D_rti = np.zeros_like(P_rti)
     P_head = np.zeros_like(P_rti)
     D_head = np.zeros_like(P_rti)
     N = np.zeros_like(P_rti)
-    pol_gamma = np.full((n_steps, len(channel_data)), np.nan + 1.0j * np.nan, dtype=np.complex64)
-    pol_peak_range_idx = np.full(n_steps, -1, dtype=np.int32)
-    pol_peak_doppler_idx = np.full(n_steps, -1, dtype=np.int32)
-    tx_aod_unit_enu = np.full((n_steps, 3), np.nan, dtype=np.float32)
-    t_sample = abs_index0 + np.arange(n_steps, dtype=np.float64) * original_step_len
+    pol_gamma = np.full((n_out, len(channel_data)), np.nan + 1.0j * np.nan, dtype=np.complex64)
+    pol_peak_range_idx = np.full(n_out, -1, dtype=np.int32)
+    pol_peak_doppler_idx = np.full(n_out, -1, dtype=np.int32)
+    tx_aod_unit_enu = np.full((n_out, 3), np.nan, dtype=np.float32)
+    t_step_sample = abs_index0 + np.arange(n_steps, dtype=np.float64) * original_step_len
+    t_sample = abs_index0 + (np.arange(n_out, dtype=np.float64) + center_offset) * original_step_len
+    model_doppler = None
+    if head_search_doppler_half_hz is not None:
+        if tx_aod_trajectory is None:
+            raise ValueError("head_search_doppler_half_hz requires tx_aod_trajectory")
+        model_doppler = trajectory_doppler_hz(
+            tx_aod_config,
+            data_dir,
+            station,
+            tx_aod_trajectory,
+            t_sample / float(sample_rate),
+        )
     t_start = time.time()
     dc_source = channel_data if dc_calibration_data is None else dc_calibration_data
     dc_offsets = estimate_range_gate_dc(dc_source, ridx, sample_rate_i, dc_cancel_seconds) if dc_cancel else None
@@ -541,8 +641,12 @@ def range_doppler_bank(
     if tx_aod_beamform and (tx_aod_trajectory is None or tx_aod_config is None):
         raise ValueError("tx_aod_beamform requires tx_aod_trajectory and tx_aod_config")
 
-    # for all time steps, compute the matched filter for all codes and ranges,
-    # store matched filter power, best Doppler bin, and noise floor estimate. Optionally apply Doppler whitening.
+    tx_beam_buffer = []
+    selection_power_buffer = []
+    unit_enu_buffer = []
+
+    # for all time steps, compute one-code matched filters and optionally form
+    # a centered multi-code incoherent product for head-echo picking.
     for ti in range(n_steps):
         start = ti * step_len
         code_images = np.zeros((len(channel_data), len(codes), len(ridx), len(fidx)), dtype=np.complex64)
@@ -558,33 +662,68 @@ def range_doppler_bank(
         steering = None
         search_range_mask = None
         if tx_aod_beamform:
-            unix_time = float(t_sample[ti] / sample_rate)
+            unix_time = float(t_step_sample[ti] / sample_rate)
             steering, unit_enu = tx_aod_steering_vector(
                 tx_aod_config,
                 tx_aod_trajectory,
                 unix_time,
                 phase_sign=tx_aod_phase_sign,
             )
-            tx_aod_unit_enu[ti, :] = unit_enu
-            if head_search_range_half_px is not None:
-                target = target_ecef(tx_aod_trajectory, np.array([unix_time], dtype=np.float64))[0]
-                tx_ecef = geodetic_to_ecef(*tx_aod_config["gps_tx"])
-                rx_ecef = geodetic_to_ecef(*tx_aod_config["gps_rx"])
-                model_range_m = float(np.linalg.norm(target - tx_ecef) + np.linalg.norm(target - rx_ecef))
-                model_range_idx = int(round(model_range_m / (float(range_resolution_m) / float(range_interp))))
-                search_range_mask = np.abs(ridx - model_range_idx) <= int(head_search_range_half_px)
-                if not np.any(search_range_mask):
-                    search_range_mask = None
-        S, gamma, peak_ri, peak_di = combine_matched_filter_images(
-            code_images,
-            good_head_dop=good_head_dop,
-            steering=steering,
-            polarization_combine=polarization_combine,
-            search_range_mask=search_range_mask,
-        )
-        pol_gamma[ti, :] = gamma
-        pol_peak_range_idx[ti] = peak_ri
-        pol_peak_doppler_idx[ti] = peak_di
+        else:
+            unit_enu = np.full(3, np.nan, dtype=np.float32)
+
+        tx_beam, selection_power = tx_steer_code_images(code_images, steering)
+        tx_beam_buffer.append(tx_beam)
+        selection_power_buffer.append(selection_power)
+        unit_enu_buffer.append(unit_enu)
+        if len(tx_beam_buffer) > head_incoherent_codes:
+            tx_beam_buffer.pop(0)
+            selection_power_buffer.pop(0)
+            unit_enu_buffer.pop(0)
+        if len(tx_beam_buffer) < head_incoherent_codes:
+            continue
+
+        out_i = ti - head_incoherent_codes + 1
+        center_i = out_i + center_offset
+        unix_time = float(t_sample[out_i] / sample_rate)
+        range_mask = np.ones(len(ridx), dtype=bool)
+        if head_search_range_half_km is not None:
+            model_range_m = float(trajectory_bistatic_range_m(tx_aod_config, tx_aod_trajectory, np.array([unix_time]))[0])
+            range_km = ridx * (range_resolution_m / range_interp) / 1000.0
+            range_mask = np.abs(range_km - model_range_m / 1000.0) <= float(head_search_range_half_km)
+        elif head_search_range_half_px is not None:
+            target = target_ecef(tx_aod_trajectory, np.array([unix_time], dtype=np.float64))[0]
+            tx_ecef = geodetic_to_ecef(*tx_aod_config["gps_tx"])
+            rx_ecef = geodetic_to_ecef(*tx_aod_config["gps_rx"])
+            model_range_m = float(np.linalg.norm(target - tx_ecef) + np.linalg.norm(target - rx_ecef))
+            model_range_idx = int(round(model_range_m / (float(range_resolution_m) / float(range_interp))))
+            range_mask = np.abs(ridx - model_range_idx) <= int(head_search_range_half_px)
+        if not np.any(range_mask):
+            range_mask = np.ones(len(ridx), dtype=bool)
+
+        doppler_mask = good_head_dop.copy()
+        if model_doppler is not None:
+            doppler_mask &= np.abs(fvec0 - model_doppler[out_i]) <= float(head_search_doppler_half_hz)
+        if not np.any(doppler_mask):
+            raise ValueError(f"No Doppler bins in prior search gate for output index {out_i} at {unix_time:.6f}")
+        search_mask = range_mask[:, None] & doppler_mask[None, :]
+
+        if polarization_combine:
+            S, gamma, peak_ri, peak_di = combine_incoherent_code_window(
+                tx_beam_buffer,
+                selection_power_buffer,
+                search_mask,
+                n_tx=len(codes),
+            )
+        else:
+            S = np.mean(np.stack(selection_power_buffer, axis=0), axis=0, dtype=np.float64).astype(np.float32)
+            gamma = np.full(len(channel_data), np.nan + 1.0j * np.nan, dtype=np.complex64)
+            search = np.where(search_mask, S, -np.inf)
+            peak_ri, peak_di = np.unravel_index(int(np.nanargmax(search)), search.shape)
+        pol_gamma[out_i, :] = gamma
+        pol_peak_range_idx[out_i] = peak_ri
+        pol_peak_doppler_idx[out_i] = peak_di
+        tx_aod_unit_enu[out_i, :] = unit_enu_buffer[center_offset]
         if doppler_whiten:
             # Normalize each Doppler bin by its median power over range before
             # peak picking. This suppresses Doppler-dependent clutter/leakage,
@@ -610,27 +749,25 @@ def range_doppler_bank(
         if np.any(~good_rti_dop):
             S_rti_search[:, ~good_rti_dop] = -np.inf
         imax_rti = np.argmax(S_rti_search, axis=1)
-        P_rti[ti, :] = S_pick[np.arange(len(ridx)), imax_rti]
-        D_rti[ti, :] = fvec0[imax_rti]
+        P_rti[out_i, :] = S_pick[np.arange(len(ridx)), imax_rti]
+        D_rti[out_i, :] = fvec0[imax_rti]
 
         S_head_search = S_pick.copy()
-        S_head_search[:, ~good_head_dop] = -np.inf
+        S_head_search[:, ~doppler_mask] = -np.inf
         imax_head = np.argmax(S_head_search, axis=1)
-        P_head[ti, :] = S_pick[np.arange(len(ridx)), imax_head]
-        D_head[ti, :] = fvec0[imax_head]
-        N[ti, :] = floor
-        if rdmf_frame_dir is not None and rdmf_frame_every > 0 and ti % int(rdmf_frame_every) == 0:
+        P_head[out_i, :] = S_pick[np.arange(len(ridx)), imax_head]
+        D_head[out_i, :] = fvec0[imax_head]
+        N[out_i, :] = floor
+        if rdmf_frame_dir is not None and rdmf_frame_every > 0 and out_i % int(rdmf_frame_every) == 0:
             frame_snr = S_pick / np.maximum(floor[:, None], 1e-12)
             frame_search = frame_snr.copy()
-            frame_search[:, ~good_head_dop] = -np.inf
-            if search_range_mask is not None:
-                frame_search[~search_range_mask, :] = -np.inf
+            frame_search[~search_mask] = -np.inf
             frame_peak_range_i, frame_peak_doppler_i = np.unravel_index(int(np.nanargmax(frame_search)), frame_search.shape)
             save_rdmf_frame(
                 rdmf_frame_dir,
                 rdmf_frame_station or "station",
-                ti,
-                float(t_sample[ti] / sample_rate),
+                out_i,
+                float(t_sample[out_i] / sample_rate),
                 (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
                 fvec0.astype(np.float32),
                 frame_snr,
@@ -642,22 +779,22 @@ def range_doppler_bank(
                 zoom_doppler_half_hz=rdmf_frame_zoom_doppler_half_hz,
             )
 
-        snr = P_head[ti, :] / np.maximum(N[ti, :], 1e-12)
+        snr = P_head[out_i, :] / np.maximum(N[out_i, :], 1e-12)
         best = int(np.argmax(snr))
-        n_done = ti + 1
-        if progress_every > 0 and (n_done == 1 or n_done == n_steps or n_done % progress_every == 0):
+        n_done = out_i + 1
+        if progress_every > 0 and (n_done == 1 or n_done == n_out or n_done % progress_every == 0):
             elapsed = time.time() - t_start
             steps_per_sec = n_done / max(elapsed, 1e-9)
-            eta = (n_steps - n_done) / max(steps_per_sec, 1e-9)
+            eta = (n_out - n_done) / max(steps_per_sec, 1e-9)
             print(
-                f"PROGRESS {n_done}/{n_steps} "
+                f"PROGRESS {n_done}/{n_out} "
                 f"elapsed={elapsed:.1f}s eta={eta:.1f}s rate={steps_per_sec:.3f}steps/s "
-                f"t={((abs_index0 + ti * original_step_len) / sample_rate):.3f} "
-                f"range_idx={ridx[best]} head_dop={D_head[ti, best]:.1f}Hz snr={snr[best]:.2f}",
+                f"t={((abs_index0 + center_i * original_step_len) / sample_rate):.3f} "
+                f"range_idx={ridx[best]} head_dop={D_head[out_i, best]:.1f}Hz snr={snr[best]:.2f}",
                 flush=True,
             )
 
-        if checkpoint_func and checkpoint_every > 0 and (n_done == n_steps or n_done % checkpoint_every == 0):
+        if checkpoint_func and checkpoint_every > 0 and (n_done == n_out or n_done % checkpoint_every == 0):
             checkpoint_func(
                 {
                     "P_rti": P_rti[:n_done, :],
@@ -677,7 +814,7 @@ def range_doppler_bank(
                     "fvec": fvec0.astype(np.float32),
                 },
                 n_done,
-                n_steps,
+                n_out,
             )
 
     return {
@@ -697,6 +834,10 @@ def range_doppler_bank(
         "range_km": (ridx * (range_resolution_m / range_interp) / 1000.0).astype(np.float32),
         "fvec": fvec0.astype(np.float32),
         "doppler_zero_pad_factor": np.array(int(doppler_zero_pad_factor), dtype=np.int32),
+        "head_incoherent_codes": np.array(int(head_incoherent_codes), dtype=np.int32),
+        "head_incoherent_center_offset": np.array(int(center_offset), dtype=np.int32),
+        "head_incoherent_code_offsets": (np.arange(head_incoherent_codes, dtype=np.int32) - int(center_offset)),
+        "head_search_doppler_model_hz": np.asarray(model_doppler if model_doppler is not None else np.full(n_out, np.nan), dtype=np.float32),
     }
 
 
@@ -720,11 +861,15 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
         write_once("code_len", config["code_len"])
         write_once("n_coh", args.n_coh)
         write_once("codes_per_step", args.codes_per_step)
+        write_once("head_incoherent_codes", args.head_incoherent_codes)
+        write_once("head_incoherent_code_offsets", np.arange(args.head_incoherent_codes, dtype=np.int32) - (args.head_incoherent_codes // 2))
         write_once("range_interp", args.range_interp)
         write_once("doppler_zero_pad_factor", args.doppler_zero_pad_factor)
         write_once("range_resolution_m", args.range_resolution_m)
         write_once("ignore_freq", args.ignore_freq)
         write_once("head_min_doppler_hz", args.head_min_doppler_hz)
+        write_once("head_search_range_half_km", np.nan if args.head_search_range_half_km is None else float(args.head_search_range_half_km))
+        write_once("head_search_doppler_half_hz", np.nan if args.head_search_doppler_half_hz is None else float(args.head_search_doppler_half_hz))
         write_once("dc_cancel", int(args.dc_cancel))
         write_once("dc_cancel_seconds", args.dc_cancel_seconds)
         write_once("dc_cancel_start_second", args.dc_cancel_start_second)
@@ -742,6 +887,11 @@ def write_output(ofname, result, config, args, sample_rate, abs_index0):
         h.attrs["name_tx"] = config["name_tx"]
         h.attrs["tx_aod_trajectory_json"] = str(args.tx_aod_trajectory_json)
         h.attrs["polarization_method"] = "peak_pixel_unit_vector" if args.polarization_combine else "incoherent"
+        h.attrs["head_measurement_covariance_hint"] = (
+            f"coherent_codes={int(args.n_coh)}, incoherent_codes={int(args.head_incoherent_codes)}, "
+            f"step_codes={int(args.codes_per_step)}, code_offsets="
+            f"{[int(x) for x in (np.arange(args.head_incoherent_codes, dtype=np.int32) - (args.head_incoherent_codes // 2))]}"
+        )
         if hasattr(args, "n_done"):
             h.attrs["n_done"] = int(args.n_done)
         if hasattr(args, "n_steps"):
@@ -761,6 +911,7 @@ def main():
     p.add_argument("--t1", default=None, help="Stop time as seconds from iso-hour, HH:MM:SS, or ISO timestamp.")
     p.add_argument("--n-coh", type=int, default=8)
     p.add_argument("--codes-per-step", type=int, default=8)
+    p.add_argument("--head-incoherent-codes", type=int, default=1)
     p.add_argument("--range-interp", type=int, default=1)
     p.add_argument("--doppler-zero-pad-factor", type=int, default=4)
     p.add_argument("--range-resolution-m", type=float, default=3000.0)
@@ -778,6 +929,8 @@ def main():
     p.add_argument("--ignore-freq", type=float, default=150.0)
     p.add_argument("--head-min-doppler-hz", type=float, default=250.0)
     p.add_argument("--head-search-range-half-px", type=int, default=None)
+    p.add_argument("--head-search-range-half-km", type=float, default=None)
+    p.add_argument("--head-search-doppler-half-hz", type=float, default=None)
     p.add_argument("--dc-cancel", action="store_true")
     p.add_argument("--dc-cancel-seconds", type=float, default=5.0)
     p.add_argument("--dc-cancel-start-second", type=float, default=75.0)
@@ -900,6 +1053,11 @@ def main():
         tx_aod_config=config,
         tx_aod_phase_sign=args.tx_aod_phase_sign,
         polarization_combine=args.polarization_combine,
+        head_incoherent_codes=args.head_incoherent_codes,
+        head_search_range_half_km=args.head_search_range_half_km,
+        head_search_doppler_half_hz=args.head_search_doppler_half_hz,
+        data_dir=args.data_dir,
+        station=args.station,
         rdmf_frame_dir=rdmf_frame_dir,
         rdmf_frame_station=args.station,
         rdmf_frame_vmin_db=args.rdmf_frame_vmin_db,
