@@ -160,34 +160,31 @@ def bin_edges(values: np.ndarray) -> np.ndarray:
 
 def plot(args: argparse.Namespace) -> None:
     data, metadata, frequency_hz = load_h5(args.output_h5)
-    vals = np.concatenate(
-        [10.0 * np.log10(np.maximum(d["power_spectrum"].ravel(), 1e-30)) for d in data.values()]
-    )
-    vmin = float(np.nanpercentile(vals, 5.0))
-    vmax = float(np.nanpercentile(vals, 99.5))
     plt.rcParams.update({"font.size": 10, "axes.labelsize": 11, "xtick.labelsize": 9, "ytick.labelsize": 9})
     stations = [s for s in args.stations if s in data]
     fig, axes = plt.subplots(len(stations), 1, figsize=(11.5, 9.0), sharex=True, sharey=True, constrained_layout=True)
     axes = np.atleast_1d(axes)
-    mesh = None
     for ax, station in zip(axes, stations, strict=True):
         t = data[station]["time_unix"]
         p_db = 10.0 * np.log10(np.maximum(data[station]["power_spectrum"], 1e-30))
+        finite = p_db[np.isfinite(p_db)]
+        vmin = float(np.nanpercentile(finite, 5.0))
+        vmax = float(np.nanpercentile(finite, 99.5))
         mesh = ax.pcolormesh(
             bin_edges(mdates.date2num([datetime.fromtimestamp(float(x), UTC) for x in t])),
             bin_edges(frequency_hz / 1000.0),
             p_db.T,
             shading="auto",
-            cmap="viridis",
+            cmap="plasma",
             vmin=vmin,
             vmax=vmax,
         )
         ax.set_ylabel(f"{STATION_LABELS.get(station, station)}\n$ f $ (kHz)")
         ax.grid(False)
+        fig.colorbar(mesh, ax=ax, label="Power spectrum (dB)", shrink=0.90)
     axes[-1].set_xlabel("UTC on 2026-05-30")
     axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
     fig.suptitle("Sparse-model-subtracted 100 kHz residual-voltage spectra", fontsize=15)
-    fig.colorbar(mesh, ax=axes, label="Power spectrum (dB, arbitrary)", shrink=0.93)
     axes[0].text(
         0.01,
         0.96,
