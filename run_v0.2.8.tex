@@ -1,0 +1,172 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.8in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{xurl}
+
+\newcommand{\figsource}[1]{\par\smallskip\noindent{\footnotesize Source program: \texttt{\detokenize{#1}}.}}
+
+\title{Head-Echo RDMF Run v0.2.8}
+\author{}
+\date{2026-06-13}
+
+\begin{document}
+\maketitle
+
+\input{reports/appendix_correlated_fit_v0p2p8_rinterp4_zp16/correlated_ballistic_fit_summary.tex}
+\input{reports/orbit_analysis_macros_v0p2p8_rinterp4_zp16.tex}
+
+\section*{Run Configuration}
+
+This memo summarizes the v0.2.8 head-echo RDMF measurement run.  The selected
+head-echo measurements come from the sparse-fit residual voltage data, with
+trajectory-implied transmitter AoD steering and noise-equalized receive
+polarization matching applied inside the standard RDMF measurement bank.
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Product version & 0.2.8 \\
+Analysis interval & 2026-05-30 18:06:18--18:06:23 UTC \\
+Coherent codes per measurement & 1 \\
+Measurement step & 1 code, no overlap \\
+Range interpolation & 4 \\
+Doppler FFT length & $16\times$ interpolated code length \\
+Doppler whitening & disabled \\
+Range-gate selection & prior trajectory range $\pm 20$ pixels \\
+Transmitter combining & trajectory-implied AoD coherent steering \\
+Receive combining & optimal polarization matching at selected RDMF pixel \\
+Manual selection GUI & all stations selected from new tx-steered/pol-matched output \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent RDMF products:
+\path{products/rdmf_txsteer_pol_rinterp4_zp16_1code_station_ranges_180618_180623/}
+
+\noindent Selection products:
+\path{reports/head_echo_python_selection_v0p2p8_rdmf_txsteer_pol_rinterp4_zp16_180618_180623/}
+
+\noindent Measurement HDF5:
+\path{products/sparse_residual_noise_power/head_echo_rdmf_txsteer_pol_rinterp4_zp16_measurements_180618_180623.h5}
+
+\section*{RDMF SNR Products}
+
+Figures~\ref{fig:v028-rdmf-baseline}--\ref{fig:v028-rdmf-txsteer-polmatch}
+show the RDMF SNR progression used before generating the measurement bank.
+The final measurement run uses the trajectory-steered transmitter combination
+and receive-polarization matching.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{reports/figures/station_range_time_head_snr_rdmf_baseline.png}
+  \caption{Baseline RDMF range--time SNR with incoherent averaging over
+  transmitters and receive polarizations. \figsource{reports/generate_station_head_snr_rdmf_baseline.py}}
+  \label{fig:v028-rdmf-baseline}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{reports/figures/station_range_time_head_snr_rdmf_txsteer_incohpol.png}
+  \caption{RDMF range--time SNR after trajectory-implied transmitter AoD
+  steering, with receive polarizations still incoherently averaged.
+  \figsource{reports/generate_station_head_snr_rdmf_baseline.py}}
+  \label{fig:v028-rdmf-txsteer-incohpol}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{reports/figures/station_range_time_head_snr_rdmf_txsteer_polmatch.png}
+  \caption{RDMF range--time SNR after trajectory-implied transmitter AoD
+  steering and receive-polarization matching.  This is the combining order used
+  for the v0.2.8 measurement-bank candidate products. \figsource{reports/generate_station_head_snr_rdmf_baseline.py}}
+  \label{fig:v028-rdmf-txsteer-polmatch}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{reports/figures/head_echo_rdmf_txsteer_pol_rinterp4_zp16_measurements_180618_180623.png}
+  \caption{Selected v0.2.8 RDMF range and Doppler measurements from the
+  trajectory-steered, polarization-matched measurement bank. \figsource{reports/generate_txsteer_pol_rdmf_measurements.py}}
+  \label{fig:v028-rdmf-measurements}
+\end{figure}
+
+\section*{Measurement Selection and Ballistic Fit}
+
+The GUI selection retained \CorrFitNHead{} head-echo observation epochs:
+\CorrFitNHeadRange{} range measurements and \CorrFitNHeadDoppler{} Doppler
+measurements.  The correlated ballistic fit also used \CorrFitNTrail{} trail
+positions.  The resulting fit has \CorrFitNResiduals{} residuals and reduced
+$\chi^2=\CorrFitReducedChiSq$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{reports/figures/appendix_correlated_fit_v0p2p8_rinterp4_zp16/ballistic_head_trail_correlated_range_doppler_fit.png}
+  \caption{Range and Doppler residual view for the v0.2.8 correlated
+  ballistic fit. \figsource{fit_ballistic_head_trail_correlated_appendix.py}}
+  \label{fig:v028-ballistic-range-doppler}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\linewidth]{reports/figures/appendix_correlated_fit_v0p2p8_rinterp4_zp16/station_measurement_ballistic_correlated_overview.png}
+  \caption{Station-wise v0.2.8 measurement overview used by the correlated
+  ballistic fit. \figsource{fit_ballistic_head_trail_correlated_appendix.py}}
+  \label{fig:v028-ballistic-station-overview}
+\end{figure}
+
+\noindent Ballistic fit product:
+\path{products/ballistic_head_trail_correlated_fit_v0p2p8_rinterp4_zp16/ballistic_head_trail_correlated_fit.json}
+
+\noindent Initial state used for orbit sampling:
+\path{products/ballistic_head_trail_correlated_fit_v0p2p8_rinterp4_zp16/ballistic_initial_state_correlated.json}
+
+\section*{Orbit Determination}
+
+The v0.2.8 correlated ballistic initial state was propagated through the orbit
+determination sampler with 2000 Monte Carlo samples in the \texttt{rebound}
+conda environment.  The resulting orbit sample is tied to trajectory fit
+version \OrbitTrajectoryFitVersion{} and epoch \OrbitEpochUTC{}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\linewidth]{reports/figures/orbit_xy_bolide_v0p2p8_rinterp4_zp16.png}
+  \caption{Heliocentric ecliptic $x$--$y$ orbit plot for the v0.2.8
+  trajectory-steered and polarization-matched RDMF selection. \figsource{plot_orbit_xy.py}}
+  \label{fig:v028-orbit-xy}
+\end{figure}
+
+\begin{center}
+\input{reports/orbit_parameter_table_v0p2p8_rinterp4_zp16.tex}
+\end{center}
+
+\begin{center}
+\input{reports/orbit_classification_table_v0p2p8_rinterp4_zp16.tex}
+\end{center}
+
+\noindent Orbit sample:
+\path{products/orbit_determination_v0p2p8_rinterp4_zp16/best_fit_orbit.h5}
+
+\noindent Orbit eccentricity diagnostic:
+\path{products/orbit_determination_v0p2p8_rinterp4_zp16/best_fit_orbit_eccentricity_HeliocentricMeanEcliptic.png}
+
+\noindent Orbit source table:
+\path{reports/orbit_source_table_v0p2p8_rinterp4_zp16.tex}
+
+\section*{Source Programs}
+
+\begin{itemize}
+  \item \texttt{\detokenize{range_doppler_mf_bolide.py}}
+  \item \texttt{\detokenize{reports/run_txsteer_pol_rdmf_measurement_bank.py}}
+  \item \texttt{\detokenize{reports/generate_txsteer_pol_rdmf_measurements.py}}
+  \item \texttt{\detokenize{reports/generate_station_head_snr_rdmf_baseline.py}}
+  \item \texttt{\detokenize{reports/select_head_echo_measurements.py}}
+  \item \texttt{\detokenize{fit_ballistic_head_trail_correlated_appendix.py}}
+  \item \texttt{\detokenize{orbit_det_sample.py}}
+  \item \texttt{\detokenize{reports/generate_orbit_source_table.py}}
+  \item \texttt{\detokenize{reports/generate_orbit_classification_table.py}}
+  \item \texttt{\detokenize{plot_orbit_xy.py}}
+\end{itemize}
+
+\end{document}

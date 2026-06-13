@@ -1134,7 +1134,18 @@ def main() -> None:
     payload["correlated_covariance"] = {
         **cov_meta,
         "reduced_chi2": chi2_red,
-        "covariance_model": "Head range and Doppler residuals are selected independently. Head correlations within the same station and observable are computed from the overlap implied by n_coh, n_incoh, step_codes, and code_period_s. For the v0.2.7 n_coh=1, n_incoh=2, step_codes=1 run, this reduces to adjacent-only rho=0.5. Trail interferometric-position off-diagonal terms are retained only for same-station measurements in the same raw range gate; overlapping measurements in different raw 3 km range gates are treated as uncorrelated. Parameter covariance is the standard linearized GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters.",
+        "covariance_model": (
+            "Head range and Doppler residuals are selected independently. "
+            "Head correlations within the same station and observable are computed from the overlap "
+            "implied by n_coh, n_incoh, step_codes, and code_period_s. "
+            f"For the v{args.trajectory_fit_version} n_coh={args.head_coherent_codes}, "
+            f"n_incoh={args.head_incoherent_spectra}, step_codes={args.head_step_codes} run, "
+            f"this reduces to adjacent-only rho={args.head_neighbor_correlation}. "
+            "Trail interferometric-position off-diagonal terms are retained only for same-station "
+            "measurements in the same raw range gate; overlapping measurements in different raw 3 km "
+            "range gates are treated as uncorrelated. Parameter covariance is the standard linearized "
+            "GLS covariance (J^T Sigma^-1 J)^-1 for the six fitted inertial-state parameters."
+        ),
     }
     payload["fixed_body"] = {
         "diameter_m": float(args.body_diameter_m),

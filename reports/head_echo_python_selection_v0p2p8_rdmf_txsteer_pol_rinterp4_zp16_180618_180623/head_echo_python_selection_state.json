@@ -1,0 +1,5992 @@
+{
+  "selections": {
+    "beverly:0": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:1": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:2": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:3": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:4": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:5": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:6": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:7": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:8": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:9": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:10": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:11": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:12": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:13": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:14": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:15": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:16": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:17": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:18": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:19": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:20": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:21": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:22": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:23": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:24": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:25": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:26": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:27": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:28": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:29": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:30": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:31": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:32": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:33": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:34": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:35": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:36": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:37": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:38": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:39": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:40": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:41": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:42": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:43": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:44": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:45": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:46": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:47": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:48": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:49": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:50": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:51": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:52": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:53": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:54": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:55": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:56": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:57": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:58": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:59": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:60": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:61": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:62": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:63": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:64": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:65": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:66": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:67": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:68": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:69": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:70": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:71": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:72": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:73": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:74": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:75": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:76": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:77": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:78": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:79": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:80": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:81": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:82": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:83": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:84": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:85": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:86": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:87": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:88": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:89": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:90": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:91": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:92": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:93": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:94": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:95": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:96": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:97": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:98": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:99": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:100": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:101": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:102": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:103": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:104": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:105": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:106": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:107": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:108": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:109": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:110": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:111": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:112": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:113": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:114": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:115": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:116": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:117": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:118": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:119": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:120": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:121": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:122": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:123": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:124": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:125": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:126": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:127": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:128": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:129": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:130": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:131": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:132": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:133": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:134": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:135": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:136": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:137": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:138": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:139": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:140": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:141": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:142": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:143": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:144": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:145": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:146": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:147": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:148": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:149": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:150": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:151": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:152": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:153": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:154": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:155": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:156": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:157": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:158": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:159": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:160": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:161": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:162": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:163": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:164": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:165": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:166": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:167": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:168": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:169": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:170": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:171": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:172": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:173": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:174": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:175": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:176": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:177": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:178": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:179": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:180": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:181": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:182": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:183": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:184": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:185": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:186": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:187": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:188": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:189": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:190": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:191": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:192": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:193": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:194": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:195": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:196": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:197": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:198": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:199": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:200": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:201": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:202": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:203": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:204": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:205": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:206": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:207": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:208": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:209": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:210": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:211": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:212": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:213": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:214": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:215": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:216": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:217": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:218": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:219": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:220": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:221": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:222": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:223": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:224": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:225": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:226": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:227": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:228": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:229": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:230": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:231": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:232": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:233": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:234": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:235": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:236": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:237": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:238": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:239": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:240": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:241": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:242": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:243": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:244": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:245": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:246": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:247": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:248": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:249": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:250": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:251": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:252": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:253": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:254": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:255": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:256": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:257": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:258": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:259": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:260": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:261": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:262": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:263": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:264": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:265": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:266": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:267": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:268": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:269": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:270": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:271": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:272": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:273": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:274": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:275": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:276": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:277": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:278": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:279": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:280": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:281": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:282": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:283": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:284": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:285": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:286": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:287": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:288": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:289": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:290": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:291": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:292": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:293": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:294": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "beverly:295": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:296": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:297": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:298": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:299": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:300": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:301": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:302": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:303": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:304": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:305": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "beverly:306": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:307": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:308": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:309": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "beverly:310": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:311": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:312": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:313": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:314": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:315": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:316": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:317": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:318": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:319": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:320": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:321": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:322": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:323": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:324": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:325": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:326": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:327": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:328": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:329": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:330": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:331": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:332": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:333": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:334": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:335": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:336": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:337": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:338": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:339": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:340": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:341": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:342": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:343": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:344": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:345": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:346": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:347": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:348": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:349": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:350": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:351": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:352": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:353": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:354": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:355": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:356": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:357": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:358": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:359": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:360": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:361": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:362": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:363": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:364": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:365": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:366": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:367": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:368": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:369": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:370": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:371": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:372": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:373": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:374": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:375": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:376": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:377": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:378": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:379": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:380": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:381": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:382": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:383": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:384": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:385": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:386": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:387": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:388": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:389": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:390": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:391": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:392": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:393": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:394": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:395": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:396": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:397": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:398": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:399": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:400": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:401": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:402": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:403": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:404": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:405": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:406": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:407": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:408": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:409": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:410": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:411": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:412": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:413": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:414": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:415": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:416": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:417": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:418": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:419": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:420": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:421": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:422": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:423": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:424": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:425": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:426": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:427": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:428": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:429": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:430": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:431": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:432": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:433": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:434": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:435": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:436": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:437": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:438": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:439": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:440": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:441": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:442": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:443": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:444": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:445": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:446": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:447": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:448": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:449": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:450": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:451": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:452": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:453": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:454": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:455": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:456": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:457": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:458": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:459": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:460": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:461": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:462": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:463": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:464": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:465": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:466": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:467": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:468": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:469": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:470": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:471": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:472": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:473": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:474": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:475": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:476": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:477": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:478": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:479": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:480": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:481": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:482": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:483": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:484": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:485": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:486": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:487": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:488": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:489": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:490": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:491": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:492": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:493": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:494": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:495": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:496": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:497": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "beverly:498": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:0": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:1": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:2": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:3": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:4": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:5": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:6": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:7": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:8": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:9": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:10": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:11": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:12": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:13": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:14": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:15": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:16": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:17": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:18": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:19": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:20": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:21": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:22": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:23": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:24": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:25": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:26": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:27": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:28": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:29": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:30": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:31": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:32": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:33": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:34": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:35": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:36": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:37": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:38": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:39": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:40": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:41": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:42": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:43": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:44": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:45": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:46": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:47": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:48": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:49": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:50": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:51": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:52": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:53": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:54": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:55": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:56": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:57": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:58": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:59": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:60": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:61": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:62": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:63": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:64": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:65": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:66": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:67": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:68": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:69": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:70": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:71": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:72": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:73": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:74": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:75": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:76": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:77": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:78": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:79": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:80": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:81": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:82": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:83": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:84": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:85": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:86": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:87": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:88": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:89": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:90": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:91": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:92": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:93": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:94": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:95": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:96": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:97": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:98": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:99": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:100": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:101": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:102": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:103": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:104": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:105": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:106": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:107": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:108": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:109": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:110": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:111": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:112": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:113": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:114": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:115": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:116": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:117": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:118": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:119": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:120": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:121": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:122": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:123": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:124": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:125": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:126": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:127": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:128": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:129": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:130": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:131": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:132": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:133": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:134": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:135": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:136": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:137": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:138": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:139": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:140": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:141": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:142": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:143": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:144": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:145": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:146": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:147": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:148": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:149": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:150": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:151": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:152": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:153": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:154": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:155": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:156": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:157": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:158": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:159": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:160": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:161": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:162": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:163": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:164": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:165": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:166": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:167": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:168": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:169": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:170": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:171": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:172": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:173": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:174": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:175": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:176": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:177": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:178": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:179": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:180": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:181": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:182": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:183": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:184": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:185": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:186": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:187": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:188": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:189": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:190": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:191": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:192": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:193": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:194": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:195": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:196": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:197": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:198": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:199": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:200": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:201": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:202": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:203": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:204": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:205": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:206": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:207": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:208": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:209": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:210": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:211": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:212": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:213": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:214": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:215": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:216": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:217": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:218": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:219": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:220": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:221": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:222": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:223": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:224": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:225": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:226": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:227": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:228": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:229": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:230": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:231": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:232": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:233": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:234": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:235": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:236": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:237": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:238": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:239": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:240": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:241": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:242": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:243": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:244": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:245": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:246": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:247": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:248": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:249": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:250": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:251": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:252": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:253": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:254": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:255": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:256": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:257": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:258": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:259": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:260": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:261": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:262": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:263": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:264": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:265": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:266": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:267": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:268": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:269": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:270": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:271": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:272": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:273": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:274": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:275": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:276": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:277": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:278": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "clinton:279": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:280": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:281": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:282": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:283": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:284": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:285": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:286": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:287": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:288": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:289": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:290": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:291": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:292": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:293": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:294": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:295": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:296": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:297": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:298": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:299": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:300": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:301": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:302": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:303": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:304": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:305": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:306": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:307": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:308": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:309": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:310": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:311": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:312": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:313": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:314": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:315": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:316": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:317": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:318": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:319": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:320": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:321": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:322": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:323": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:324": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:325": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:326": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:327": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:328": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:329": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:330": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:331": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:332": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:333": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:334": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:335": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:336": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:337": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:338": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:339": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:340": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:341": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:342": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:343": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:344": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:345": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:346": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:347": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:348": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:349": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:350": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:351": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:352": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:353": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:354": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:355": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:356": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:357": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:358": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:359": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:360": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:361": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:362": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:363": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:364": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:365": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:366": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:367": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:368": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:369": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:370": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:371": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:372": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:373": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:374": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:375": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:376": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:377": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:378": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:379": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:380": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:381": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:382": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:383": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:384": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:385": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:386": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:387": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:388": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:389": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:390": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:391": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:392": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:393": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:394": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:395": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:396": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:397": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:398": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:399": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:400": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:401": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:402": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:403": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:404": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:405": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:406": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:407": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:408": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:409": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:410": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:411": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:412": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:413": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:414": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:415": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:416": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:417": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:418": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:419": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:420": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:421": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:422": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:423": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:424": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:425": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:426": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:427": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:428": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:429": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:430": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:431": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:432": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:433": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:434": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:435": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:436": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:437": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:438": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:439": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:440": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:441": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:442": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:443": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:444": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:445": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:446": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:447": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:448": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:449": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:450": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:451": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:452": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:453": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:454": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:455": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:456": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:457": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:458": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:459": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:460": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:461": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:462": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:463": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:464": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:465": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:466": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:467": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:468": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:469": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:470": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:471": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:472": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:473": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:474": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:475": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:476": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:477": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:478": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:479": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:480": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:481": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:482": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:483": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:484": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:485": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:486": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:487": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:488": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:489": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:490": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:491": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:492": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:493": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:494": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:495": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:496": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:497": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "clinton:498": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:0": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:1": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:2": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:3": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:4": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:5": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:6": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:7": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:8": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:9": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:10": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:11": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:12": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:13": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:14": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:15": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:16": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:17": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:18": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:19": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:20": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:21": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:22": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:23": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:24": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:25": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:26": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:27": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:28": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:29": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:30": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:31": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:32": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:33": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:34": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:35": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:36": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:37": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:38": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:39": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:40": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:41": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:42": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:43": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:44": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:45": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:46": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:47": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:48": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:49": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:50": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:51": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:52": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:53": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:54": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:55": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:56": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:57": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:58": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:59": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:60": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:61": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:62": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:63": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:64": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:65": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:66": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:67": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:68": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:69": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:70": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:71": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:72": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:73": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:74": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:75": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:76": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:77": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:78": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:79": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:80": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:81": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:82": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:83": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:84": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:85": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:86": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:87": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:88": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:89": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:90": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:91": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:92": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:93": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:94": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:95": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:96": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:97": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:98": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:99": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:100": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:101": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:102": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:103": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:104": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:105": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:106": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:107": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:108": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:109": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:110": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:111": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:112": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:113": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:114": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:115": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:116": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:117": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:118": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:119": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:120": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:121": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:122": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:123": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:124": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:125": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:126": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:127": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:128": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:129": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:130": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:131": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:132": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:133": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:134": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:135": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:136": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:137": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:138": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:139": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:140": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:141": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:142": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:143": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:144": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:145": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:146": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:147": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:148": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:149": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:150": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:151": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:152": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:153": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:154": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:155": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:156": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:157": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:158": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:159": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:160": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:161": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:162": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:163": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:164": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:165": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:166": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:167": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:168": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:169": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:170": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:171": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:172": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:173": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:174": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:175": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:176": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:177": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:178": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:179": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:180": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:181": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:182": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:183": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:184": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:185": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:186": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:187": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:188": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:189": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:190": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:191": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:192": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:193": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:194": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:195": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:196": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:197": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:198": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:199": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:200": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:201": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:202": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:203": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:204": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:205": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:206": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:207": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:208": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:209": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:210": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:211": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:212": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:213": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:214": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:215": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:216": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:217": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:218": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:219": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:220": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:221": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:222": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:223": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:224": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:225": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:226": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "pomfret:227": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "pomfret:228": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:229": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "pomfret:230": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "pomfret:231": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "pomfret:232": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:233": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:234": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:235": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:236": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:237": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:238": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:239": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:240": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:241": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:242": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:243": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:244": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:245": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:246": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:247": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:248": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:249": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:250": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:251": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:252": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:253": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:254": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:255": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:256": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:257": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:258": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:259": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:260": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:261": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:262": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:263": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:264": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:265": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:266": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:267": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:268": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:269": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:270": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:271": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:272": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:273": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:274": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:275": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:276": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:277": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:278": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:279": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:280": {
+      "range": "unknown",
+      "doppler": "real"
+    },
+    "pomfret:281": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:282": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:283": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:284": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:285": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:286": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:287": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:288": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:289": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:290": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:291": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:292": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:293": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:294": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:295": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:296": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:297": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:298": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:299": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:300": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:301": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:302": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:303": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:304": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:305": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:306": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:307": {
+      "range": "real",
+      "doppler": "real"
+    },
+    "pomfret:308": {
+      "range": "real",
+      "doppler": "unknown"
+    },
+    "pomfret:309": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:310": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:311": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:312": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:313": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:314": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:315": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:316": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:317": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:318": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:319": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:320": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:321": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:322": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:323": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:324": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:325": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:326": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:327": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:328": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:329": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:330": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:331": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:332": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:333": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:334": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:335": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:336": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:337": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:338": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:339": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:340": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:341": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:342": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:343": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:344": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:345": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:346": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:347": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:348": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:349": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:350": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:351": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:352": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:353": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:354": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:355": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:356": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:357": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:358": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:359": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:360": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:361": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:362": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:363": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:364": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:365": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:366": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:367": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:368": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:369": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:370": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:371": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:372": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:373": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:374": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:375": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:376": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:377": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:378": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:379": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:380": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:381": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:382": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:383": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:384": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:385": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:386": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:387": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:388": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:389": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:390": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:391": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:392": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:393": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:394": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:395": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:396": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:397": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:398": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:399": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:400": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:401": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:402": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:403": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:404": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:405": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:406": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:407": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:408": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:409": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:410": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:411": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:412": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:413": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:414": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:415": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:416": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:417": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:418": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:419": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:420": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:421": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:422": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:423": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:424": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:425": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:426": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:427": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:428": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:429": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:430": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:431": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:432": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:433": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:434": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:435": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:436": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:437": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:438": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:439": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:440": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:441": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:442": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:443": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:444": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:445": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:446": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:447": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:448": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:449": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:450": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:451": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:452": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:453": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:454": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:455": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:456": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:457": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:458": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:459": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:460": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:461": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:462": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:463": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:464": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:465": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:466": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:467": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:468": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:469": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:470": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:471": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:472": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:473": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:474": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:475": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:476": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:477": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:478": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:479": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:480": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:481": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:482": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:483": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:484": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:485": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:486": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:487": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:488": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:489": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:490": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:491": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:492": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:493": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:494": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:495": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:496": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:497": {
+      "range": "unknown",
+      "doppler": "unknown"
+    },
+    "pomfret:498": {
+      "range": "unknown",
+      "doppler": "unknown"
+    }
+  }
+}

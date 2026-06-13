@@ -292,7 +292,7 @@ def trajectory_range_index_bounds(config, traj, time_unix, range_resolution_m, r
     return max(0, rmin), max(0, rmax)
 
 
-def combine_matched_filter_images(code_images, good_head_dop, steering=None, polarization_combine=False):
+def combine_matched_filter_images(code_images, good_head_dop, steering=None, polarization_combine=False, search_range_mask=None):
     """
     Combine channel/code matched-filter voltage images.
 
@@ -323,6 +323,8 @@ def combine_matched_filter_images(code_images, good_head_dop, steering=None, pol
 
     search = selection_power.copy()
     search[:, ~good_head_dop] = -np.inf
+    if search_range_mask is not None:
+        search[~np.asarray(search_range_mask, dtype=bool), :] = -np.inf
     peak_range_idx, peak_doppler_idx = np.unravel_index(int(np.argmax(search)), search.shape)
     peak_vec = tx_beam[:, peak_range_idx, peak_doppler_idx]
     norm = float(np.linalg.norm(peak_vec))
@@ -335,7 +337,21 @@ def combine_matched_filter_images(code_images, good_head_dop, steering=None, pol
     return power, pol_gamma, np.int32(peak_range_idx), np.int32(peak_doppler_idx)
 
 
-def save_rdmf_frame(out_dir, station, ti, unix_time, range_km, fvec, snr, vmin_db=None, vmax_db=None):
+def save_rdmf_frame(
+    out_dir,
+    station,
+    ti,
+    unix_time,
+    range_km,
+    fvec,
+    snr,
+    vmin_db=None,
+    vmax_db=None,
+    peak_range_i=None,
+    peak_doppler_i=None,
+    zoom_range_half_km=None,
+    zoom_doppler_half_hz=None,
+):
     out_dir = Path(out_dir) / station
     out_dir.mkdir(parents=True, exist_ok=True)
     img_db = 10.0 * np.log10(np.maximum(snr, 1e-30))
@@ -351,9 +367,21 @@ def save_rdmf_frame(out_dir, station, ti, unix_time, range_km, fvec, snr, vmin_d
     mesh = ax.pcolormesh(fvec, range_km, img_db, shading="auto", cmap="inferno", vmin=vmin_db, vmax=vmax_db)
     cb = fig.colorbar(mesh, ax=ax)
     cb.set_label("Matched-filter SNR (dB)")
+    if peak_range_i is not None and peak_doppler_i is not None:
+        peak_range_i = int(peak_range_i)
+        peak_doppler_i = int(peak_doppler_i)
+        if 0 <= peak_range_i < len(range_km) and 0 <= peak_doppler_i < len(fvec):
+            peak_range = float(range_km[peak_range_i])
+            peak_doppler = float(fvec[peak_doppler_i])
+            ax.plot(peak_doppler, peak_range, marker="+", color="cyan", ms=9, mew=1.4, linestyle="none")
+            if zoom_range_half_km is not None and float(zoom_range_half_km) > 0:
+                ax.set_ylim(peak_range - float(zoom_range_half_km), peak_range + float(zoom_range_half_km))
+            if zoom_doppler_half_hz is not None and float(zoom_doppler_half_hz) > 0:
+                ax.set_xlim(peak_doppler - float(zoom_doppler_half_hz), peak_doppler + float(zoom_doppler_half_hz))
     ax.set_xlabel("Doppler frequency (Hz)")
     ax.set_ylabel("Bistatic group range (km)")
-    ax.set_title(f"{station} RDMF step {ti:04d}, unix {unix_time:.3f}")
+    utc = datetime.fromtimestamp(float(unix_time), tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    ax.set_title(f"{station} RDMF step {ti:04d}, {utc} UTC")
     fig.savefig(out_dir / f"{station}_rdmf_{ti:04d}_{unix_time:.3f}.png", dpi=160, bbox_inches="tight")
     plt.close(fig)
 
@@ -461,6 +489,9 @@ def range_doppler_bank(
     rdmf_frame_vmin_db=None,
     rdmf_frame_vmax_db=None,
     rdmf_frame_every=1,
+    rdmf_frame_zoom_range_half_km=None,
+    rdmf_frame_zoom_doppler_half_hz=None,
+    head_search_range_half_px=None,
     progress_every=1,
     checkpoint_every=0,
     checkpoint_func=None,
@@ -525,6 +556,7 @@ def range_doppler_bank(
                 code_images[chi, code_i, :, :] = Z[:, fidx]
 
         steering = None
+        search_range_mask = None
         if tx_aod_beamform:
             unix_time = float(t_sample[ti] / sample_rate)
             steering, unit_enu = tx_aod_steering_vector(
@@ -534,11 +566,21 @@ def range_doppler_bank(
                 phase_sign=tx_aod_phase_sign,
             )
             tx_aod_unit_enu[ti, :] = unit_enu
+            if head_search_range_half_px is not None:
+                target = target_ecef(tx_aod_trajectory, np.array([unix_time], dtype=np.float64))[0]
+                tx_ecef = geodetic_to_ecef(*tx_aod_config["gps_tx"])
+                rx_ecef = geodetic_to_ecef(*tx_aod_config["gps_rx"])
+                model_range_m = float(np.linalg.norm(target - tx_ecef) + np.linalg.norm(target - rx_ecef))
+                model_range_idx = int(round(model_range_m / (float(range_resolution_m) / float(range_interp))))
+                search_range_mask = np.abs(ridx - model_range_idx) <= int(head_search_range_half_px)
+                if not np.any(search_range_mask):
+                    search_range_mask = None
         S, gamma, peak_ri, peak_di = combine_matched_filter_images(
             code_images,
             good_head_dop=good_head_dop,
             steering=steering,
             polarization_combine=polarization_combine,
+            search_range_mask=search_range_mask,
         )
         pol_gamma[ti, :] = gamma
         pol_peak_range_idx[ti] = peak_ri
@@ -579,6 +621,11 @@ def range_doppler_bank(
         N[ti, :] = floor
         if rdmf_frame_dir is not None and rdmf_frame_every > 0 and ti % int(rdmf_frame_every) == 0:
             frame_snr = S_pick / np.maximum(floor[:, None], 1e-12)
+            frame_search = frame_snr.copy()
+            frame_search[:, ~good_head_dop] = -np.inf
+            if search_range_mask is not None:
+                frame_search[~search_range_mask, :] = -np.inf
+            frame_peak_range_i, frame_peak_doppler_i = np.unravel_index(int(np.nanargmax(frame_search)), frame_search.shape)
             save_rdmf_frame(
                 rdmf_frame_dir,
                 rdmf_frame_station or "station",
@@ -589,6 +636,10 @@ def range_doppler_bank(
                 frame_snr,
                 vmin_db=rdmf_frame_vmin_db,
                 vmax_db=rdmf_frame_vmax_db,
+                peak_range_i=frame_peak_range_i,
+                peak_doppler_i=frame_peak_doppler_i,
+                zoom_range_half_km=rdmf_frame_zoom_range_half_km,
+                zoom_doppler_half_hz=rdmf_frame_zoom_doppler_half_hz,
             )
 
         snr = P_head[ti, :] / np.maximum(N[ti, :], 1e-12)
@@ -726,6 +777,7 @@ def main():
     p.add_argument("--fmax", type=float, default=40000.0)
     p.add_argument("--ignore-freq", type=float, default=150.0)
     p.add_argument("--head-min-doppler-hz", type=float, default=250.0)
+    p.add_argument("--head-search-range-half-px", type=int, default=None)
     p.add_argument("--dc-cancel", action="store_true")
     p.add_argument("--dc-cancel-seconds", type=float, default=5.0)
     p.add_argument("--dc-cancel-start-second", type=float, default=75.0)
@@ -744,6 +796,8 @@ def main():
     p.add_argument("--rdmf-frame-vmin-db", type=float, default=None)
     p.add_argument("--rdmf-frame-vmax-db", type=float, default=None)
     p.add_argument("--rdmf-frame-every", type=int, default=1)
+    p.add_argument("--rdmf-frame-zoom-range-half-km", type=float, default=None)
+    p.add_argument("--rdmf-frame-zoom-doppler-half-hz", type=float, default=None)
     p.add_argument("--progress-every", type=int, default=5)
     p.add_argument("--checkpoint-every", type=int, default=25)
     p.add_argument("--out", default=None)
@@ -851,10 +905,13 @@ def main():
         rdmf_frame_vmin_db=args.rdmf_frame_vmin_db,
         rdmf_frame_vmax_db=args.rdmf_frame_vmax_db,
         rdmf_frame_every=args.rdmf_frame_every,
+        rdmf_frame_zoom_range_half_km=args.rdmf_frame_zoom_range_half_km,
+        rdmf_frame_zoom_doppler_half_hz=args.rdmf_frame_zoom_doppler_half_hz,
         fmin=args.fmin,
         fmax=args.fmax,
         ignore_freq=args.ignore_freq,
         head_min_doppler_hz=args.head_min_doppler_hz,
+        head_search_range_half_px=args.head_search_range_half_px,
         dc_cancel=args.dc_cancel,
         dc_cancel_seconds=args.dc_cancel_seconds,
         dc_calibration_data=dc_calibration_data,

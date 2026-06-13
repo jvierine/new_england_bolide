@@ -1,0 +1,19 @@
+% trajectory_fit_version: 0.2.8
+% trajectory_fit_version_description: Selected head-echo correlated ballistic fit using AoD-steered TX combining, receive-polarization matching, range interpolation by 4, 16x FFT over the interpolated code length, sparse-fit residual voltage, and manual range/Doppler selections from the rinterp4/zp16 RDMF candidate GUI.
+\begin{table}
+  \centering
+  \caption{Nominal two-body heliocentric orbit comparison for the baseline ballistic fit and the appendix correlated-covariance fit.  This table uses Astropy's built-in Earth/Sun ephemeris and does not replace the full rebound Monte Carlo orbit solution used for the main article.}
+  \label{tab:appendix-correlated-orbit-change}
+  \begin{tabular}{llrrr}
+    \toprule
+    Quantity & Unit & Baseline & Correlated fit & Difference \\
+    \midrule
+    Semimajor axis & AU & 5.78 & 6.07 & +0.29 \\
+    Perihelion distance & AU & 0.625 & 0.607 & -0.018 \\
+    Eccentricity & -- & 0.892 & 0.900 & +0.008 \\
+    Inclination & deg & 37.39 & 36.62 & -0.77 \\
+    Longitude of ascending node & deg & 35.74 & 34.73 & -1.00 \\
+    Argument of perihelion & deg & 138.45 & 137.31 & -1.14 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
