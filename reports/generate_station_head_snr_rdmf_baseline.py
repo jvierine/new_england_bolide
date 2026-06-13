@@ -27,6 +27,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from angle_departure_estimator import C, enu_to_ecef_matrix, geodetic_to_ecef, load_station_yaml  # noqa: E402
+from reports.generate_head_microdoppler import detrend_window, get_codes, read_station_channels  # noqa: E402
 from reports.generate_station_head_rcs_figure import (  # noqa: E402
     HEAD_PLOT_END_UNIX,
     HEAD_PLOT_START_UNIX,
@@ -34,6 +35,7 @@ from reports.generate_station_head_rcs_figure import (  # noqa: E402
     bin_edges,
     unix_to_mpl,
 )
+from reports.sparse_voltage_subtraction import DEFAULT_SPARSE_PRODUCT_DIR, subtract_sparse_voltage_from_raw  # noqa: E402
 
 RDMF_DIR = ROOT / "products" / "rdmf_exact_highres_180615_10s_merged_20260602_095431"
 DATA_DIR = ROOT / "2026_05_30_bolide"
@@ -81,6 +83,121 @@ def steering_vectors(site: dict, traj: dict[str, np.ndarray], time_unix: np.ndar
     wavelength = C / float(site["frequency_hz"])
     phase = phase_sign * (2.0 * np.pi / wavelength) * (unit @ np.asarray(site["antenna_pos_tx"], dtype=np.float64).T)
     return np.exp(1.0j * phase).astype(np.complex64)
+
+
+def read_residual_voltage(
+    station: str,
+    channels: np.ndarray,
+    iso_hour: str,
+    start_second: float,
+    seconds: float,
+    range_interp: int,
+    args: argparse.Namespace,
+) -> tuple[list[np.ndarray], float, int]:
+    if bool(args.sparse_voltage_subtract):
+        sparse_product = args.sparse_product_dir / f"trail_sparse_deconv_{station}.h5"
+        zc, sample_rate, abs_index0, _meta = subtract_sparse_voltage_from_raw(
+            data_dir=DATA_DIR,
+            station=station,
+            channels=channels,
+            iso_hour=iso_hour,
+            start_second=start_second,
+            seconds=seconds,
+            range_interp=range_interp,
+            sparse_product=sparse_product,
+            gain=float(args.sparse_voltage_gain),
+            mode=str(args.sparse_voltage_mode),
+        )
+        return zc, sample_rate, abs_index0
+    return read_station_channels(
+        DATA_DIR,
+        station,
+        channels,
+        iso_hour,
+        start_second=start_second,
+        seconds=seconds,
+        range_interp=range_interp,
+        dc_subtract="mean",
+    )
+
+
+def selected_doppler_spectrum(
+    station: str,
+    meta: dict,
+    time_unix: np.ndarray,
+    peak_range_idx: np.ndarray,
+    pol_gamma: np.ndarray,
+    steering: np.ndarray,
+    rdmf_power_scale: np.ndarray,
+    noise: np.ndarray,
+    args: argparse.Namespace,
+) -> tuple[np.ndarray, np.ndarray]:
+    stored_fvec = np.asarray(meta["fvec"], dtype=np.float64)
+    if stored_fvec.size < 2:
+        raise ValueError(f"{station}: stored Doppler vector is too short")
+    df_hz = float(np.nanmedian(np.diff(stored_fvec)))
+    if not np.isfinite(df_hz) or df_hz <= 0.0:
+        raise ValueError(f"{station}: invalid Doppler spacing {df_hz}")
+    code_len = int(meta["code_len"])
+    range_interp = int(meta["range_interp"])
+    sample_rate = float(meta["sample_rate"])
+    sample_rate_i = sample_rate * range_interp
+    fft_len = int(round(sample_rate_i / df_hz))
+    fvec = np.fft.fftshift(np.fft.fftfreq(fft_len, d=1.0 / sample_rate_i))
+    keep_f = (fvec >= float(args.doppler_plot_min_hz)) & (fvec <= float(args.doppler_plot_max_hz))
+    fidx = np.flatnonzero(keep_f)
+    if fidx.size == 0:
+        raise ValueError(
+            f"No Doppler bins in requested plot interval "
+            f"{args.doppler_plot_min_hz:g}--{args.doppler_plot_max_hz:g} Hz"
+        )
+    n_coh = int(meta["n_coh"])
+    win_len = n_coh * code_len * range_interp
+    range_idx = np.asarray(meta["range_idx"], dtype=np.int64)
+    selected_abs_range_idx = range_idx[np.asarray(peak_range_idx, dtype=np.int64)]
+    max_range_i = int(np.nanmax(selected_abs_range_idx))
+    first_t_sample = float(np.nanmin(time_unix) * sample_rate)
+    last_t_sample = float(np.nanmax(time_unix) * sample_rate)
+    start_second = float(meta["start_second"])
+    extra_raw_samples = (last_t_sample - first_t_sample) + float(n_coh * code_len) + (max_range_i + 2.0) / float(range_interp)
+    seconds = extra_raw_samples / sample_rate + 1.0
+    zc, raw_sample_rate, abs_index0 = read_residual_voltage(
+        station,
+        np.asarray(meta["channels"]),
+        str(meta["iso_hour"]),
+        start_second,
+        seconds,
+        range_interp,
+        args,
+    )
+    if abs(float(raw_sample_rate) - sample_rate) > 1e-6:
+        raise ValueError(f"{station}: raw sample rate {raw_sample_rate} does not match RDMF sample rate {sample_rate}")
+    if abs(float(abs_index0) - float(meta["t0_sample"])) > 1.0:
+        raise ValueError(f"{station}: raw t0 {abs_index0} does not match RDMF t0 {meta['t0_sample']}")
+    codes = get_codes(np.asarray(meta["seeds"]), code_len, n_coh, range_interp)
+    out = np.full((len(time_unix), len(fidx)), np.nan, dtype=np.float32)
+    for ti in range(len(time_unix)):
+        raw_sample = int(round(float(time_unix[ti]) * sample_rate - float(abs_index0)))
+        start_i = raw_sample * range_interp
+        ri = int(selected_abs_range_idx[ti])
+        if start_i < 0 or start_i + ri + win_len > min(map(len, zc)):
+            continue
+        tx_beam = np.zeros((len(zc), len(fidx)), dtype=np.complex64)
+        for chi, z in enumerate(zc):
+            z0 = detrend_window(z[start_i : start_i + ri + win_len + 1])
+            window = z0[ri : ri + win_len]
+            for code_i, code in enumerate(codes):
+                spec = np.fft.fftshift(np.fft.fft(window * np.conj(code), n=fft_len))[fidx]
+                tx_beam[chi] += spec.astype(np.complex64) * np.conj(steering[ti, code_i])
+        gamma = pol_gamma[ti].astype(np.complex128)
+        if not np.all(np.isfinite(gamma)):
+            continue
+        combined = np.einsum("c,cf->f", np.conj(gamma), tx_beam, optimize=True)
+        raw_power = np.abs(combined) ** 2 / float(len(codes))
+        scale = float(rdmf_power_scale[ti, int(peak_range_idx[ti])])
+        n0 = float(noise[ti, int(peak_range_idx[ti])])
+        out[ti] = (10.0 * np.log10(np.maximum(raw_power * scale / max(n0, 1e-30), 1e-30))).astype(np.float32)
+    return fvec[fidx].astype(np.float32), out
 
 
 def load_gaussian_summary(path: Path) -> dict[str, dict[str, np.ndarray]]:
@@ -153,6 +270,20 @@ def process_station(
         time_unix = h["t_sample"][()].astype(np.float64) / float(h["sample_rate"][()])
         range_km = h["range_km"][()].astype(np.float64)
         model_range_km = model_bistatic_range_km(h, traj, time_unix)
+        meta = {
+            "channels": h["channels"][()],
+            "seeds": h["seeds"][()],
+            "code_len": int(h["code_len"][()]),
+            "range_interp": int(h["range_interp"][()]),
+            "n_coh": int(h["n_coh"][()]),
+            "sample_rate": float(h["sample_rate"][()]),
+            "range_idx": h["range_idx"][()],
+            "fvec": h["fvec"][()],
+            "fft_len": int(len(h["fvec"][()])),
+            "t0_sample": float(h["t0_sample"][()]),
+            "iso_hour": str(h.attrs["iso_hour"]),
+            "start_second": float(h.attrs["start_second"]),
+        }
     snr_db = 10.0 * np.log10(np.maximum(p_head / np.maximum(noise, 1e-30), 1e-30))
     voltage_power = np.sum(np.abs(voltage) ** 2, axis=(1, 3), dtype=np.float64) / float(voltage.shape[1] * voltage.shape[3])
     rdmf_power_scale = p_head / np.maximum(voltage_power, 1e-30)
@@ -195,6 +326,17 @@ def process_station(
     row_idx = np.arange(len(time_unix), dtype=np.int64)
     selected_doppler_hz = d_head[row_idx, peak_range_idx]
     selected_txsteer_pol_snr_db = txsteer_pol_snr_db[row_idx, peak_range_idx]
+    doppler_spectrum_hz, selected_doppler_snr_db = selected_doppler_spectrum(
+        station,
+        meta,
+        time_unix,
+        peak_range_idx,
+        pol_gamma,
+        steering,
+        rdmf_power_scale,
+        noise,
+        args,
+    )
     finite_ranges = range_km[np.any(np.isfinite(snr_db), axis=0)]
     rmin = float(np.nanmin(finite_ranges)) if finite_ranges.size else float(range_km[0])
     rmax = float(np.nanmax(finite_ranges)) if finite_ranges.size else float(range_km[-1])
@@ -210,6 +352,8 @@ def process_station(
         "peak_range_idx": peak_range_idx,
         "selected_doppler_hz": selected_doppler_hz,
         "selected_txsteer_pol_snr_db": selected_txsteer_pol_snr_db,
+        "doppler_spectrum_hz": doppler_spectrum_hz,
+        "selected_doppler_snr_db": selected_doppler_snr_db,
         "fit_doppler_hz": fit["fit_doppler_hz"],
         "pol_gamma": pol_gamma,
         "gaussian_valid": fit["gaussian_valid"].astype(np.uint8),
@@ -240,6 +384,8 @@ def save_results(datasets: list[dict], args: argparse.Namespace) -> None:
                 "peak_range_idx",
                 "selected_doppler_hz",
                 "selected_txsteer_pol_snr_db",
+                "doppler_spectrum_hz",
+                "selected_doppler_snr_db",
                 "fit_doppler_hz",
                 "pol_gamma",
                 "gaussian_valid",
@@ -255,6 +401,7 @@ def load_results(path: Path) -> list[dict]:
         for station_b in h["stations"][()]:
             station = station_b.decode("utf-8") if isinstance(station_b, bytes) else str(station_b)
             g = h[station]
+            n_time = len(g["time_unix"])
             datasets.append(
                 {
                     "station": station,
@@ -265,7 +412,13 @@ def load_results(path: Path) -> list[dict]:
                     "txsteer_pol_snr_db": g["txsteer_pol_snr_db"][()],
                     "model_range_km": g["model_range_km"][()],
                     "selected_doppler_hz": g["selected_doppler_hz"][()],
-                    "selected_txsteer_pol_snr_db": g["selected_txsteer_pol_snr_db"][()],
+                    "selected_txsteer_pol_snr_db": (
+                        g["selected_txsteer_pol_snr_db"][()] if "selected_txsteer_pol_snr_db" in g else np.full(n_time, np.nan)
+                    ),
+                    "doppler_spectrum_hz": g["doppler_spectrum_hz"][()] if "doppler_spectrum_hz" in g else np.asarray([], dtype=np.float32),
+                    "selected_doppler_snr_db": (
+                        g["selected_doppler_snr_db"][()] if "selected_doppler_snr_db" in g else np.empty((n_time, 0), dtype=np.float32)
+                    ),
                     "fit_doppler_hz": g["fit_doppler_hz"][()],
                     "gaussian_valid": g["gaussian_valid"][()],
                     "rmin_km": float(g.attrs["rmin_km"]),
@@ -339,8 +492,6 @@ def plot_selected_doppler(datasets: list[dict], out_fig: Path, vmin_db: float, v
     fig, axes = plt.subplots(len(datasets), 1, figsize=(12.0, 6.8), sharex=True, constrained_layout=True)
     axes = np.atleast_1d(axes)
     ylim = (-4.0, 1.0)
-    doppler_edges = np.linspace(ylim[0], ylim[1], 251)
-    doppler_centers = 0.5 * (doppler_edges[:-1] + doppler_edges[1:])
     mesh = None
 
     for ax, data in zip(axes, datasets, strict=True):
@@ -348,22 +499,24 @@ def plot_selected_doppler(datasets: list[dict], out_fig: Path, vmin_db: float, v
         station = str(data["station"])
         valid = np.asarray(data["gaussian_valid"], dtype=bool)
         doppler = np.where(valid, data["fit_doppler_hz"], np.nan) / 1000.0
-        snr = np.asarray(data["selected_txsteer_pol_snr_db"], dtype=np.float64)
-        image = np.full((len(x), len(doppler_centers)), np.nan, dtype=np.float64)
-        good = valid & np.isfinite(doppler) & np.isfinite(snr) & (doppler >= ylim[0]) & (doppler <= ylim[1])
-        row_idx = np.flatnonzero(good)
-        col_idx = np.searchsorted(doppler_edges, doppler[good], side="right") - 1
-        col_idx = np.clip(col_idx, 0, len(doppler_centers) - 1)
-        image[row_idx, col_idx] = snr[good]
+        spectrum_hz = np.asarray(data["doppler_spectrum_hz"], dtype=np.float64)
+        image = np.asarray(data["selected_doppler_snr_db"], dtype=np.float64)
+        if spectrum_hz.size == 0 or image.size == 0:
+            raise ValueError("Doppler spectrum image is missing; rerun with --mode compute or --mode both")
+        doppler_khz = spectrum_hz / 1000.0
+        keep = (doppler_khz >= ylim[0]) & (doppler_khz <= ylim[1])
+        if not np.any(keep):
+            raise ValueError(f"{station}: no Doppler spectrum bins in {ylim[0]}--{ylim[1]} kHz")
         mesh = ax.pcolormesh(
             bin_edges(x),
-            doppler_edges,
-            image.T,
+            bin_edges(doppler_khz[keep]),
+            image[:, keep].T,
             shading="auto",
             cmap=cmap,
             vmin=vmin_db,
             vmax=vmax_db,
         )
+        ax.plot(x, doppler, color="white", linewidth=0.8, alpha=0.55)
         ax.set_ylabel(f"{STATION_LABELS.get(station, station)}\nDoppler (kHz)")
         ax.grid(True, color="0.88", linewidth=0.5)
         ax.set_ylim(*ylim)
@@ -374,7 +527,7 @@ def plot_selected_doppler(datasets: list[dict], out_fig: Path, vmin_db: float, v
     axes[0].text(
         0.012,
         0.94,
-        "Gaussian-refined Doppler; color is TX-steered matched-pol SNR",
+        "TX-steered matched-pol spectrum at selected head-echo range",
         transform=axes[0].transAxes,
         ha="left",
         va="top",
@@ -384,7 +537,7 @@ def plot_selected_doppler(datasets: list[dict], out_fig: Path, vmin_db: float, v
     )
     axes[-1].set_xlabel("UTC on 2026-05-30")
     if mesh is not None:
-        fig.colorbar(mesh, ax=axes, label="Selected matched-pol SNR (dB)", shrink=0.93)
+        fig.colorbar(mesh, ax=axes, label="Matched-pol RDMF SNR (dB)", shrink=0.93)
     out_fig.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_fig, dpi=240, bbox_inches="tight")
     plt.close(fig)
@@ -407,6 +560,13 @@ def main() -> None:
     p.add_argument("--phase-sign", type=float, default=-1.0)
     p.add_argument("--vmin-db", type=float, default=2.0)
     p.add_argument("--vmax-db", type=float, default=15.0)
+    p.add_argument("--doppler-plot-min-hz", type=float, default=-4000.0)
+    p.add_argument("--doppler-plot-max-hz", type=float, default=1000.0)
+    p.add_argument("--sparse-voltage-subtract", action="store_true", default=True)
+    p.add_argument("--no-sparse-voltage-subtract", action="store_false", dest="sparse_voltage_subtract")
+    p.add_argument("--sparse-product-dir", type=Path, default=DEFAULT_SPARSE_PRODUCT_DIR)
+    p.add_argument("--sparse-voltage-gain", type=float, default=1.0)
+    p.add_argument("--sparse-voltage-mode", choices=("full", "dc"), default="full")
     args = p.parse_args()
     if args.mode in {"compute", "both"}:
         traj = load_trajectory(args.trajectory_json)
