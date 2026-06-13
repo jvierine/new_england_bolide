@@ -194,6 +194,7 @@ def process_station(
     txsteer_pol_snr_db = 10.0 * np.log10(np.maximum(txsteer_pol_power / np.maximum(noise, 1e-30), 1e-30))
     row_idx = np.arange(len(time_unix), dtype=np.int64)
     selected_doppler_hz = d_head[row_idx, peak_range_idx]
+    selected_txsteer_pol_snr_db = txsteer_pol_snr_db[row_idx, peak_range_idx]
     finite_ranges = range_km[np.any(np.isfinite(snr_db), axis=0)]
     rmin = float(np.nanmin(finite_ranges)) if finite_ranges.size else float(range_km[0])
     rmax = float(np.nanmax(finite_ranges)) if finite_ranges.size else float(range_km[-1])
@@ -208,6 +209,7 @@ def process_station(
         "model_range_km": model_range_km,
         "peak_range_idx": peak_range_idx,
         "selected_doppler_hz": selected_doppler_hz,
+        "selected_txsteer_pol_snr_db": selected_txsteer_pol_snr_db,
         "fit_doppler_hz": fit["fit_doppler_hz"],
         "pol_gamma": pol_gamma,
         "gaussian_valid": fit["gaussian_valid"].astype(np.uint8),
@@ -237,6 +239,7 @@ def save_results(datasets: list[dict], args: argparse.Namespace) -> None:
                 "model_range_km",
                 "peak_range_idx",
                 "selected_doppler_hz",
+                "selected_txsteer_pol_snr_db",
                 "fit_doppler_hz",
                 "pol_gamma",
                 "gaussian_valid",
@@ -262,6 +265,7 @@ def load_results(path: Path) -> list[dict]:
                     "txsteer_pol_snr_db": g["txsteer_pol_snr_db"][()],
                     "model_range_km": g["model_range_km"][()],
                     "selected_doppler_hz": g["selected_doppler_hz"][()],
+                    "selected_txsteer_pol_snr_db": g["selected_txsteer_pol_snr_db"][()],
                     "fit_doppler_hz": g["fit_doppler_hz"][()],
                     "gaussian_valid": g["gaussian_valid"][()],
                     "rmin_km": float(g.attrs["rmin_km"]),
@@ -328,25 +332,37 @@ def plot_results(datasets: list[dict], args: argparse.Namespace, key: str, out_f
     plt.close(fig)
 
 
-def plot_selected_doppler(datasets: list[dict], out_fig: Path) -> None:
+def plot_selected_doppler(datasets: list[dict], out_fig: Path, vmin_db: float, vmax_db: float) -> None:
     plt.rcParams.update({"font.size": 13, "axes.labelsize": 15, "xtick.labelsize": 12, "ytick.labelsize": 12})
+    cmap = plt.get_cmap("magma").copy()
+    cmap.set_bad("0.94")
     fig, axes = plt.subplots(len(datasets), 1, figsize=(12.0, 6.8), sharex=True, constrained_layout=True)
     axes = np.atleast_1d(axes)
     ylim = (-4.0, 1.0)
+    doppler_edges = np.linspace(ylim[0], ylim[1], 251)
+    doppler_centers = 0.5 * (doppler_edges[:-1] + doppler_edges[1:])
+    mesh = None
 
     for ax, data in zip(axes, datasets, strict=True):
         x = unix_to_mpl(data["time_unix"])
         station = str(data["station"])
         valid = np.asarray(data["gaussian_valid"], dtype=bool)
         doppler = np.where(valid, data["fit_doppler_hz"], np.nan) / 1000.0
-        ax.plot(
-            x,
-            doppler,
-            color="tab:blue",
-            linewidth=1.6,
-            marker=".",
-            markersize=3.0,
-            label="Gaussian-refined Doppler",
+        snr = np.asarray(data["selected_txsteer_pol_snr_db"], dtype=np.float64)
+        image = np.full((len(x), len(doppler_centers)), np.nan, dtype=np.float64)
+        good = valid & np.isfinite(doppler) & np.isfinite(snr) & (doppler >= ylim[0]) & (doppler <= ylim[1])
+        row_idx = np.flatnonzero(good)
+        col_idx = np.searchsorted(doppler_edges, doppler[good], side="right") - 1
+        col_idx = np.clip(col_idx, 0, len(doppler_centers) - 1)
+        image[row_idx, col_idx] = snr[good]
+        mesh = ax.pcolormesh(
+            bin_edges(x),
+            doppler_edges,
+            image.T,
+            shading="auto",
+            cmap=cmap,
+            vmin=vmin_db,
+            vmax=vmax_db,
         )
         ax.set_ylabel(f"{STATION_LABELS.get(station, station)}\nDoppler (kHz)")
         ax.grid(True, color="0.88", linewidth=0.5)
@@ -355,11 +371,10 @@ def plot_selected_doppler(datasets: list[dict], out_fig: Path) -> None:
         ax.set_xlim(unix_to_mpl(np.array([HEAD_PLOT_START_UNIX, HEAD_PLOT_END_UNIX])))
         ax.xaxis.set_major_locator(mdates.SecondLocator(interval=1))
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
-    axes[0].legend(loc="upper right", fontsize=9, frameon=True)
     axes[0].text(
         0.012,
         0.94,
-        "Gaussian-refined Doppler, TX-steered matched-pol selections",
+        "Gaussian-refined Doppler; color is TX-steered matched-pol SNR",
         transform=axes[0].transAxes,
         ha="left",
         va="top",
@@ -368,6 +383,8 @@ def plot_selected_doppler(datasets: list[dict], out_fig: Path) -> None:
         alpha=0.65,
     )
     axes[-1].set_xlabel("UTC on 2026-05-30")
+    if mesh is not None:
+        fig.colorbar(mesh, ax=axes, label="Selected matched-pol SNR (dB)", shrink=0.93)
     out_fig.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_fig, dpi=240, bbox_inches="tight")
     plt.close(fig)
@@ -426,7 +443,7 @@ def main() -> None:
             "TX-steered peak-pixel selection; receive polarization matched after selection",
         )
         print(args.output_tx_pol_fig, flush=True)
-        plot_selected_doppler(datasets, args.output_tx_pol_doppler_fig)
+        plot_selected_doppler(datasets, args.output_tx_pol_doppler_fig, float(args.vmin_db), float(args.vmax_db))
         print(args.output_tx_pol_doppler_fig, flush=True)
 
 
