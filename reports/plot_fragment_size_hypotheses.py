@@ -332,7 +332,6 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
     ax_q.set_xscale("log")
     ax_lat.legend(loc="best", fontsize=7.2)
     ax_vel.legend(loc="best", fontsize=7.2)
-    fig.suptitle(f"Fragment-size hypotheses launched at 90 km; markers at {utc_string(marker_time_unix)}")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=260)
     plt.close(fig)
