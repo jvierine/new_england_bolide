@@ -22,6 +22,7 @@ from scipy.integrate import solve_ivp
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from angle_departure_estimator import enu_to_ecef_matrix, geodetic_to_ecef  # noqa: E402
 from estimate_head_echo_trajectory import ecef_to_geodetic_wgs84  # noqa: E402
 from fit_ballistic_head_trail import atmosphere_velocity_gcrs, build_density_profile, density_at_alt, dynamics, propagate_state, sphere_cd_area_over_mass  # noqa: E402
 from fit_combined_head_trail_eci import gcrs_to_ecef  # noqa: E402
@@ -33,6 +34,9 @@ OUT_SUMMARY = Path("reports/fragment_size_hypotheses_summary.json")
 DEFAULT_TRAIL_POSITION_H5 = [
     Path("reports/interactive_sparse_component_imager/beverly_trail_positions.h5"),
 ]
+MILLSTONE_TX_LAT_DEG = 42.611
+MILLSTONE_TX_LON_DEG = -71.485
+MILLSTONE_TX_ALT_M = 80.0
 
 
 def gcrs_path_to_llh(pos_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
@@ -42,6 +46,21 @@ def gcrs_path_to_llh(pos_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
 def air_relative_speed(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
     v_air = np.array([atmosphere_velocity_gcrs(p, t) for p, t in zip(pos_gcrs, time_unix, strict=True)], dtype=float)
     return np.linalg.norm(np.asarray(vel_gcrs, dtype=float) - v_air, axis=1)
+
+
+def elevation_altitude_km(lat_deg: float, lon_deg: float, elevation_deg: float) -> float:
+    """Return target altitude at lat/lon corresponding to a transmitter elevation angle."""
+    tx = geodetic_to_ecef(MILLSTONE_TX_LAT_DEG, MILLSTONE_TX_LON_DEG, MILLSTONE_TX_ALT_M)
+    tx_up = enu_to_ecef_matrix(MILLSTONE_TX_LAT_DEG, MILLSTONE_TX_LON_DEG)[:, 2]
+    surface = geodetic_to_ecef(lat_deg, lon_deg, 0.0)
+    target_up = enu_to_ecef_matrix(lat_deg, lon_deg)[:, 2]
+    horizontal = surface - tx
+    sin_el = math.sin(math.radians(float(elevation_deg)))
+    denom = float(np.dot(target_up, tx_up) - sin_el)
+    if abs(denom) < 1.0e-9:
+        return float("nan")
+    rhs = float(sin_el * np.linalg.norm(horizontal) - np.dot(horizontal, tx_up))
+    return rhs / denom / 1000.0
 
 
 def trail_position_h5_from_state(state_path: Path, out_path: Path) -> None:
@@ -255,7 +274,29 @@ def interp_path_at_time(path: dict, marker_time_unix: float) -> dict[str, float]
     }
 
 
-def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict, marker_time_unix: float) -> None:
+def component_reference_lonlat(paths: list[dict], components: list[dict]) -> tuple[float, float]:
+    points = []
+    for row in components:
+        lat = float(row["lat_deg"])
+        lon = float(row["lon_deg"])
+        if np.isfinite(lat) and np.isfinite(lon):
+            points.append((lat, lon))
+    if not points:
+        for path in paths:
+            lat = np.asarray(path["lat_deg"], dtype=float)
+            lon = np.asarray(path["lon_deg"], dtype=float)
+            alt = np.asarray(path["alt_km"], dtype=float)
+            keep = np.isfinite(lat) & np.isfinite(lon) & np.isfinite(alt) & (alt >= 20.0) & (alt <= 100.0)
+            points.extend(zip(lat[keep], lon[keep], strict=True))
+    if not points:
+        return float("nan"), float("nan")
+    return (
+        float(np.median([p[0] for p in points])),
+        float(np.median([p[1] for p in points])),
+    )
+
+
+def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict, marker_time_unix: float) -> dict[str, float]:
     fig, axes = plt.subplots(1, 4, figsize=(13.2, 5.0), sharey=True, constrained_layout=True)
     ax_lat, ax_lon, ax_vel, ax_q = axes
     linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
@@ -266,8 +307,8 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
         style = linestyles[idx % len(linestyles)]
         q = np.asarray(path["dynamic_pressure_mpa"], dtype=float)
         q_plot = np.where(q > 0.0, q, np.nan)
-        ax_lat.plot(path["lat_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
-        ax_lon.plot(path["lon_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        ax_lat.plot(path["lat_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        ax_lon.plot(path["lon_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
         ax_vel.plot(path["air_relative_speed_km_s"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
         ax_q.plot(q_plot, path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
         marker = interp_path_at_time(path, marker_time_unix)
@@ -314,8 +355,24 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
                 height_km = max(2.0 * alt_sigma_km, row.get("blob_axis_length_cross_m", np.nan) / 1000.0)
                 add_plasma_blob(ax_lat, float(row["lat_deg"]), z_km, lat_width, height_km, color, zorder=1)
                 add_plasma_blob(ax_lon, float(row["lon_deg"]), z_km, lon_width, height_km, color, zorder=1)
-            ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, label=label, zorder=5)
-            ax_lon.scatter(lon, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)
+            ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)
+            ax_lon.scatter(lon, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, label=label, zorder=5)
+
+    ref_lat, ref_lon = component_reference_lonlat(paths, components)
+    elevation_levels_deg = [0.0, 15.0, 30.0, 45.0]
+    elevation_summary = {}
+    if np.isfinite(ref_lat) and np.isfinite(ref_lon):
+        lat_grid = np.linspace(*ax_lat.get_xlim(), 240)
+        lon_grid = np.linspace(*ax_lon.get_xlim(), 240)
+        for el in elevation_levels_deg:
+            lat_alt = np.array([elevation_altitude_km(lat, ref_lon, el) for lat in lat_grid], dtype=float)
+            lon_alt = np.array([elevation_altitude_km(ref_lat, lon, el) for lon in lon_grid], dtype=float)
+            lat_alt = np.where((lat_alt >= 0.0) & (lat_alt <= 120.0), lat_alt, np.nan)
+            lon_alt = np.where((lon_alt >= 0.0) & (lon_alt <= 120.0), lon_alt, np.nan)
+            label = f"Millstone {el:g} deg elevation"
+            ax_lat.plot(lat_grid, lat_alt, color="0.05", lw=0.9, ls=(0, (5, 3)), alpha=0.58, zorder=3)
+            ax_lon.plot(lon_grid, lon_alt, color="0.05", lw=0.9, ls=(0, (5, 3)), alpha=0.58, label=label, zorder=3)
+            elevation_summary[f"{el:g}"] = elevation_altitude_km(ref_lat, ref_lon, el)
 
     ax_lat.set_xlabel("Latitude (deg)")
     ax_lon.set_xlabel("Longitude (deg)")
@@ -330,11 +387,12 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
         ax.grid(True, alpha=0.28)
         ax.set_ylim(0, 120)
     ax_q.set_xscale("log")
-    ax_lat.legend(loc="best", fontsize=7.2)
+    ax_lon.legend(loc="upper right", fontsize=7.2)
     ax_vel.legend(loc="best", fontsize=7.2)
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=260)
     plt.close(fig)
+    return elevation_summary
 
 
 def main() -> None:
@@ -367,7 +425,7 @@ def main() -> None:
     )
     ensure_gui_trail_position_h5([Path(v) for v in args.trail_positions_h5])
     components = load_components_h5([Path(v) for v in args.trail_positions_h5], max_height_km=120.0)
-    make_plot(args.out, paths, components, launch, marker_time)
+    elevation_summary = make_plot(args.out, paths, components, launch, marker_time)
 
     payload = {
         "source_program": "reports/plot_fragment_size_hypotheses.py",
@@ -377,6 +435,10 @@ def main() -> None:
         "launch": launch,
         "marker_time_unix": float(marker_time),
         "marker_time_utc": utc_string(marker_time),
+        "millstone_elevation_height_km": elevation_summary,
+        "millstone_tx_lat_deg": MILLSTONE_TX_LAT_DEG,
+        "millstone_tx_lon_deg": MILLSTONE_TX_LON_DEG,
+        "millstone_tx_alt_m": MILLSTONE_TX_ALT_M,
         "max_duration_s": float(args.max_duration_s),
         "density_kg_m3": float(args.density_kg_m3),
         "cd": float(args.cd),

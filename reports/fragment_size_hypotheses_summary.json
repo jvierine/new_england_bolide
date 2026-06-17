@@ -15,6 +15,15 @@
   },
   "marker_time_unix": 1780164383.0,
   "marker_time_utc": "2026-05-30T18:06:23Z",
+  "millstone_elevation_height_km": {
+    "0": 0.9093969117582383,
+    "15": 37.14370650635649,
+    "30": 104.68249459172476,
+    "45": 251.4859194832967
+  },
+  "millstone_tx_lat_deg": 42.611,
+  "millstone_tx_lon_deg": -71.485,
+  "millstone_tx_alt_m": 80.0,
   "max_duration_s": 7200.0,
   "density_kg_m3": 3000.0,
   "cd": 1.0,
