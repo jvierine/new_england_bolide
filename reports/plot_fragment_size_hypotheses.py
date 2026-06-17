@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""Plot fragment-size ballistic hypotheses against sparse terminus images."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import h5py
+import numpy as np
+from matplotlib.patches import Ellipse
+from scipy.integrate import solve_ivp
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from estimate_head_echo_trajectory import ecef_to_geodetic_wgs84  # noqa: E402
+from fit_ballistic_head_trail import atmosphere_velocity_gcrs, build_density_profile, density_at_alt, dynamics, propagate_state, sphere_cd_area_over_mass  # noqa: E402
+from fit_combined_head_trail_eci import gcrs_to_ecef  # noqa: E402
+from reports.image_sparse_spectral_components import TRAJECTORY, fit_model_state_at_altitude, parse_utc, utc_string  # noqa: E402
+
+
+OUT_FIG = Path("reports/figures/fragment_size_hypotheses.png")
+OUT_SUMMARY = Path("reports/fragment_size_hypotheses_summary.json")
+DEFAULT_TRAIL_POSITION_H5 = [
+    Path("reports/interactive_sparse_component_imager/beverly_trail_positions.h5"),
+]
+
+
+def gcrs_path_to_llh(pos_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
+    return np.array([ecef_to_geodetic_wgs84(gcrs_to_ecef(p, t)) for p, t in zip(pos_gcrs, time_unix, strict=True)], dtype=float)
+
+
+def air_relative_speed(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
+    v_air = np.array([atmosphere_velocity_gcrs(p, t) for p, t in zip(pos_gcrs, time_unix, strict=True)], dtype=float)
+    return np.linalg.norm(np.asarray(vel_gcrs, dtype=float) - v_air, axis=1)
+
+
+def trail_position_h5_from_state(state_path: Path, out_path: Path) -> None:
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    rows = payload.get("components", [])
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    numeric_fields = [
+        "component_id",
+        "time_unix",
+        "range_km",
+        "range_idx",
+        "doppler_hz",
+        "snr_db_2hz",
+        "lat_deg",
+        "lon_deg",
+        "alt_m",
+        "alt_km",
+        "passage_time_unix",
+        "plasma_lag_s",
+        "passage_path_residual_km",
+        "trajectory_visibility_score",
+        "trajectory_horizontal_displacement_km",
+        "blob_axis_length_along_m",
+        "blob_axis_length_cross_m",
+        "blob_axis_length_along_uncertainty_m",
+        "blob_axis_length_cross_uncertainty_m",
+        "centroid_alt_sigma_m",
+        "p_blob_real",
+        "real_probability_score_z",
+        "blob_chi2_reduced",
+        "blob_chi2_dof",
+    ]
+    string_fields = ["station", "time_utc", "position_model", "passage_time_utc"]
+    with h5py.File(out_path, "w") as h:
+        h.attrs["source_program"] = "reports/plot_fragment_size_hypotheses.py"
+        h.attrs["state_file"] = str(state_path)
+        h.attrs["station"] = payload.get("station", "")
+        h.attrs["n_components"] = len(rows)
+        for field in numeric_fields:
+            values = []
+            for idx, row in enumerate(rows, start=1):
+                if field == "component_id":
+                    value = idx
+                elif field == "alt_km":
+                    value = None if row.get("alt_m") is None else float(row["alt_m"]) / 1000.0
+                else:
+                    value = row.get(field)
+                values.append(np.nan if value is None else float(value))
+            h.create_dataset(field, data=np.asarray(values, dtype=np.float64))
+        str_dtype = h5py.string_dtype(encoding="utf-8")
+        for field in string_fields:
+            h.create_dataset(field, data=np.asarray([str(row.get(field, "")) for row in rows], dtype=object), dtype=str_dtype)
+
+
+def ensure_gui_trail_position_h5(paths: list[Path]) -> None:
+    for path in paths:
+        if path.exists():
+            continue
+        state = path.with_name(path.name.replace("_trail_positions.h5", "_interactive_components.json"))
+        if state.exists():
+            trail_position_h5_from_state(state, path)
+
+
+def load_components_h5(paths: list[Path], max_height_km: float) -> list[dict]:
+    rows = []
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"GUI-derived trail-position HDF5 does not exist: {path}")
+        with h5py.File(path, "r") as h:
+            n = int(h.attrs.get("n_components", len(h["lat_deg"])))
+            for idx in range(n):
+                alt_m = float(h["alt_m"][idx])
+                alt_km = alt_m / 1000.0
+                if not np.isfinite(alt_km) or alt_km < 0.0 or alt_km > max_height_km:
+                    continue
+                station_value = h["station"][idx]
+                if isinstance(station_value, bytes):
+                    station_value = station_value.decode("utf-8")
+                rows.append(
+                    {
+                        "station": str(station_value),
+                        "lat_deg": float(h["lat_deg"][idx]),
+                        "lon_deg": float(h["lon_deg"][idx]),
+                        "alt_m": alt_m,
+                        "centroid_alt_sigma_m": float(h["centroid_alt_sigma_m"][idx]) if "centroid_alt_sigma_m" in h else np.nan,
+                        "blob_axis_length_along_m": float(h["blob_axis_length_along_m"][idx]) if "blob_axis_length_along_m" in h else np.nan,
+                        "blob_axis_length_cross_m": float(h["blob_axis_length_cross_m"][idx]) if "blob_axis_length_cross_m" in h else np.nan,
+                    }
+                )
+    return rows
+
+
+def add_plasma_blob(ax, x: float, z_km: float, width_x: float, height_km: float, color: str, zorder: float = 1.0) -> None:
+    if not all(np.isfinite(v) for v in (x, z_km, width_x, height_km)):
+        return
+    if width_x <= 0.0 or height_km <= 0.0:
+        return
+    for scale, alpha in ((2.0, 0.10), (1.0, 0.20)):
+        patch = Ellipse(
+            (x, z_km),
+            width=scale * width_x,
+            height=scale * height_km,
+            facecolor=color,
+            edgecolor=color,
+            lw=0.7,
+            alpha=alpha,
+            zorder=zorder,
+        )
+        ax.add_patch(patch)
+
+
+def propagate_hypotheses(
+    fit: dict,
+    diameters_m: list[float],
+    density_kg_m3: float,
+    launch_altitude_km: float,
+    max_duration_s: float,
+    cd: float,
+    dt_s: float,
+    max_step_s: float,
+) -> tuple[list[dict], dict]:
+    t_launch, pos_launch, vel_launch = fit_model_state_at_altitude(fit, launch_altitude_km)
+    stop_time_unix = t_launch + float(max_duration_s)
+    density_time = np.linspace(t_launch, stop_time_unix, 400)
+    density_profile = build_density_profile(density_time, [], np.r_[pos_launch, vel_launch], t_launch)
+    launch_alt_m = launch_altitude_km * 1000.0
+    launch_rho = density_at_alt(density_profile, launch_alt_m)
+
+    paths = []
+    for diameter_m in diameters_m:
+        cd_area_mass = sphere_cd_area_over_mass(diameter_m, density_kg_m3, cd)
+        y0 = np.r_[pos_launch, vel_launch]
+
+        def ode(t_rel: float, y: np.ndarray) -> np.ndarray:
+            return dynamics(t_rel, y, t_launch, cd_area_mass, density_profile, use_drag=True)
+
+        def sea_level_event(t_rel: float, y: np.ndarray) -> float:
+            return float(ecef_to_geodetic_wgs84(gcrs_to_ecef(y[:3], t_launch + float(t_rel)))[2])
+
+        sea_level_event.terminal = True
+        sea_level_event.direction = -1.0
+        sol = solve_ivp(
+            ode,
+            (0.0, float(max_duration_s)),
+            y0,
+            method="RK45",
+            rtol=1e-7,
+            atol=1e-3,
+            max_step=float(max_step_s),
+            dense_output=True,
+            events=sea_level_event,
+        )
+        t_end_rel = float(sol.t_events[0][0]) if len(sol.t_events[0]) else float(sol.t[-1])
+        rel_sample = np.arange(0.0, t_end_rel + dt_s, dt_s)
+        if rel_sample.size == 0 or rel_sample[-1] < t_end_rel:
+            rel_sample = np.r_[rel_sample, t_end_rel]
+        y_sample = sol.sol(rel_sample).T if sol.sol is not None else np.column_stack([np.interp(rel_sample, sol.t, sol.y[i]) for i in range(sol.y.shape[0])])
+        t_eval = t_launch + rel_sample
+        pos = y_sample[:, :3]
+        vel = y_sample[:, 3:]
+        llh = gcrs_path_to_llh(pos, t_eval)
+        speed_air = air_relative_speed(pos, vel, t_eval)
+        rho_air = np.array([density_at_alt(density_profile, alt_m) for alt_m in llh[:, 2]], dtype=float)
+        dynamic_pressure_pa = 0.5 * rho_air * speed_air**2
+        keep = np.where(
+            (llh[:, 2] >= 0.0)
+            & (llh[:, 2] <= 150000.0)
+            & (llh[:, 0] >= 35.0)
+            & (llh[:, 0] <= 50.0)
+            & (llh[:, 1] >= -80.0)
+            & (llh[:, 1] <= -60.0)
+        )[0]
+        radius = 0.5 * float(diameter_m)
+        mass_kg = (4.0 / 3.0) * math.pi * radius**3 * float(density_kg_m3)
+        paths.append(
+            {
+                "diameter_m": float(diameter_m),
+                "mass_kg": float(mass_kg),
+                "cd_area_over_mass_m2_kg": float(cd_area_mass),
+                "time_unix": t_eval[keep],
+                "lat_deg": llh[keep, 0],
+                "lon_deg": llh[keep, 1],
+                "alt_km": llh[keep, 2] / 1000.0,
+                "air_relative_speed_km_s": speed_air[keep] / 1000.0,
+                "dynamic_pressure_mpa": dynamic_pressure_pa[keep] / 1.0e6,
+                "reached_sea_level": bool(len(sol.t_events[0]) > 0),
+                "impact_time_unix": None if len(sol.t_events[0]) == 0 else float(t_launch + sol.t_events[0][0]),
+            }
+        )
+    launch = {
+        "time_unix": float(t_launch),
+        "time_utc": utc_string(t_launch),
+        "altitude_km": float(launch_altitude_km),
+        "density_kg_m3": float(launch_rho),
+        "inertial_speed_km_s": float(np.linalg.norm(vel_launch) / 1000.0),
+        "air_relative_speed_km_s": float(np.linalg.norm(vel_launch - atmosphere_velocity_gcrs(pos_launch, t_launch)) / 1000.0),
+    }
+    return paths, launch
+
+
+def interp_path_at_time(path: dict, marker_time_unix: float) -> dict[str, float] | None:
+    time = np.asarray(path["time_unix"], dtype=float)
+    if time.size == 0 or marker_time_unix < float(time[0]) or marker_time_unix > float(time[-1]):
+        return None
+    return {
+        "lat_deg": float(np.interp(marker_time_unix, time, path["lat_deg"])),
+        "lon_deg": float(np.interp(marker_time_unix, time, path["lon_deg"])),
+        "alt_km": float(np.interp(marker_time_unix, time, path["alt_km"])),
+        "air_relative_speed_km_s": float(np.interp(marker_time_unix, time, path["air_relative_speed_km_s"])),
+        "dynamic_pressure_mpa": float(np.interp(marker_time_unix, time, path["dynamic_pressure_mpa"])),
+    }
+
+
+def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict, marker_time_unix: float) -> None:
+    fig, axes = plt.subplots(1, 4, figsize=(13.2, 5.0), sharey=True, constrained_layout=True)
+    ax_lat, ax_lon, ax_vel, ax_q = axes
+    linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
+
+    marker_label_added = False
+    for idx, path in enumerate(paths):
+        label = f"D={path['diameter_m']:g} m, m={path['mass_kg']:.2g} kg"
+        style = linestyles[idx % len(linestyles)]
+        q = np.asarray(path["dynamic_pressure_mpa"], dtype=float)
+        q_plot = np.where(q > 0.0, q, np.nan)
+        ax_lat.plot(path["lat_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
+        ax_lon.plot(path["lon_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        ax_vel.plot(path["air_relative_speed_km_s"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        ax_q.plot(q_plot, path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        marker = interp_path_at_time(path, marker_time_unix)
+        if marker is not None:
+            ax_lat.scatter([marker["lat_deg"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
+            ax_lon.scatter([marker["lon_deg"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
+            marker_label = None
+            if not marker_label_added:
+                marker_label = "18:06:23 UTC position"
+                marker_label_added = True
+            ax_vel.scatter(
+                [marker["air_relative_speed_km_s"]],
+                [marker["alt_km"]],
+                marker="o",
+                s=34,
+                color="0.15",
+                edgecolor="white",
+                linewidth=0.45,
+                label=marker_label,
+                zorder=7,
+            )
+            if marker["dynamic_pressure_mpa"] > 0.0:
+                ax_q.scatter([marker["dynamic_pressure_mpa"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
+
+    if components:
+        stations = sorted(set(str(c["station"]) for c in components))
+        colors = {"beverly": "#1f77b4", "clinton": "#d62728"}
+        for station in stations:
+            rows = [c for c in components if str(c["station"]) == station]
+            lat = np.array([float(c["lat_deg"]) for c in rows])
+            lon = np.array([float(c["lon_deg"]) for c in rows])
+            alt = np.array([float(c["alt_m"]) / 1000.0 for c in rows])
+            color = colors.get(station, "C2")
+            label = "Plasma trail position (Beverly)" if station == "beverly" else f"Plasma trail position ({station})"
+            for row in rows:
+                z_km = float(row["alt_m"]) / 1000.0
+                alt_sigma_km = row.get("centroid_alt_sigma_m", np.nan) / 1000.0
+                horiz_km = max(
+                    row.get("blob_axis_length_along_m", np.nan) / 1000.0,
+                    row.get("blob_axis_length_cross_m", np.nan) / 1000.0,
+                )
+                lat_width = horiz_km / 111.0
+                lon_width = horiz_km / (111.0 * max(np.cos(np.deg2rad(float(row["lat_deg"]))), 0.1))
+                height_km = max(2.0 * alt_sigma_km, row.get("blob_axis_length_cross_m", np.nan) / 1000.0)
+                add_plasma_blob(ax_lat, float(row["lat_deg"]), z_km, lat_width, height_km, color, zorder=1)
+                add_plasma_blob(ax_lon, float(row["lon_deg"]), z_km, lon_width, height_km, color, zorder=1)
+            ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, label=label, zorder=5)
+            ax_lon.scatter(lon, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)
+
+    ax_lat.set_xlabel("Latitude (deg)")
+    ax_lon.set_xlabel("Longitude (deg)")
+    ax_vel.set_xlabel("Air-relative speed (km/s)")
+    ax_q.set_xlabel("Dynamic pressure (MPa)")
+    ax_lat.set_ylabel("Height (km)")
+    ax_lat.set_title("Latitude")
+    ax_lon.set_title("Longitude")
+    ax_vel.set_title("Velocity")
+    ax_q.set_title("Dynamic pressure")
+    for ax in axes:
+        ax.grid(True, alpha=0.28)
+        ax.set_ylim(0, 120)
+    ax_q.set_xscale("log")
+    ax_lat.legend(loc="best", fontsize=7.2)
+    ax_vel.legend(loc="best", fontsize=7.2)
+    fig.suptitle(f"Fragment-size hypotheses launched at 90 km; markers at {utc_string(marker_time_unix)}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=260)
+    plt.close(fig)
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--trajectory", type=Path, default=TRAJECTORY)
+    p.add_argument("--trail-positions-h5", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_H5)
+    p.add_argument("--marker-time", default="2026-05-30T18:06:23Z")
+    p.add_argument("--max-duration-s", type=float, default=7200.0)
+    p.add_argument("--launch-altitude-km", type=float, default=90.0)
+    p.add_argument("--density-kg-m3", type=float, default=3000.0)
+    p.add_argument("--diameters-m", nargs="+", type=float, default=[10.0, 1.0, 0.1, 0.01])
+    p.add_argument("--cd", type=float, default=1.0)
+    p.add_argument("--dt-s", type=float, default=0.25)
+    p.add_argument("--max-step-s", type=float, default=10.0)
+    p.add_argument("--out", type=Path, default=OUT_FIG)
+    p.add_argument("--summary", type=Path, default=OUT_SUMMARY)
+    args = p.parse_args()
+
+    fit = json.loads(args.trajectory.read_text(encoding="utf-8"))
+    marker_time = parse_utc(args.marker_time)
+    paths, launch = propagate_hypotheses(
+        fit,
+        [float(v) for v in args.diameters_m],
+        float(args.density_kg_m3),
+        float(args.launch_altitude_km),
+        float(args.max_duration_s),
+        float(args.cd),
+        float(args.dt_s),
+        float(args.max_step_s),
+    )
+    ensure_gui_trail_position_h5([Path(v) for v in args.trail_positions_h5])
+    components = load_components_h5([Path(v) for v in args.trail_positions_h5], max_height_km=120.0)
+    make_plot(args.out, paths, components, launch, marker_time)
+
+    payload = {
+        "source_program": "reports/plot_fragment_size_hypotheses.py",
+        "trajectory": str(args.trajectory),
+        "trail_positions_h5": [str(v) for v in args.trail_positions_h5],
+        "figure": str(args.out),
+        "launch": launch,
+        "marker_time_unix": float(marker_time),
+        "marker_time_utc": utc_string(marker_time),
+        "max_duration_s": float(args.max_duration_s),
+        "density_kg_m3": float(args.density_kg_m3),
+        "cd": float(args.cd),
+        "diameters": [
+            {
+                "diameter_m": path["diameter_m"],
+                "mass_kg": path["mass_kg"],
+                "cd_area_over_mass_m2_kg": path["cd_area_over_mass_m2_kg"],
+                "final_height_km": float(path["alt_km"][-1]) if len(path["alt_km"]) else None,
+                "final_air_relative_speed_km_s": float(path["air_relative_speed_km_s"][-1]) if len(path["air_relative_speed_km_s"]) else None,
+                "final_lat_deg": float(path["lat_deg"][-1]) if len(path["lat_deg"]) else None,
+                "final_lon_deg": float(path["lon_deg"][-1]) if len(path["lon_deg"]) else None,
+                "marker": interp_path_at_time(path, marker_time),
+                "final_dynamic_pressure_mpa": float(path["dynamic_pressure_mpa"][-1]) if len(path["dynamic_pressure_mpa"]) else None,
+                "reached_sea_level": bool(path.get("reached_sea_level", False)),
+            }
+            for path in paths
+        ],
+        "n_components": len(components),
+    }
+    args.summary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(f"Wrote {args.out}")
+    print(f"Wrote {args.summary}")
+
+
+if __name__ == "__main__":
+    main()
