@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 from pathlib import Path
 import time
 
@@ -11,7 +12,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-from matplotlib.colors import hsv_to_rgb
 import numpy as np
 
 from range_doppler_mf_bolide import bpsk, interpolate_rect, read_config, read_channel_files, rf_file_for_time
@@ -638,7 +638,20 @@ def plot_products(
     hsv_value_max_db: float,
     hsv_width_full_saturation_hz: float,
     hsv_width_zero_saturation_hz: float,
+    plot_start_unix: float | None,
+    presentation_font_scale: float,
 ) -> tuple[Path, ...]:
+    if presentation_font_scale != 1.0:
+        plt.rcParams.update(
+            {
+                "font.size": 11.0 * presentation_font_scale,
+                "axes.labelsize": 11.0 * presentation_font_scale,
+                "axes.titlesize": 12.0 * presentation_font_scale,
+                "xtick.labelsize": 9.5 * presentation_font_scale,
+                "ytick.labelsize": 9.5 * presentation_font_scale,
+                "legend.fontsize": 9.5 * presentation_font_scale,
+            }
+        )
     data = [load_product(p) for p in products]
     if plot_range_mode == "trajectory":
         limits = trajectory_range_limits(data, data_dir, trajectory_json, altitude_min_km, altitude_max_km, range_pad_km)
@@ -742,12 +755,13 @@ def plot_products(
 
     hsv_out = None
     if plot_hsv:
-        fig, axes = plt.subplots(len(data), 1, figsize=(13.5, 10), sharex=True)
-        fig.subplots_adjust(left=0.08, right=0.80, top=0.98, bottom=0.08, hspace=0.10)
+        fig, axes = plt.subplots(len(data), 1, figsize=(15, 10.5), sharex=True)
+        fig.subplots_adjust(left=0.09, right=0.80, top=0.98, bottom=0.10, hspace=0.10)
         if len(data) == 1:
             axes = [axes]
         for ax, d in zip(axes, data, strict=True):
             keep_r, ylim = crop_for_station(d, limits)
+            time_edges = unix_to_mpl(edges_from_centers(d["time_unix"], d["time_resolution_s"]))
             rgb = hsv_doppler_image(
                 d["snr_db"][:, keep_r],
                 d["peak_doppler_hz"][:, keep_r],
@@ -762,19 +776,28 @@ def plot_products(
                 origin="lower",
                 aspect="auto",
                 extent=[
-                    unix_to_mpl(edges_from_centers(d["time_unix"], d["time_resolution_s"]))[0],
-                    unix_to_mpl(edges_from_centers(d["time_unix"], d["time_resolution_s"]))[-1],
+                    time_edges[0],
+                    time_edges[-1],
                     edges_from_centers(d["range_km"][keep_r])[0],
                     edges_from_centers(d["range_km"][keep_r])[-1],
                 ],
                 interpolation="nearest",
             )
-            ax.set_ylabel(f"{short_station_name(d['station'])}\nrange (km)")
+            ax.set_ylabel(f"{short_station_name(d['station'])}\nRange (km)")
             ax.set_ylim(ylim)
             ax.grid(True, color="0.85", linewidth=0.35, alpha=0.5)
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+        if plot_start_unix is not None:
+            axes[-1].set_xlim(left=unix_to_mpl(np.asarray([plot_start_unix], dtype=float))[0])
         axes[-1].set_xlabel("UTC on 2026-05-30")
-        add_hsv_legend(fig, hsv_doppler_abs_hz, hsv_value_max_db, hsv_width_full_saturation_hz, hsv_width_zero_saturation_hz)
+        add_hsv_legend(
+            fig,
+            hsv_doppler_abs_hz,
+            hsv_value_max_db,
+            hsv_width_full_saturation_hz,
+            hsv_width_zero_saturation_hz,
+            presentation_font_scale,
+        )
         hsv_out = fig_dir / "trail_sparse_deconv_hsv_doppler_intensity.png"
         fig.savefig(hsv_out, dpi=220, bbox_inches="tight")
         plt.close(fig)
@@ -792,16 +815,25 @@ def hsv_doppler_image(
 ) -> np.ndarray:
     intensity_db = np.where(np.isfinite(intensity_db), intensity_db, 0.0)
     value = np.clip(intensity_db, 0.0, value_max_db) / float(value_max_db)
-    # Restrict Doppler hue to a blue-magenta-red ramp: redshift is red, blueshift is blue.
-    doppler_scaled = (np.clip(doppler_hz, -doppler_abs_hz, doppler_abs_hz) + doppler_abs_hz) / (2.0 * doppler_abs_hz)
-    hue = (2.0 / 3.0) + doppler_scaled / 3.0
-    hue = np.nan_to_num(hue, nan=0.5)
+    # Presentation RGB ramp: negative Doppler is blue, near-zero is green,
+    # and positive Doppler is red.
+    doppler_scaled = np.clip(doppler_hz / float(doppler_abs_hz), -1.0, 1.0)
+    doppler_scaled = np.nan_to_num(doppler_scaled, nan=0.0)
+    blue = np.asarray([0.05, 0.23, 0.95])
+    green = np.asarray([0.05, 0.70, 0.15])
+    red = np.asarray([0.95, 0.06, 0.04])
+    rgb = np.empty(doppler_scaled.shape + (3,), dtype=float)
+    neg = doppler_scaled < 0.0
+    neg_alpha = np.abs(doppler_scaled[..., None])
+    pos_alpha = doppler_scaled[..., None]
+    rgb[neg] = (1.0 - neg_alpha[neg]) * green + neg_alpha[neg] * blue
+    rgb[~neg] = (1.0 - pos_alpha[~neg]) * green + pos_alpha[~neg] * red
     width = np.nan_to_num(width_hz, nan=width_zero_saturation_hz, posinf=width_zero_saturation_hz)
     saturation = 1.0 - (width - width_full_saturation_hz) / max(width_zero_saturation_hz - width_full_saturation_hz, 1e-6)
     saturation = np.clip(saturation, 0.0, 1.0)
     saturation = np.where(value > 0.0, saturation, 0.0)
-    hsv = np.stack([hue, saturation, value], axis=-1)
-    return hsv_to_rgb(hsv)
+    gray = np.ones_like(rgb)
+    return value[..., None] * ((1.0 - saturation[..., None]) * gray + saturation[..., None] * rgb)
 
 
 def add_hsv_legend(
@@ -810,6 +842,7 @@ def add_hsv_legend(
     value_max_db: float,
     width_full_saturation_hz: float,
     width_zero_saturation_hz: float,
+    font_scale: float,
 ) -> None:
     ax = fig.add_axes([0.84, 0.17, 0.055, 0.66])
     d = np.linspace(-doppler_abs_hz, doppler_abs_hz, 160)
@@ -818,20 +851,35 @@ def add_hsv_legend(
     ww = np.full_like(dd, width_full_saturation_hz)
     rgb = hsv_doppler_image(vv, dd, ww, doppler_abs_hz, value_max_db, width_full_saturation_hz, width_zero_saturation_hz)
     ax.imshow(rgb, origin="lower", aspect="auto", extent=[-doppler_abs_hz, doppler_abs_hz, 0.0, value_max_db])
-    ax.set_xlabel("Hz", fontsize=9)
-    ax.set_ylabel("dB", fontsize=9)
-    ax.set_title("Hue/value", fontsize=9)
-    ax.tick_params(labelsize=8)
+    ax.set_xlabel("Hz", fontsize=9 * font_scale)
+    ax.set_ylabel("dB", fontsize=9 * font_scale)
+    ax.set_title("Doppler / power", fontsize=9 * font_scale)
+    ax.tick_params(labelsize=8 * font_scale)
     ax2 = fig.add_axes([0.93, 0.17, 0.025, 0.66])
     widths = np.linspace(width_zero_saturation_hz, width_full_saturation_hz, 220)
-    hsv = np.zeros((220, 1, 3), dtype=float)
-    hsv[:, :, 0] = 0.0
-    hsv[:, :, 1] = np.linspace(0.0, 1.0, 220)[:, None]
-    hsv[:, :, 2] = 1.0
-    ax2.imshow(hsv_to_rgb(hsv), origin="lower", aspect="auto", extent=[0.0, 1.0, width_zero_saturation_hz, width_full_saturation_hz])
+    rgb = np.zeros((220, 1, 3), dtype=float)
+    rgb[:, :, 0] = 1.0
+    rgb[:, :, 1] = np.linspace(1.0, 0.06, 220)[:, None]
+    rgb[:, :, 2] = np.linspace(1.0, 0.04, 220)[:, None]
+    ax2.imshow(rgb, origin="lower", aspect="auto", extent=[0.0, 1.0, width_zero_saturation_hz, width_full_saturation_hz])
     ax2.set_xticks([])
-    ax2.set_ylabel("width Hz", fontsize=9)
-    ax2.tick_params(labelsize=8)
+    ax2.set_ylabel("width Hz", fontsize=9 * font_scale)
+    ax2.tick_params(labelsize=8 * font_scale)
+
+
+def parse_plot_start(value: str | None) -> float | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if "T" not in text and len(text.split(":")) == 3:
+        text = f"2026-05-30T{text}"
+    text = text.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(text)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.timestamp()
 
 
 def main() -> None:
@@ -876,6 +924,8 @@ def main() -> None:
     p.add_argument("--hsv-value-max-db", type=float, default=25.0)
     p.add_argument("--hsv-width-full-saturation-hz", type=float, default=0.5)
     p.add_argument("--hsv-width-zero-saturation-hz", type=float, default=6.0)
+    p.add_argument("--plot-start", default=None, help="Left edge for plot-only time axis, e.g. 18:06:07 or 2026-05-30T18:06:07.")
+    p.add_argument("--presentation-font-scale", type=float, default=1.0)
     p.add_argument("--product-dir", default=str(DEFAULT_PRODUCT_DIR))
     p.add_argument("--fig-dir", default=str(DEFAULT_FIG_DIR))
     p.add_argument("--plot-only", action="store_true")
@@ -927,6 +977,8 @@ def main() -> None:
         args.hsv_value_max_db,
         args.hsv_width_full_saturation_hz,
         args.hsv_width_zero_saturation_hz,
+        parse_plot_start(args.plot_start),
+        args.presentation_font_scale,
     )
     for path in plot_paths:
         print(f"wrote {path}")

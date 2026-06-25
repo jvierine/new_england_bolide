@@ -9,6 +9,7 @@ import math
 import shutil
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -62,27 +63,29 @@ from fit_combined_head_trail_eci import (
     sigmas_from_snr_model,
     station_geometry,
 )
+from estimate_head_echo_trajectory import geodetic_to_ecef
 
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_HEAD_SELECTION = (
     ROOT
     / "reports"
-    / "head_echo_python_selection_v0p2p7_zp16"
+    / "head_echo_python_selection_v0p2p9_rdmf_txsteer_pol_rinterp4_zp16_3incoh_180618_180623"
     / "head_echo_python_measurement_selection.csv"
 )
-DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5"
-DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit_v0p2p7_zp16_neighbor0p5"
-DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit_v0p2p7_zp16_neighbor0p5"
-TRAJECTORY_FIT_VERSION = "0.2.7"
+DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh"
+DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit_v0p2p9_rinterp4_zp16_3incoh"
+DEFAULT_REPORT_TABLE_DIR = ROOT / "reports" / "appendix_correlated_fit_v0p2p9_rinterp4_zp16_3incoh"
+DEFAULT_PLOT_TRAIL_POSITIONS_H5 = [
+    ROOT / "reports" / "interactive_sparse_component_imager" / "beverly_trail_positions.h5",
+]
+TRAJECTORY_FIT_VERSION = "0.3.1"
 TRAJECTORY_FIT_VERSION_DESCRIPTION = (
-    "Selected head-echo correlated ballistic fit using v0.2.7 n_coh=1, "
-    "n_incoh=2, 16x-code FFT, sparse-fit residual voltage, global "
-    "complex-mean DC subtraction, Gaussian matched range-Doppler "
-    "measurements, and station-specific manual range/Doppler selections. "
-    "Only neighbouring selected head measurements within the same station "
-    "and observable are correlated; trail-position correlations require "
-    "temporal overlap and the same raw range gate."
+    "Selected head-echo correlated ballistic fit using trajectory-steered AoD "
+    "and polarization-matched RDMF measurements, one coherent code, three-code "
+    "incoherent integration, 4x range interpolation, 16x Doppler zero padding, "
+    "and station-specific manual range/Doppler selections; head covariance "
+    "includes all nonzero overlap lags from the 3-code incoherent average."
 )
 OMEGA_EARTH = 7.2921150e-5
 C = 299792458.0
@@ -92,6 +95,62 @@ FIXED_BODY_DIAMETER_M = 1.6
 FIXED_BODY_MASS_KG = 5000.0
 FIXED_BODY_CD = 1.0
 FIXED_BODY_DENSITY_KG_M3 = FIXED_BODY_MASS_KG / ((4.0 / 3.0) * math.pi * (0.5 * FIXED_BODY_DIAMETER_M) ** 3)
+
+
+def _h5_scalar(h: h5py.File, field: str, idx: int, default=np.nan):
+    if field not in h:
+        return default
+    value = h[field][idx]
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return value
+
+
+def load_display_trail_positions_h5(paths: list[Path], tx0: np.ndarray, rot: np.ndarray, max_height_km: float = 120.0) -> list[dict]:
+    rows: list[dict] = []
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Display trail-position HDF5 does not exist: {path}")
+        with h5py.File(path, "r") as h:
+            n = int(h.attrs.get("n_components", len(h["lat_deg"])))
+            for idx in range(n):
+                lat_deg = float(h["lat_deg"][idx])
+                lon_deg = float(h["lon_deg"][idx])
+                alt_m = float(h["alt_m"][idx])
+                alt_km = alt_m / 1000.0
+                if not all(np.isfinite(v) for v in (lat_deg, lon_deg, alt_m)):
+                    continue
+                if alt_km < 0.0 or alt_km > max_height_km:
+                    continue
+                time_unix = float(_h5_scalar(h, "time_unix", idx, np.nan))
+                if not np.isfinite(time_unix):
+                    continue
+                station = str(_h5_scalar(h, "station", idx, h.attrs.get("station", ""))).lower()
+                ecef = geodetic_to_ecef(lat_deg, lon_deg, alt_m)
+                axis_along_m = float(_h5_scalar(h, "blob_axis_length_along_m", idx, np.nan))
+                axis_cross_m = float(_h5_scalar(h, "blob_axis_length_cross_m", idx, np.nan))
+                alt_sigma_m = float(_h5_scalar(h, "centroid_alt_sigma_m", idx, np.nan))
+                finite_axes = [v for v in (axis_along_m, axis_cross_m) if np.isfinite(v) and v > 0.0]
+                horizontal_sigma_m = 0.5 * max(finite_axes) if finite_axes else np.nan
+                rows.append(
+                    {
+                        "station": station,
+                        "unix_time": time_unix,
+                        "time_unix": time_unix,
+                        "lat_deg": lat_deg,
+                        "lon_deg": lon_deg,
+                        "alt_m": alt_m,
+                        "position_ecef_m": ecef,
+                        "position_enu_m": (ecef - tx0) @ rot,
+                        "gcrs_ref_m": ecef_to_gcrs(ecef, time_unix),
+                        "snr_db": float(_h5_scalar(h, "snr_db_2hz", idx, np.nan)),
+                        "uncertainty": {
+                            "position_sigma_enu_m": [horizontal_sigma_m, horizontal_sigma_m, alt_sigma_m],
+                            "source": str(path),
+                        },
+                    }
+                )
+    return rows
 
 
 def fixed_cd_area_over_mass(args) -> float:
@@ -212,6 +271,19 @@ def coherent_incoherent_overlap_corr(
         return np.zeros_like(lag_codes, dtype=float)
     corr = np.vectorize(lambda lag: covariance_for_lag(int(lag)) / norm, otypes=[float])(lag_codes)
     return np.clip(corr, 0.0, 1.0)
+
+
+def head_overlap_correlation_by_lag(args) -> dict[str, float]:
+    max_lag = max(1, int(args.head_incoherent_spectra) * max(1, int(args.head_step_codes)) + int(args.head_coherent_codes) - 1)
+    lags = np.arange(1, max_lag + 1, dtype=float)
+    corr = coherent_incoherent_overlap_corr(
+        lags * float(args.code_period_s),
+        n_coh=args.head_coherent_codes,
+        n_incoh=args.head_incoherent_spectra,
+        step_codes=args.head_step_codes,
+        code_period_s=args.code_period_s,
+    )
+    return {str(int(lag)): float(val) for lag, val in zip(lags, corr, strict=True) if float(val) > 0.0}
 
 
 def fill_correlated_block(
@@ -357,6 +429,7 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
 
     diag_floor = np.maximum(np.abs(np.diag(cov)) * 1e-8, 1e-6)
     cov += np.diag(diag_floor)
+    head_lag_corr = head_overlap_correlation_by_lag(args)
     meta = {
         "n_residuals": int(n),
         "n_head_observations": int(n_head),
@@ -367,22 +440,18 @@ def build_measurement_covariance(obs: list[dict], trail_rows: list[dict], args) 
         "head_coherent_codes": int(args.head_coherent_codes),
         "head_incoherent_spectra": int(args.head_incoherent_spectra),
         "head_step_codes": int(args.head_step_codes),
-        "head_neighbor_correlation": float(
-            coherent_incoherent_overlap_corr(
-                np.array(args.head_step_codes * args.code_period_s),
-                n_coh=args.head_coherent_codes,
-                n_incoh=args.head_incoherent_spectra,
-                step_codes=args.head_step_codes,
-                code_period_s=args.code_period_s,
-            )
-        ),
+        "head_overlap_correlation_by_lag_codes": head_lag_corr,
+        "head_lag1_correlation": float(head_lag_corr.get("1", 0.0)),
+        "head_lag2_correlation": float(head_lag_corr.get("2", 0.0)),
+        "head_correlated_pairs": int(head_correlated_pairs),
+        "head_neighbor_correlation": float(head_lag_corr.get("1", 0.0)),
         "head_neighbor_correlated_pairs": int(head_correlated_pairs),
         "trail_coherent_codes": int(args.trail_coherent_codes),
         "code_period_s": float(args.code_period_s),
         "trail_correlation_range_gate_m": float(args.trail_correlation_range_gate_m),
         "trail_offdiag_correlated_pairs": int(trail_offdiag_correlated),
         "trail_offdiag_time_overlap_different_gate_pairs": int(trail_offdiag_same_time_different_gate),
-        "description": "Head range and Doppler residuals are selected independently. Within each station and observable, head correlations are computed from n_coh, n_incoh, step_codes, and code_period_s. Trail interferometric position correlations are retained only for measurements in the same raw range gate.",
+        "description": "Head range and Doppler residuals are selected independently. Within each station and observable, head correlations are computed from n_coh, n_incoh, step_codes, and code_period_s; this can include multiple nonzero lags for incoherent averages stepped by one code. Trail interferometric position correlations are retained only for measurements in the same raw range gate.",
     }
     return cov, meta
 
@@ -644,6 +713,7 @@ def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_met
         "% Auto-generated by fit_ballistic_head_trail_correlated_appendix.py\n",
         f"% trajectory_fit_version: {payload.get('trajectory_fit_version', 'unspecified')}\n",
         f"% trajectory_fit_version_description: {payload.get('trajectory_fit_version_description', 'unspecified')}\n",
+        f"\\newcommand{{\\CorrFitVersion}}{{{payload.get('trajectory_fit_version', 'unspecified')}}}\n",
         f"\\newcommand{{\\CorrFitNHead}}{{{payload['n_head_observations']}}}\n",
         f"\\newcommand{{\\CorrFitNHeadRange}}{{{cov_meta['n_head_range_measurements']}}}\n",
         f"\\newcommand{{\\CorrFitNHeadDoppler}}{{{cov_meta['n_head_doppler_measurements']}}}\n",
@@ -654,7 +724,10 @@ def write_appendix_summary(path: Path, payload: dict, old_payload: dict, cov_met
         f"\\newcommand{{\\CorrFitHeadIncoherentSpectra}}{{{cov_meta['head_incoherent_spectra']}}}\n",
         f"\\newcommand{{\\CorrFitHeadStepCodes}}{{{cov_meta['head_step_codes']}}}\n",
         f"\\newcommand{{\\CorrFitHeadNeighborCorrelation}}{{{fmt(cov_meta['head_neighbor_correlation'], 2)}}}\n",
+        f"\\newcommand{{\\CorrFitHeadLagOneCorrelation}}{{{fmt(cov_meta['head_lag1_correlation'], 2)}}}\n",
+        f"\\newcommand{{\\CorrFitHeadLagTwoCorrelation}}{{{fmt(cov_meta['head_lag2_correlation'], 2)}}}\n",
         f"\\newcommand{{\\CorrFitHeadNeighborPairs}}{{{cov_meta['head_neighbor_correlated_pairs']}}}\n",
+        f"\\newcommand{{\\CorrFitHeadCorrelatedPairs}}{{{cov_meta['head_correlated_pairs']}}}\n",
         f"\\newcommand{{\\CorrFitTrailCoherentCodes}}{{{cov_meta['trail_coherent_codes']}}}\n",
         f"\\newcommand{{\\CorrFitTrailCorrelationGateKm}}{{{fmt(cov_meta['trail_correlation_range_gate_m'] / 1000.0, 1)}}}\n",
         f"\\newcommand{{\\CorrFitTrailSameGatePairs}}{{{cov_meta['trail_offdiag_correlated_pairs']}}}\n",
@@ -1140,7 +1213,7 @@ def main() -> None:
             "implied by n_coh, n_incoh, step_codes, and code_period_s. "
             f"For the v{args.trajectory_fit_version} n_coh={args.head_coherent_codes}, "
             f"n_incoh={args.head_incoherent_spectra}, step_codes={args.head_step_codes} run, "
-            f"this reduces to adjacent-only rho={args.head_neighbor_correlation}. "
+            f"the nonzero head lag correlations by code lag are {cov_meta['head_overlap_correlation_by_lag_codes']}. "
             "Trail interferometric-position off-diagonal terms are retained only for same-station "
             "measurements in the same raw range gate; overlapping measurements in different raw 3 km "
             "range gates are treated as uncorrelated. Parameter covariance is the standard linearized "
@@ -1173,8 +1246,33 @@ def main() -> None:
     )
 
     tx0, rot = transmitter_local_frame(geom)
+    display_trail_rows = None
+    if args.plot_trail_positions_h5:
+        display_trail_rows = load_display_trail_positions_h5(args.plot_trail_positions_h5, tx0, rot)
+        print(
+            f"Using {len(display_trail_rows)} GUI-derived trail position(s) for paper plot overlays",
+            flush=True,
+        )
+        if display_trail_rows:
+            args.fragment_breakup_alt_km = float(np.nanmin([r["alt_m"] for r in display_trail_rows]) / 1000.0)
+            print(
+                f"Using lowest GUI-derived trail position altitude {args.fragment_breakup_alt_km:.3f} km "
+                "as the fragment-breakup altitude for the impact extrapolation",
+                flush=True,
+            )
     impact_plot = args.out_dir / "ballistic_head_trail_correlated_impact_map.png"
-    impact_payload = plot_impact_map(impact_plot, payload, xhat, cov_params, obs, trail_rows, t_ref, density_profile, args)
+    impact_payload = plot_impact_map(
+        impact_plot,
+        payload,
+        xhat,
+        cov_params,
+        obs,
+        trail_rows,
+        t_ref,
+        density_profile,
+        args,
+        display_trail_rows=display_trail_rows,
+    )
     payload["fragment_impact"] = impact_payload
     (args.out_dir / "ballistic_head_trail_correlated_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
@@ -1191,10 +1289,47 @@ def main() -> None:
     plot_head_echo_residual_diagnostics(head_residual_plot, xhat, obs, t_ref, density_profile, args)
     payload["head_snr_error_models"] = plot_head_snr_error_model(head_snr_plot, xhat, obs, t_ref, density_profile, args)
     (args.out_dir / "ballistic_head_trail_correlated_fit.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    plot_station_measurement_ballistic_overview(overview_plot, xhat, obs, trail_rows, geom, t_ref, density_profile, impact_payload, args)
+    plot_station_measurement_ballistic_overview(
+        overview_plot,
+        xhat,
+        obs,
+        trail_rows,
+        geom,
+        t_ref,
+        density_profile,
+        impact_payload,
+        args,
+        display_trail_rows=display_trail_rows,
+    )
     plot_measurement_correlation_overview(correlation_plot, xhat, obs, trail_rows, geom, t_ref, density_profile, args)
-    plot_altitude_enu(altitude_plot, payload, trail_rows, tx0, rot, t_ref, impact_payload=impact_payload, params=xhat, cov=cov_params, obs=obs, density_profile=density_profile, args=args)
-    plot_lonlat_height(lonlat_plot, payload, xhat, cov_params, obs, trail_rows, t_ref, t_model, density_profile, args)
+    plot_altitude_enu(
+        altitude_plot,
+        payload,
+        trail_rows,
+        tx0,
+        rot,
+        t_ref,
+        impact_payload=impact_payload,
+        params=xhat,
+        cov=cov_params,
+        obs=obs,
+        density_profile=density_profile,
+        args=args,
+        display_trail_rows=display_trail_rows,
+    )
+    plot_lonlat_height(
+        lonlat_plot,
+        payload,
+        xhat,
+        cov_params,
+        obs,
+        trail_rows,
+        t_ref,
+        t_model,
+        density_profile,
+        args,
+        display_trail_rows=display_trail_rows,
+    )
     plot_trail_position_error_debug(trail_error_plot, payload, trail_rows, t_ref, tx0, rot)
     plot_trail_aod_angle_error_debug(trail_angle_plot, payload, trail_rows, t_ref, tx0, rot)
     for plot in [impact_plot, overview_plot, range_doppler_plot, head_residual_plot, altitude_plot, lonlat_plot, correlation_plot, head_snr_plot, trail_error_plot, trail_angle_plot]:
@@ -1213,6 +1348,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--head-selection-csv", type=Path, default=DEFAULT_HEAD_SELECTION)
     p.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     p.add_argument("--trail-json", type=Path, default=DEFAULT_TRAIL)
+    p.add_argument("--plot-trail-positions-h5", type=Path, nargs="*", default=DEFAULT_PLOT_TRAIL_POSITIONS_H5)
     p.add_argument("--initial-ballistic-json", type=Path, default=ROOT / "products" / "ballistic_head_trail_fit" / "ballistic_initial_state.json")
     p.add_argument("--combined-fit-json", type=Path, default=DEFAULT_COMBINED_FIT)
     p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
@@ -1221,7 +1357,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--trajectory-fit-version", default=TRAJECTORY_FIT_VERSION)
     p.add_argument("--trajectory-fit-version-description", default=TRAJECTORY_FIT_VERSION_DESCRIPTION)
     p.add_argument("--head-coherent-codes", type=int, default=1)
-    p.add_argument("--head-incoherent-spectra", type=int, default=2)
+    p.add_argument("--head-incoherent-spectra", type=int, default=3)
     p.add_argument("--head-step-codes", type=int, default=1)
     p.add_argument("--head-neighbor-correlation", type=float, default=0.5)
     p.add_argument("--trail-coherent-codes", type=int, default=8)
@@ -1234,6 +1370,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model-padding-s", type=float, default=0.8)
     p.add_argument("--model-dt-s", type=float, default=0.10)
     p.add_argument("--fragment-breakup-alt-km", type=float, default=30.0)
+    p.add_argument("--terminus-marker-alt-km", type=float, default=33.61)
     p.add_argument("--body-diameter-m", type=float, default=FIXED_BODY_DIAMETER_M)
     p.add_argument("--body-mass-kg", type=float, default=FIXED_BODY_MASS_KG)
     p.add_argument("--body-cd", type=float, default=FIXED_BODY_CD)

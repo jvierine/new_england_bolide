@@ -1,25 +1,30 @@
-% trajectory_fit_version: 0.2.1
-% trajectory_fit_version_description: Selected head-echo correlated ballistic fit with mutual correlations within head-echo and trail-echo measurements. Head-echo correlations follow coherent-integration overlap in time; trail-position correlations require temporal overlap and the same raw range gate, with different range gates treated as uncorrelated.
+% trajectory_fit_version: 0.3.1
+% trajectory_fit_version_description: Selected head-echo correlated ballistic fit using trajectory-steered AoD and polarization-matched RDMF measurements, one coherent code, three-code incoherent integration, 4x range interpolation, 16x Doppler zero padding, and station-specific manual range/Doppler selections; head covariance includes all nonzero overlap lags from the 3-code incoherent average.
 \begin{tabular}{llrl}
 \toprule
-Quantity & Symbol & Unit & Estimate {\footnotesize (v0.2.1)} \\
+Quantity & Symbol & Unit & Estimate {\footnotesize (v0.3.1)} \\
 \midrule
-Semimajor axis & $a$ & AU & 3.27 $\pm$ 0.76 \\
-Perihelion distance & $q$ & AU & 0.645 $\pm$ 0.014 \\
-Aphelion distance & $Q$ & AU & 5.89 $\pm$ 1.51 \\
-Eccentricity & $e$ &  & 0.794 $\pm$ 0.040 \\
-Inclination & $i$ & deg & 18.4 $\pm$ 0.7 \\
-Argument of perihelion & $\omega$ & deg & 100.2 $\pm$ 2.3 \\
-Longitude of ascending node & $\Omega$ & deg & 68.9927 $\pm$ 0.0006 \\
-True anomaly at epoch & $\nu$ & deg & 79.0 $\pm$ 2.3 \\
-Geocentric speed & $v_g$ & km s$^{-1}$ & 23.59 $\pm$ 0.89 \\
-Tisserand parameter with respect to Jupiter & $T_J$ &  & 2.56 $\pm$ 0.32 \\
-Corrected radiant right ascension & RA & deg & 63.95 $\pm$ 1.05 \\
-Corrected radiant declination & Dec & deg & 46.7 $\pm$ 1.1 \\
-Entry latitude at 100 km & $\phi_{100}$ & deg & 41.98 \\
-Entry longitude at 100 km & $\lambda_{100}$ & deg & -70.65 \\
-Entry azimuth at 100 km & $A_{100}$ & deg & 115.0 \\
-Entry elevation at 100 km & $E_{100}$ & deg & -73.3 \\
-Entry epoch at 100 km & $t_{100}$ & UTC & 2026-05-30 18:06:19.625 \\
+Semimajor axis & $a$ & AU & 2.44 $\pm$ 0.10 \\
+Perihelion distance & $q$ & AU & 0.6045 $\pm$ 0.0030 \\
+Aphelion distance & $Q$ & AU & 4.27 $\pm$ 0.20 \\
+Eccentricity & $e$ &  & 0.752 $\pm$ 0.010 \\
+Inclination & $i$ & deg & 19.21 $\pm$ 0.18 \\
+Argument of perihelion & $\omega$ & deg & 93.4 $\pm$ 0.6 \\
+Longitude of ascending node & $\Omega$ & deg & 68.99209 $\pm$ 0.00016 \\
+True anomaly at epoch & $\nu$ & deg & 85.9 $\pm$ 0.6 \\
+Tisserand parameter with respect to Jupiter & $T_J$ &  & 2.99 $\pm$ 0.08 \\
+Corrected radiant right ascension & RA & deg & 59.12 $\pm$ 0.34 \\
+Corrected radiant declination & Dec & deg & 45.85 $\pm$ 0.18 \\
+Time at 100 km & $t_{100}$ & UTC & 2026-05-30 18:06:19.819 UTC \\
+Geodetic latitude at 100 km & $\phi_{100}$ & deg & 41.99 \\
+Geodetic longitude at 100 km & $\lambda_{100}$ & deg & -70.69 \\
+Entry azimuth at 100 km & Az$_{100}$ & deg & 111.4 \\
+Entry elevation at 100 km & El$_{100}$ & deg & -70.2 \\
+Ground-relative speed at 100 km & $v_{100}$ & km s$^{-1}$ & 26.00 \\
+Terminus altitude & $h_\mathrm{term}$ & km & 33.61 \\
+Terminus geodetic latitude & $\phi_\mathrm{term}$ & deg & 41.9105 \\
+Terminus geodetic longitude & $\lambda_\mathrm{term}$ & deg & -70.4202 \\
+Terminus azimuth, velocity at 100 km & Az$_\mathrm{term}$ & deg & 111.6 \\
+Terminus elevation, velocity at 100 km & El$_\mathrm{term}$ & deg & -70.0 \\
 \bottomrule
 \end{tabular}

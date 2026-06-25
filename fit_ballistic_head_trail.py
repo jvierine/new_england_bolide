@@ -81,6 +81,36 @@ def add_version_stamp(ax, version: str | None) -> None:
     )
 
 
+def llh_at_altitude(llh: np.ndarray, altitude_km: float) -> tuple[float, float] | None:
+    alt_km = np.asarray(llh[:, 2], dtype=float) / 1000.0
+    order = np.argsort(alt_km)
+    if altitude_km < np.nanmin(alt_km) or altitude_km > np.nanmax(alt_km):
+        return None
+    lat_at_alt = float(np.interp(altitude_km, alt_km[order], llh[order, 0]))
+    lon_at_alt = float(np.interp(altitude_km, alt_km[order], llh[order, 1]))
+    return lat_at_alt, lon_at_alt
+
+
+def plot_terminus_marker(ax, llh: np.ndarray, args, data_crs, *, size: float, zorder: float, label: str | None = None) -> None:
+    altitude_km = float(getattr(args, "terminus_marker_alt_km", 33.61))
+    point = llh_at_altitude(llh, altitude_km)
+    if point is None:
+        return
+    lat_at_alt, lon_at_alt = point
+    ax.scatter(
+        lon_at_alt,
+        lat_at_alt,
+        s=size,
+        marker="o",
+        color="C1",
+        edgecolors="k",
+        linewidths=0.65,
+        transform=data_crs,
+        zorder=zorder,
+        label=label or f"terminus ({altitude_km:.2f} km)",
+    )
+
+
 def iso_utc(t: float) -> str:
     return datetime.fromtimestamp(float(t), UTC).isoformat().replace("+00:00", "Z")
 
@@ -295,6 +325,16 @@ def residuals_delta(delta, base_state, obs, trail_rows, t_ref, t_model, density_
     return residuals(parameters_from_delta(delta, base_state), obs, trail_rows, t_ref, t_model, density_profile, args)
 
 
+def json_setting_value(value):
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return [json_setting_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(k): json_setting_value(v) for k, v in value.items()}
+    return value
+
+
 def write_json(path: Path, result, params, obs, trail_rows, t_ref, t_model, density_profile, args):
     pos_model, vel_model = propagate_state(params, t_model, t_ref, density_profile, use_drag=not args.no_drag)
     speed = np.linalg.norm(vel_model, axis=1)
@@ -327,7 +367,7 @@ def write_json(path: Path, result, params, obs, trail_rows, t_ref, t_model, dens
             "median": float(np.median(np.linalg.norm(trail_vec, axis=1))),
             "p95": float(np.percentile(np.linalg.norm(trail_vec, axis=1), 95.0)),
         },
-        "settings": {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
+        "settings": {k: json_setting_value(v) for k, v in vars(args).items()},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(out, indent=2), encoding="utf-8")
@@ -513,6 +553,7 @@ def impact_summary(nominal: dict, impact_samples: list[dict], t_ref: float, args
         "nominal_impact_utc": iso_utc(nominal["t_impact_unix"]),
         "nominal_breakup_unix": float(nominal["t_break_unix"]),
         "nominal_breakup_utc": iso_utc(nominal["t_break_unix"]),
+        "breakup_alt_km": float(args.fragment_breakup_alt_km),
         "nominal_fall_duration_s": float(nominal["t_impact_unix"] - nominal["t_break_unix"]),
         "nominal_diameter_m": float(nominal["fragment_diameter_m"]),
         "nominal_impact_speed_mps": float(nominal["impact_speed_mps"]),
@@ -531,6 +572,7 @@ def impact_summary(nominal: dict, impact_samples: list[dict], t_ref: float, args
 
 def write_fragment_impact_table(path: Path, summary: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    breakup_alt_km = float(summary.get("breakup_alt_km", 30.0))
 
     def interval(values, fmt: str) -> str:
         lo, med, hi = values
@@ -539,7 +581,7 @@ def write_fragment_impact_table(path: Path, summary: dict) -> None:
     t_lo, t_med, t_hi = summary["impact_time_percentile_unix"]
     text = rf"""\begin{{table}}[ht]
   \centering
-  \caption{{Sea-level impact estimate for the nominal 10 cm fragment and for fragment diameters sampled between 1 and 100 cm.  The sampled interval includes the linearized ballistic fit covariance and the unknown post-30 km fragment size at fixed density \(3000\ \mathrm{{kg\,m^{{-3}}}}\).}}
+  \caption{{Sea-level impact estimate for the nominal 10 cm fragment and for fragment diameters sampled between 1 and 100 cm.  The sampled interval includes the linearized ballistic fit covariance and the unknown post-\({breakup_alt_km:.2f}~\mathrm{{km}}\) fragment size at fixed density \(3000\ \mathrm{{kg\,m^{{-3}}}}\).}}
   \label{{tab:fragment-impact}}
   \resizebox{{\linewidth}}{{!}}{{%
   \begin{{tabular}}{{lll}}
@@ -549,7 +591,7 @@ def write_fragment_impact_table(path: Path, summary: dict) -> None:
     Latitude (deg) & {summary["nominal_lat_deg"]:.4f} & {interval(summary["lat_percentile_deg"], "{:.4f}")} \\
     Longitude (deg) & {summary["nominal_lon_deg"]:.4f} & {interval(summary["lon_percentile_deg"], "{:.4f}")} \\
     Sea-level time (UTC) & {table_utc(summary["nominal_impact_unix"])} & {table_utc(t_med)} [{table_utc(t_lo)}, {table_utc(t_hi)}] \\
-    Fall time below 30 km (s) & {summary["nominal_fall_duration_s"]:.0f} & {interval(summary["fall_duration_percentile_s"], "{:.0f}")} \\
+    Fall time below {breakup_alt_km:.2f} km (s) & {summary["nominal_fall_duration_s"]:.0f} & {interval(summary["fall_duration_percentile_s"], "{:.0f}")} \\
     Impact speed (m s$^{{-1}}$) & {summary["nominal_impact_speed_mps"]:.0f} & {interval(summary["impact_speed_percentile_mps"], "{:.0f}")} \\
     Fragment diameter (cm) & {100.0 * summary["nominal_diameter_m"]:.1f} & {interval([100.0 * x for x in summary["diameter_percentile_m"]], "{:.1f}")} \\
     \bottomrule
@@ -619,12 +661,14 @@ def write_initial_state_table_from_json(json_path: Path, tex_path: Path) -> None
 
     time_utc = payload["time_utc"].replace("T", " ").replace("Z", " UTC")
     mjd2000 = payload["time_mjd2000_days_utc"]
+    fit_version = payload.get("trajectory_fit_version", "unspecified")
+    version_phrase = f" for fit version v{fit_version}" if fit_version != "unspecified" else ""
     lines = [
-        f"% trajectory_fit_version: {payload.get('trajectory_fit_version', 'unspecified')}\n",
+        f"% trajectory_fit_version: {fit_version}\n",
         f"% trajectory_fit_version_description: {payload.get('trajectory_fit_version_description', 'unspecified')}\n",
         "\\begin{table}\n",
         "  \\centering\n",
-        f"  \\caption{{Initial GCRS state used for orbit propagation at {time_utc} (MJD2000 UTC {mjd2000:.8f}), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}})$; covariance entries use the corresponding unit products.}}\n",
+        f"  \\caption{{Initial GCRS state used for orbit propagation{version_phrase} at {time_utc} (MJD2000 UTC {mjd2000:.8f}), 4 s before the first retained head echo.  State order is $(x,y,z,v_x,v_y,v_z)$ with SI units $(\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}},\\mathrm{{m\\,s^{{-1}}}})$; covariance entries use the corresponding unit products.}}\n",
         "  \\label{tab:ballistic-initial-state}\n",
         "  \\begingroup\n",
         "  \\small\n",
@@ -670,23 +714,25 @@ def plot_altitude_enu(
     obs: list[dict] | None = None,
     density_profile: dict | None = None,
     args=None,
+    display_trail_rows: list[dict] | None = None,
 ):
     model = payload["model"]
     t = np.array(model["time_unix"], dtype=float)
     pos = np.array(model["position_gcrs_m"], dtype=float)
     enu = np.array([(gcrs_to_ecef(p, tt) - tx0) @ rot for p, tt in zip(pos, t, strict=True)]) / 1000.0
     alt = np.array(model["alt_m"], dtype=float) / 1000.0
+    plot_trail_rows = display_trail_rows if display_trail_rows is not None else trail_rows
     tau = []
-    for r in trail_rows:
+    for r in plot_trail_rows:
         d2 = np.sum((pos - np.asarray(r["gcrs_ref_m"], dtype=float)[None, :]) ** 2, axis=1)
         tau.append(t[int(np.argmin(d2))] - t_ref)
     tau = np.asarray(tau)
-    trail_enu = np.array([r["position_enu_m"] for r in trail_rows], dtype=float) / 1000.0
-    trail_alt = np.array([r["alt_m"] for r in trail_rows], dtype=float) / 1000.0
+    trail_enu = np.array([r["position_enu_m"] for r in plot_trail_rows], dtype=float) / 1000.0
+    trail_alt = np.array([r["alt_m"] for r in plot_trail_rows], dtype=float) / 1000.0
     trail_sigma_enu = np.array(
         [
             (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
-            for r in trail_rows
+            for r in plot_trail_rows
         ],
         dtype=float,
     ) / 1000.0
@@ -1000,6 +1046,7 @@ def plot_impact_map(
     t_ref: float,
     density_profile: dict,
     args,
+    display_trail_rows: list[dict] | None = None,
 ) -> dict:
     try:
         if "readline" not in sys.modules:
@@ -1052,7 +1099,8 @@ def plot_impact_map(
         np.array(model["lon_deg"], dtype=float),
         np.array(model["alt_m"], dtype=float),
     ])
-    min_trail_alt_m = float(np.nanmin([r["alt_m"] for r in trail_rows]))
+    plot_trail_rows = display_trail_rows if display_trail_rows is not None else trail_rows
+    min_trail_alt_m = float(np.nanmin([r["alt_m"] for r in plot_trail_rows]))
     fit_to_lowest = model_llh[:, 2] >= min_trail_alt_m
     t_head = np.array([o["unix_time"] for o in obs], dtype=float)
     head_pos, _head_vel = propagate_state(params, t_head, t_ref, density_profile, use_drag=not args.no_drag)
@@ -1062,12 +1110,12 @@ def plot_impact_map(
     fig = plt.figure(figsize=(9.2, 7.4), constrained_layout=True)
     ax = fig.add_subplot(1, 1, 1, projection=data_crs) if data_crs else fig.add_subplot(1, 1, 1)
 
-    trail_lon = np.array([r["lon_deg"] for r in trail_rows], dtype=float)
-    trail_lat = np.array([r["lat_deg"] for r in trail_rows], dtype=float)
+    trail_lon = np.array([r["lon_deg"] for r in plot_trail_rows], dtype=float)
+    trail_lat = np.array([r["lat_deg"] for r in plot_trail_rows], dtype=float)
     trail_sigma_enu_m = np.array(
         [
             (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
-            for r in trail_rows
+            for r in plot_trail_rows
         ],
         dtype=float,
     )
@@ -1141,6 +1189,7 @@ def plot_impact_map(
         transform=data_crs,
         label="ballistic fit to lowest trail echo",
     )
+    plot_terminus_marker(ax, model_llh, args, data_crs, size=78, zorder=9)
     ax.plot(nominal["fragment_llh"][:, 1], nominal["fragment_llh"][:, 0], color="C1", lw=2.5, transform=data_crs, label="10 cm fragment path")
     ax.scatter(
         nominal["impact_llh"][1],
@@ -1172,6 +1221,9 @@ def plot_impact_map(
             for path in impact_samples
         ],
         "summary": summary,
+        "display_trail_position_source": "plot_trail_positions_h5" if display_trail_rows is not None else "fit_trail_rows",
+        "display_trail_position_count": int(len(plot_trail_rows)),
+        "display_trail_min_alt_km": float(min_trail_alt_m / 1000.0),
     }
 
 
@@ -1207,6 +1259,7 @@ def plot_station_measurement_ballistic_overview(
     density_profile: dict,
     impact_payload: dict,
     args,
+    display_trail_rows: list[dict] | None = None,
 ) -> None:
     try:
         if "readline" not in sys.modules:
@@ -1224,11 +1277,12 @@ def plot_station_measurement_ballistic_overview(
     t_head = np.array([o["unix_time"] for o in obs], dtype=float)
     head_pos, _head_vel = propagate_state(params, t_head, t_ref, density_profile, use_drag=not args.no_drag)
     head_llh = geodetic_path_from_states(head_pos, t_head)
+    plot_trail_rows = display_trail_rows if display_trail_rows is not None else trail_rows
     trail_llh = np.column_stack(
         [
-            np.array([r["lat_deg"] for r in trail_rows], dtype=float),
-            np.array([r["lon_deg"] for r in trail_rows], dtype=float),
-            np.array([r["alt_m"] for r in trail_rows], dtype=float),
+            np.array([r["lat_deg"] for r in plot_trail_rows], dtype=float),
+            np.array([r["lon_deg"] for r in plot_trail_rows], dtype=float),
+            np.array([r["alt_m"] for r in plot_trail_rows], dtype=float),
         ]
     )
     _t_ballistic, ballistic_llh = ballistic_llh_from_altitude(params, t_ref, density_profile, args, start_alt_km=300.0)
@@ -1336,6 +1390,7 @@ def plot_station_measurement_ballistic_overview(
         zorder=6,
         label="ballistic fit, 300 km to 30 km",
     )
+    plot_terminus_marker(ax, ballistic_llh, args, data_crs, size=145, zorder=9)
     alt_label_offsets = {
         300: (-0.30, -0.27),
         200: (-0.21, -0.225),
@@ -1434,18 +1489,20 @@ def plot_lonlat_height(
     t_model: np.ndarray,
     density_profile: dict,
     args,
+    display_trail_rows: list[dict] | None = None,
 ) -> None:
     model = payload["model"]
     lon = np.array(model["lon_deg"], dtype=float)
     lat = np.array(model["lat_deg"], dtype=float)
     alt = np.array(model["alt_m"], dtype=float) / 1000.0
-    trail_lon = np.array([r["lon_deg"] for r in trail_rows], dtype=float)
-    trail_lat = np.array([r["lat_deg"] for r in trail_rows], dtype=float)
-    trail_alt = np.array([r["alt_m"] for r in trail_rows], dtype=float) / 1000.0
+    plot_trail_rows = display_trail_rows if display_trail_rows is not None else trail_rows
+    trail_lon = np.array([r["lon_deg"] for r in plot_trail_rows], dtype=float)
+    trail_lat = np.array([r["lat_deg"] for r in plot_trail_rows], dtype=float)
+    trail_alt = np.array([r["alt_m"] for r in plot_trail_rows], dtype=float) / 1000.0
     trail_sigma_enu_m = np.array(
         [
             (r.get("uncertainty") or {}).get("position_sigma_enu_m", [np.nan, np.nan, np.nan])
-            for r in trail_rows
+            for r in plot_trail_rows
         ],
         dtype=float,
     )

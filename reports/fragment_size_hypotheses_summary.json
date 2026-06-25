@@ -1,20 +1,33 @@
 {
   "source_program": "reports/plot_fragment_size_hypotheses.py",
-  "trajectory": "products/ballistic_head_trail_correlated_fit_v0p2p8_rinterp4_zp16/ballistic_head_trail_correlated_fit.json",
+  "trajectory": "products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json",
   "trail_positions_h5": [
     "reports/interactive_sparse_component_imager/beverly_trail_positions.h5"
   ],
   "figure": "reports/figures/fragment_size_hypotheses.png",
   "launch": {
-    "time_unix": 1780164380.2361505,
-    "time_utc": "2026-05-30T18:06:20.236151Z",
+    "time_unix": 1780164380.2280746,
+    "time_utc": "2026-05-30T18:06:20.228075Z",
     "altitude_km": 90.0,
     "density_kg_m3": 4.565150135796375e-06,
-    "inertial_speed_km_s": 26.993346231125606,
-    "air_relative_speed_km_s": 26.884897557679384
+    "inertial_speed_km_s": 26.118729732507763,
+    "air_relative_speed_km_s": 26.00574773907035
   },
   "marker_time_unix": 1780164383.0,
   "marker_time_utc": "2026-05-30T18:06:23Z",
+  "terminus_marker": {
+    "time_unix": 1780164382.5533504,
+    "time_utc": "2026-05-30T18:06:22.553350Z",
+    "lat_deg": 41.91052653444951,
+    "lon_deg": -70.42016016213157,
+    "alt_km": 33.60999263663031,
+    "velocity_reference_alt_km": 100.0,
+    "velocity_azimuth_deg": 111.61498096598206,
+    "velocity_elevation_deg": -69.97442412103644,
+    "ground_referenced_speed_km_s": 26.002365961455585,
+    "air_relative_speed_km_s": 24.351078762229662,
+    "dynamic_pressure_mpa": 3.410610925771915
+  },
   "millstone_elevation_height_km": {
     "0": 0.9093969117582383,
     "15": 37.14370650635649,
@@ -32,74 +45,92 @@
       "diameter_m": 10.0,
       "mass_kg": 1570796.3267948965,
       "cd_area_over_mass_m2_kg": 5e-05,
-      "final_height_km": 0.7203424444543198,
-      "final_air_relative_speed_km_s": 16.022474364691828,
-      "final_lat_deg": 41.863955975597655,
-      "final_lon_deg": -70.29948398939288,
+      "final_height_km": 2.826506813018583,
+      "final_air_relative_speed_km_s": 16.571565469050334,
+      "final_lat_deg": 41.87329632599847,
+      "final_lon_deg": -70.29465871626078,
       "marker": {
-        "lat_deg": 41.88925131847964,
-        "lon_deg": -70.37591877791566,
-        "alt_km": 20.281286451380506,
-        "air_relative_speed_km_s": 25.512047609573266,
-        "dynamic_pressure_mpa": 24.200732421666057
+        "lat_deg": 41.89713740963979,
+        "lon_deg": -70.37495705260254,
+        "alt_km": 22.491133039891206,
+        "air_relative_speed_km_s": 25.01568311777423,
+        "dynamic_pressure_mpa": 17.284109065631746
       },
-      "final_dynamic_pressure_mpa": 142.27059894660613,
+      "final_dynamic_pressure_mpa": 113.59050032609183,
       "reached_sea_level": true
     },
     {
       "diameter_m": 1.0,
       "mass_kg": 1570.7963267948965,
       "cd_area_over_mass_m2_kg": 0.0005,
-      "final_height_km": 0.008541824686340987,
-      "final_air_relative_speed_km_s": 0.21492328378321574,
-      "final_lat_deg": 41.86442708290927,
-      "final_lon_deg": -70.30083424688232,
+      "final_height_km": 0.031396919957362115,
+      "final_air_relative_speed_km_s": 0.21212131233588208,
+      "final_lat_deg": 41.87127388200187,
+      "final_lon_deg": -70.2877862873579,
       "marker": {
-        "lat_deg": 41.89253500524201,
-        "lon_deg": -70.38585601721216,
-        "alt_km": 22.83192706844457,
-        "air_relative_speed_km_s": 18.61388942114077,
-        "dynamic_pressure_mpa": 8.875380488721152
+        "lat_deg": 41.89957410761976,
+        "lon_deg": -70.38317739554984,
+        "alt_km": 24.510052092835505,
+        "air_relative_speed_km_s": 19.391465754409744,
+        "dynamic_pressure_mpa": 7.633582376508734
       },
-      "final_dynamic_pressure_mpa": 0.028259065523304115,
+      "final_dynamic_pressure_mpa": 0.027439796294219665,
       "reached_sea_level": true
     },
     {
       "diameter_m": 0.1,
       "mass_kg": 1.5707963267948968,
       "cd_area_over_mass_m2_kg": 0.005,
-      "final_height_km": 0.012930429738014936,
-      "final_air_relative_speed_km_s": 0.05659280825071871,
-      "final_lat_deg": 41.88827954601612,
-      "final_lon_deg": -70.37195056864847,
+      "final_height_km": 0.0021718353759497405,
+      "final_air_relative_speed_km_s": 0.056591365791640334,
+      "final_lat_deg": 41.89366188262386,
+      "final_lon_deg": -70.36211313645478,
       "marker": {
-        "lat_deg": 41.903328767640964,
-        "lon_deg": -70.41854664191398,
-        "alt_km": 31.236300119266545,
-        "air_relative_speed_km_s": 8.595649407983263,
-        "dynamic_pressure_mpa": 0.5901666997554981
+        "lat_deg": 41.90864502608485,
+        "lon_deg": -70.41380280213697,
+        "alt_km": 32.04254549730226,
+        "air_relative_speed_km_s": 9.349915129188982,
+        "dynamic_pressure_mpa": 0.6234975939330366
       },
-      "final_dynamic_pressure_mpa": 0.0019581620824741055,
+      "final_dynamic_pressure_mpa": 0.001960990283036675,
       "reached_sea_level": true
     },
     {
       "diameter_m": 0.01,
       "mass_kg": 0.0015707963267948969,
       "cd_area_over_mass_m2_kg": 0.04999999999999999,
-      "final_height_km": 0.003863199050538242,
-      "final_air_relative_speed_km_s": 0.017895133487011116,
-      "final_lat_deg": 41.90979569082632,
-      "final_lon_deg": -70.43638208512183,
+      "final_height_km": 0.0009452049741521478,
+      "final_air_relative_speed_km_s": 0.017896009365360777,
+      "final_lat_deg": 41.91386029479654,
+      "final_lon_deg": -70.4294806866889,
       "marker": {
-        "lat_deg": 41.9198081295378,
-        "lon_deg": -70.46853231902352,
-        "alt_km": 44.126151690359336,
-        "air_relative_speed_km_s": 4.014050492739976,
-        "dynamic_pressure_mpa": 0.021515264903209066
+        "lat_deg": 41.92359180149467,
+        "lon_deg": -70.46434607265829,
+        "alt_km": 44.50992292850707,
+        "air_relative_speed_km_s": 4.261933620032904,
+        "dynamic_pressure_mpa": 0.02299555935088904
       },
-      "final_dynamic_pressure_mpa": 0.00019603921491414365,
+      "final_dynamic_pressure_mpa": 0.00019613787974242088,
       "reached_sea_level": true
     }
   ],
-  "n_components": 56
+  "n_components": 56,
+  "lowest_altitude_blob": {
+    "station": "beverly",
+    "blob_lat_deg": 41.904095208654255,
+    "blob_lon_deg": -70.43868050162321,
+    "blob_alt_km": 33.60797690345068,
+    "meteor_at_blob_altitude": {
+      "time_unix": 1780164382.553438,
+      "time_utc": "2026-05-30T18:06:22.553438Z",
+      "lat_deg": 41.91052411035407,
+      "lon_deg": -70.42015194144483,
+      "alt_km": 33.60797444767784,
+      "velocity_reference_alt_km": 100.0,
+      "velocity_azimuth_deg": 111.61498640759066,
+      "velocity_elevation_deg": -69.97441706604015,
+      "ground_referenced_speed_km_s": 26.002365960260942,
+      "air_relative_speed_km_s": 24.35067696315902
+    }
+  }
 }

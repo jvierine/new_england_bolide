@@ -26,11 +26,12 @@ from angle_departure_estimator import enu_to_ecef_matrix, geodetic_to_ecef  # no
 from estimate_head_echo_trajectory import ecef_to_geodetic_wgs84  # noqa: E402
 from fit_ballistic_head_trail import atmosphere_velocity_gcrs, build_density_profile, density_at_alt, dynamics, propagate_state, sphere_cd_area_over_mass  # noqa: E402
 from fit_combined_head_trail_eci import gcrs_to_ecef  # noqa: E402
-from reports.image_sparse_spectral_components import TRAJECTORY, fit_model_state_at_altitude, parse_utc, utc_string  # noqa: E402
+from reports.image_sparse_spectral_components import fit_model_state_at_altitude, parse_utc, utc_string  # noqa: E402
 
 
 OUT_FIG = Path("reports/figures/fragment_size_hypotheses.png")
 OUT_SUMMARY = Path("reports/fragment_size_hypotheses_summary.json")
+DEFAULT_TRAJECTORY = Path("products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json")
 DEFAULT_TRAIL_POSITION_H5 = [
     Path("reports/interactive_sparse_component_imager/beverly_trail_positions.h5"),
 ]
@@ -46,6 +47,53 @@ def gcrs_path_to_llh(pos_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
 def air_relative_speed(pos_gcrs: np.ndarray, vel_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
     v_air = np.array([atmosphere_velocity_gcrs(p, t) for p, t in zip(pos_gcrs, time_unix, strict=True)], dtype=float)
     return np.linalg.norm(np.asarray(vel_gcrs, dtype=float) - v_air, axis=1)
+
+
+def meteor_state_summary_at_altitude(fit: dict, altitude_km: float, velocity_reference_altitude_km: float | None = None) -> dict[str, float | str]:
+    t_unix, pos_gcrs, vel_gcrs = fit_model_state_at_altitude(fit, altitude_km)
+    pos_ecef = gcrs_to_ecef(pos_gcrs, t_unix)
+    lat_deg, lon_deg, alt_m = ecef_to_geodetic_wgs84(pos_ecef)
+    direction_altitude_km = altitude_km if velocity_reference_altitude_km is None else float(velocity_reference_altitude_km)
+    _t_dir, _pos_dir, vel_dir_gcrs = fit_model_state_at_altitude(fit, direction_altitude_km)
+    dt_s = 0.01
+    # Transform a short inertial displacement into ECEF to include Earth rotation
+    # in the local ground-referenced direction of motion.
+    next_ecef = gcrs_to_ecef(pos_gcrs + vel_dir_gcrs * dt_s, t_unix + dt_s)
+    vel_ecef = (next_ecef - pos_ecef) / dt_s
+    vel_enu = enu_to_ecef_matrix(lat_deg, lon_deg).T @ vel_ecef
+    east, north, up = vel_enu
+    horiz = math.hypot(float(east), float(north))
+    az_deg = (math.degrees(math.atan2(float(east), float(north))) + 360.0) % 360.0
+    el_deg = math.degrees(math.atan2(float(up), horiz))
+    return {
+        "time_unix": float(t_unix),
+        "time_utc": utc_string(t_unix),
+        "lat_deg": float(lat_deg),
+        "lon_deg": float(lon_deg),
+        "alt_km": float(alt_m) / 1000.0,
+        "velocity_reference_alt_km": direction_altitude_km,
+        "velocity_azimuth_deg": float(az_deg),
+        "velocity_elevation_deg": float(el_deg),
+        "ground_referenced_speed_km_s": float(np.linalg.norm(vel_ecef) / 1000.0),
+        "air_relative_speed_km_s": float(np.linalg.norm(vel_gcrs - atmosphere_velocity_gcrs(pos_gcrs, t_unix)) / 1000.0),
+    }
+
+
+def lowest_component_summary(fit: dict, components: list[dict]) -> dict[str, object] | None:
+    if not components:
+        return None
+    finite = [row for row in components if np.isfinite(float(row.get("alt_m", np.nan)))]
+    if not finite:
+        return None
+    row = min(finite, key=lambda item: float(item["alt_m"]))
+    blob_alt_km = float(row["alt_m"]) / 1000.0
+    return {
+        "station": str(row.get("station", "")),
+        "blob_lat_deg": float(row["lat_deg"]),
+        "blob_lon_deg": float(row["lon_deg"]),
+        "blob_alt_km": blob_alt_km,
+        "meteor_at_blob_altitude": meteor_state_summary_at_altitude(fit, blob_alt_km, velocity_reference_altitude_km=100.0),
+    }
 
 
 def elevation_altitude_km(lat_deg: float, lon_deg: float, elevation_deg: float) -> float:
@@ -274,6 +322,16 @@ def interp_path_at_time(path: dict, marker_time_unix: float) -> dict[str, float]
     }
 
 
+def terminus_marker_summary(fit: dict, altitude_km: float) -> dict[str, float]:
+    marker = meteor_state_summary_at_altitude(fit, altitude_km, velocity_reference_altitude_km=100.0)
+    t_unix, pos_gcrs, vel_gcrs = fit_model_state_at_altitude(fit, altitude_km)
+    density_profile = build_density_profile(np.array([t_unix], dtype=float), [], np.r_[pos_gcrs, vel_gcrs], t_unix)
+    air_speed_mps = float(marker["air_relative_speed_km_s"]) * 1000.0
+    rho = density_at_alt(density_profile, float(marker["alt_km"]) * 1000.0)
+    marker["dynamic_pressure_mpa"] = 0.5 * rho * air_speed_mps**2 / 1.0e6
+    return marker
+
+
 def component_reference_lonlat(paths: list[dict], components: list[dict]) -> tuple[float, float]:
     points = []
     for row in components:
@@ -296,7 +354,7 @@ def component_reference_lonlat(paths: list[dict], components: list[dict]) -> tup
     )
 
 
-def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict, marker_time_unix: float) -> dict[str, float]:
+def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict, marker_time_unix: float, terminus_marker: dict[str, float]) -> dict[str, float]:
     fig, axes = plt.subplots(1, 4, figsize=(13.2, 5.0), sharey=True, constrained_layout=True)
     ax_lat, ax_lon, ax_vel, ax_q = axes
     linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
@@ -332,6 +390,23 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
             )
             if marker["dynamic_pressure_mpa"] > 0.0:
                 ax_q.scatter([marker["dynamic_pressure_mpa"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
+
+    if terminus_marker:
+        terminus_alt_km = float(terminus_marker["alt_km"])
+        terminus_label = f"Terminus ({terminus_alt_km:.2f} km)"
+        marker_style = {
+            "marker": "o",
+            "s": 58,
+            "color": "C1",
+            "edgecolor": "black",
+            "linewidth": 0.65,
+            "zorder": 8,
+        }
+        ax_lat.scatter([terminus_marker["lat_deg"]], [terminus_alt_km], **marker_style)
+        ax_lon.scatter([terminus_marker["lon_deg"]], [terminus_alt_km], label=terminus_label, **marker_style)
+        ax_vel.scatter([terminus_marker["air_relative_speed_km_s"]], [terminus_alt_km], **marker_style)
+        if terminus_marker["dynamic_pressure_mpa"] > 0.0:
+            ax_q.scatter([terminus_marker["dynamic_pressure_mpa"]], [terminus_alt_km], **marker_style)
 
     if components:
         stations = sorted(set(str(c["station"]) for c in components))
@@ -397,9 +472,10 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--trajectory", type=Path, default=TRAJECTORY)
+    p.add_argument("--trajectory", type=Path, default=DEFAULT_TRAJECTORY)
     p.add_argument("--trail-positions-h5", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_H5)
     p.add_argument("--marker-time", default="2026-05-30T18:06:23Z")
+    p.add_argument("--terminus-altitude-km", type=float, default=33.61)
     p.add_argument("--max-duration-s", type=float, default=7200.0)
     p.add_argument("--launch-altitude-km", type=float, default=90.0)
     p.add_argument("--density-kg-m3", type=float, default=3000.0)
@@ -425,7 +501,9 @@ def main() -> None:
     )
     ensure_gui_trail_position_h5([Path(v) for v in args.trail_positions_h5])
     components = load_components_h5([Path(v) for v in args.trail_positions_h5], max_height_km=120.0)
-    elevation_summary = make_plot(args.out, paths, components, launch, marker_time)
+    terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
+    elevation_summary = make_plot(args.out, paths, components, launch, marker_time, terminus_marker)
+    lowest_blob = lowest_component_summary(fit, components)
 
     payload = {
         "source_program": "reports/plot_fragment_size_hypotheses.py",
@@ -435,6 +513,7 @@ def main() -> None:
         "launch": launch,
         "marker_time_unix": float(marker_time),
         "marker_time_utc": utc_string(marker_time),
+        "terminus_marker": terminus_marker,
         "millstone_elevation_height_km": elevation_summary,
         "millstone_tx_lat_deg": MILLSTONE_TX_LAT_DEG,
         "millstone_tx_lon_deg": MILLSTONE_TX_LON_DEG,
@@ -458,6 +537,7 @@ def main() -> None:
             for path in paths
         ],
         "n_components": len(components),
+        "lowest_altitude_blob": lowest_blob,
     }
     args.summary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"Wrote {args.out}")

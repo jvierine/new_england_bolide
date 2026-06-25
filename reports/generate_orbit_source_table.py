@@ -37,6 +37,8 @@ PARAM_OUT = ROOT / "reports" / "orbit_parameter_table.tex"
 MACRO_OUT = ROOT / "reports" / "orbit_analysis_macros.tex"
 MAX_CROSSING_100KM_SAMPLES = 500
 COMPUTE_CROSSING_100KM_UNCERTAINTY = False
+TERMINUS_ALTITUDE_KM = 33.61
+TERMINUS_DIRECTION_ALTITUDE_KM = 100.0
 
 
 def trajectory_version_comments(path: Path) -> list[str]:
@@ -279,6 +281,61 @@ def crossing_100km_samples(path: Path) -> dict[str, np.ndarray]:
     }
 
 
+def terminus_samples(path: Path, terminus_altitude_km: float, direction_altitude_km: float) -> dict[str, np.ndarray]:
+    from angle_departure_estimator import enu_to_ecef_matrix
+    from fit_ballistic_head_trail import (
+        build_density_profile,
+        geodetic_path_from_states,
+        gcrs_to_geodetic,
+        interpolate_crossing_time,
+        propagate_state,
+        state_at_time,
+    )
+
+    ballistic_fit_json = infer_ballistic_fit_json(path)
+    if ballistic_fit_json is None:
+        return {}
+    with h5py.File(path, "r") as h:
+        mean_state = np.asarray(h["fit_mean_state"][()], dtype=float)
+        t_ref_unix = float(h.attrs["t_ref_unix"])
+    payload = json.loads(ballistic_fit_json.read_text(encoding="utf-8"))
+    log10_cd_area_mass = float(payload["fit_parameters"][6])
+    no_drag = bool(payload.get("settings", {}).get("no_drag", False))
+    params = np.r_[mean_state, log10_cd_area_mass]
+    density_profile = build_density_profile(
+        np.array([t_ref_unix, t_ref_unix + 30.0], dtype=float),
+        [],
+        params,
+        t_ref_unix,
+    )
+
+    search_t = np.arange(t_ref_unix, t_ref_unix + 30.0 + 0.05, 0.05)
+    pos_grid, _vel_grid = propagate_state(params, search_t, t_ref_unix, density_profile, use_drag=not no_drag, integration_dt_s=0.05)
+    llh_grid = geodetic_path_from_states(pos_grid, search_t)
+    t_term = interpolate_crossing_time(search_t, llh_grid[:, 2], float(terminus_altitude_km) * 1000.0)
+    t_dir = interpolate_crossing_time(search_t, llh_grid[:, 2], float(direction_altitude_km) * 1000.0)
+    if t_term is None or t_dir is None:
+        return {}
+    pos_term, _vel_term = state_at_time(params, t_term, t_ref_unix, density_profile, use_drag=not no_drag, integration_dt_s=0.025)
+    _pos_dir, vel_dir = state_at_time(params, t_dir, t_ref_unix, density_profile, use_drag=not no_drag, integration_dt_s=0.025)
+    lat, lon, alt_m = gcrs_to_geodetic(pos_term, t_term)
+    vel_ecef = eci_velocity_to_ecef(pos_term, vel_dir, t_term)
+    rot = enu_to_ecef_matrix(lat, lon)
+    enu = vel_ecef @ rot
+    enu /= np.linalg.norm(enu)
+    east, north, up = enu
+    az = math.degrees(math.atan2(east, north)) % 360.0
+    el = math.degrees(math.asin(np.clip(up, -1.0, 1.0)))
+    return {
+        "alt_km": np.asarray([float(alt_m) / 1000.0], dtype=float),
+        "lat_deg": np.asarray([lat], dtype=float),
+        "lon_deg": np.asarray([lon], dtype=float),
+        "direction_alt_km": np.asarray([float(direction_altitude_km)], dtype=float),
+        "az_deg": np.asarray([az], dtype=float),
+        "el_deg": np.asarray([el], dtype=float),
+    }
+
+
 def format_utc_pm(times_unix: np.ndarray) -> str:
     times = np.asarray(times_unix, dtype=float)
     times = times[np.isfinite(times)]
@@ -315,7 +372,6 @@ def write_orbit_parameter_table(path: Path) -> None:
         ("Argument of perihelion", "$\\omega$", "deg", kep[3], True, 1),
         ("Longitude of ascending node", "$\\Omega$", "deg", kep[4], True, 2),
         ("True anomaly at epoch", "$\\nu$", "deg", kep[5], True, 1),
-        ("Geocentric speed", "$v_g$", "km s$^{-1}$", vg_kmps, False, 2),
         ("Tisserand parameter with respect to Jupiter", "$T_J$", "", tj, False, 2),
     ]
 
@@ -338,7 +394,33 @@ def write_orbit_parameter_table(path: Path) -> None:
                 ("Geodetic longitude at 100 km", "$\\lambda_{100}$", "deg", lon_signed, False, 2),
                 ("Entry azimuth at 100 km", "Az$_{100}$", "deg", crossing["az_deg"], True, 1),
                 ("Entry elevation at 100 km", "El$_{100}$", "deg", crossing["el_deg"], False, 1),
-                ("Velocity at 100 km", "$v_{100}$", "km s$^{-1}$", crossing["speed_kmps"], False, 2),
+                ("Ground-relative speed at 100 km", "$v_{100}$", "km s$^{-1}$", crossing["speed_kmps"], False, 2),
+            ]
+        )
+    terminus = terminus_samples(path, TERMINUS_ALTITUDE_KM, TERMINUS_DIRECTION_ALTITUDE_KM)
+    if terminus:
+        terminus_lon_signed = (terminus["lon_deg"] + 180.0) % 360.0 - 180.0
+        quantities.extend(
+            [
+                ("Terminus altitude", "$h_\\mathrm{term}$", "km", terminus["alt_km"], False, 2),
+                ("Terminus geodetic latitude", "$\\phi_\\mathrm{term}$", "deg", terminus["lat_deg"], False, 4),
+                ("Terminus geodetic longitude", "$\\lambda_\\mathrm{term}$", "deg", terminus_lon_signed, False, 4),
+                (
+                    f"Terminus azimuth, velocity at {TERMINUS_DIRECTION_ALTITUDE_KM:g} km",
+                    "Az$_\\mathrm{term}$",
+                    "deg",
+                    terminus["az_deg"],
+                    True,
+                    1,
+                ),
+                (
+                    f"Terminus elevation, velocity at {TERMINUS_DIRECTION_ALTITUDE_KM:g} km",
+                    "El$_\\mathrm{term}$",
+                    "deg",
+                    terminus["el_deg"],
+                    False,
+                    1,
+                ),
             ]
         )
 
@@ -430,12 +512,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=OUT)
     parser.add_argument("--param-out", type=Path, default=PARAM_OUT)
     parser.add_argument("--macro-out", type=Path, default=MACRO_OUT)
+    parser.add_argument("--terminus-altitude-km", type=float, default=TERMINUS_ALTITUDE_KM)
+    parser.add_argument("--terminus-direction-altitude-km", type=float, default=TERMINUS_DIRECTION_ALTITUDE_KM)
     parser.add_argument("--skip-parameter-table", action="store_true")
     return parser.parse_args()
 
 
 def configure_paths(args: argparse.Namespace) -> None:
-    global ORBIT_H5, BALLISTIC_FIT_JSON, NEA_CSV, COMET_CSV, SOURCE_CSV, OUT, PARAM_OUT, MACRO_OUT
+    global ORBIT_H5, BALLISTIC_FIT_JSON, NEA_CSV, COMET_CSV, SOURCE_CSV, OUT, PARAM_OUT, MACRO_OUT, TERMINUS_ALTITUDE_KM, TERMINUS_DIRECTION_ALTITUDE_KM
     ORBIT_H5 = args.orbit_h5
     BALLISTIC_FIT_JSON = args.ballistic_fit_json
     NEA_CSV = args.nea_csv
@@ -444,6 +528,8 @@ def configure_paths(args: argparse.Namespace) -> None:
     OUT = args.out
     PARAM_OUT = args.param_out
     MACRO_OUT = args.macro_out
+    TERMINUS_ALTITUDE_KM = args.terminus_altitude_km
+    TERMINUS_DIRECTION_ALTITUDE_KM = args.terminus_direction_altitude_km
 
 
 def write_orbit_analysis_macros(path: Path) -> None:
