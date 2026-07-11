@@ -28,52 +28,44 @@
     "air_relative_speed_km_s": 24.351078762229662,
     "dynamic_pressure_mpa": 3.410610925771915
   },
-  "generic_path_registration": {
-    "source_lat_deg": 41.89729975294195,
-    "source_lon_deg": -70.4301192553748,
-    "target_lat_deg": 41.91052653444951,
-    "target_lon_deg": -70.42016016213157,
-    "delta_lat_deg": 0.01322678150756218,
-    "delta_lon_deg": 0.009959093243239181
-  },
   "dark_flight_kmz": "data/marc_fries/cape_cod_bay_dark_flight_20260626.kmz",
   "dark_flight_json": "data/marc_fries/cape_cod_bay_dark_flight_20260625.json",
   "dark_flight_paths": [
     {
       "radar": null,
       "mass_g": 0.1,
-      "landing_lat_deg": 41.84897159881234,
-      "landing_lon_deg": -70.43160499015993
+      "landing_lat_deg": 41.83574481730478,
+      "landing_lon_deg": -70.44156408340316
     },
     {
       "radar": null,
       "mass_g": 1.0,
-      "landing_lat_deg": 41.86513085636863,
-      "landing_lon_deg": -70.41505876105148
+      "landing_lat_deg": 41.85190407486107,
+      "landing_lon_deg": -70.42501785429472
     },
     {
       "radar": null,
       "mass_g": 10.0,
-      "landing_lat_deg": 41.87425458981431,
-      "landing_lon_deg": -70.39829608082623
+      "landing_lat_deg": 41.86102780830675,
+      "landing_lon_deg": -70.40825517406947
     },
     {
       "radar": null,
       "mass_g": 100.0,
-      "landing_lat_deg": 41.87860840348537,
-      "landing_lon_deg": -70.38108050977586
+      "landing_lat_deg": 41.86538162197781,
+      "landing_lon_deg": -70.3910396030191
     },
     {
       "radar": null,
       "mass_g": 1000.0,
-      "landing_lat_deg": 41.87975776145975,
-      "landing_lon_deg": -70.36350181021437
+      "landing_lat_deg": 41.86653097995219,
+      "landing_lon_deg": -70.37346090345761
     },
     {
       "radar": null,
       "mass_g": 10000.0,
-      "landing_lat_deg": 41.87874757332779,
-      "landing_lon_deg": -70.34605292751084
+      "landing_lat_deg": 41.86552079182023,
+      "landing_lon_deg": -70.35601202075408
     },
     {
       "radar": "KBOX",
