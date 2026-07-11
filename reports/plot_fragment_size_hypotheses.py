@@ -454,6 +454,7 @@ def make_plot(
     launch: dict,
     marker_time_unix: float,
     terminus_marker: dict[str, float],
+    trajectory_min_altitude_km: float,
     fitted_trajectory: dict[str, np.ndarray],
     dark_flight_paths: list[dict],
     dark_flight_detections: list[dict],
@@ -466,6 +467,9 @@ def make_plot(
     for idx, path in enumerate(paths):
         label = f"D={path['diameter_m']:g} m, m={path['mass_kg']:.2g} kg"
         style = linestyles[idx % len(linestyles)]
+        mapped = np.asarray(path["alt_km"], dtype=float) >= float(trajectory_min_altitude_km)
+        ax_lat.plot(np.asarray(path["lat_deg"])[mapped], np.asarray(path["alt_km"])[mapped], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        ax_lon.plot(np.asarray(path["lon_deg"])[mapped], np.asarray(path["alt_km"])[mapped], color="0.35", lw=1.35, linestyle=style, zorder=4)
         q = np.asarray(path["dynamic_pressure_mpa"], dtype=float)
         q_plot = np.where(q > 0.0, q, np.nan)
         ax_vel.plot(path["air_relative_speed_km_s"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
@@ -657,6 +661,7 @@ def main() -> None:
         launch,
         marker_time,
         terminus_marker,
+        float(args.right_panel_min_altitude_km),
         fitted_trajectory,
         dark_flight_paths,
         dark_flight_detections,
