@@ -366,7 +366,7 @@ def load_dark_flight_kmz(path: Path) -> list[dict]:
     rows = []
     for placemark in root.findall(".//kml:Placemark", namespace):
         name = placemark.findtext("kml:name", default="", namespaces=namespace)
-        if not name.startswith("Flight "):
+        if not (name.startswith("Flight ") or name.startswith("Path ")):
             continue
         coordinates_text = placemark.findtext(".//kml:LineString/kml:coordinates", default="", namespaces=namespace)
         coordinates = []
@@ -378,14 +378,16 @@ def load_dark_flight_kmz(path: Path) -> list[dict]:
             coordinates.append((lat_deg, lon_deg, alt_m / 1000.0))
         if not coordinates:
             continue
-        match = re.search(r"_([0-9]+(?:\.[0-9]+)?)g$", name)
+        match = re.search(r"(?:_|Path )([0-9]+(?:\.[0-9]+)?)g$", name)
         mass_g = float(match.group(1)) if match else float("nan")
-        radar = name.removeprefix("Flight ").split("_", 1)[0]
+        path_kind = "radar_constrained" if name.startswith("Flight ") else "generic_mass_hypothesis"
+        radar = name.removeprefix("Flight ").split("_", 1)[0] if path_kind == "radar_constrained" else None
         values = np.asarray(coordinates, dtype=float)
         rows.append(
             {
                 "name": name,
                 "radar": radar,
+                "path_kind": path_kind,
                 "mass_g": mass_g,
                 "lat_deg": values[:, 0],
                 "lon_deg": values[:, 1],
@@ -396,7 +398,7 @@ def load_dark_flight_kmz(path: Path) -> list[dict]:
         )
     if not rows:
         raise ValueError(f"No predicted dark-flight paths found in {path}")
-    return sorted(rows, key=lambda row: float(row["mass_g"]))
+    return sorted(rows, key=lambda row: (str(row["path_kind"]), float(row["mass_g"])))
 
 
 def load_dark_flight_radar_detections(path: Path) -> list[dict]:
@@ -525,19 +527,28 @@ def make_plot(
             ax_q.scatter([terminus_marker["dynamic_pressure_mpa"]], [terminus_alt_km], **marker_style)
 
     for idx, dark_path in enumerate(dark_flight_paths):
-        label = "Jörmungandr2 dark-flight model" if idx == 0 else None
-        ax_lat.plot(dark_path["lat_deg"], dark_path["alt_km"], color="#16823b", lw=1.5, alpha=0.82, zorder=5)
+        generic = dark_path["path_kind"] == "generic_mass_hypothesis"
+        same_kind_before = any(row["path_kind"] == dark_path["path_kind"] for row in dark_flight_paths[:idx])
+        label = None
+        if not same_kind_before:
+            label = "Jörmungandr2 generic mass hypotheses" if generic else "Jörmungandr2 radar-constrained paths"
+        path_style = {
+            "color": "#16823b",
+            "lw": 1.25 if generic else 1.5,
+            "alpha": 0.58 if generic else 0.82,
+            "linestyle": "--" if generic else "-",
+            "zorder": 5,
+        }
+        ax_lat.plot(dark_path["lat_deg"], dark_path["alt_km"], **path_style)
         ax_lon.plot(
             dark_path["lon_deg"],
             dark_path["alt_km"],
-            color="#16823b",
-            lw=1.5,
-            alpha=0.82,
             label=label,
-            zorder=5,
+            **path_style,
         )
-        ax_lat.scatter([dark_path["landing_lat_deg"]], [0.0], marker="s", s=24, color="#16823b", edgecolor="black", linewidth=0.4, zorder=7)
-        ax_lon.scatter([dark_path["landing_lon_deg"]], [0.0], marker="s", s=24, color="#16823b", edgecolor="black", linewidth=0.4, zorder=7)
+        if not generic:
+            ax_lat.scatter([dark_path["landing_lat_deg"]], [0.0], marker="s", s=24, color="#16823b", edgecolor="black", linewidth=0.4, zorder=7)
+            ax_lon.scatter([dark_path["landing_lon_deg"]], [0.0], marker="s", s=24, color="#16823b", edgecolor="black", linewidth=0.4, zorder=7)
 
     if dark_flight_detections:
         detection_lat = np.asarray([row["lat_deg"] for row in dark_flight_detections], dtype=float)

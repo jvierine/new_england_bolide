@@ -32,6 +32,42 @@
   "dark_flight_json": "data/marc_fries/cape_cod_bay_dark_flight_20260625.json",
   "dark_flight_paths": [
     {
+      "radar": null,
+      "mass_g": 0.1,
+      "landing_lat_deg": 41.83574481730478,
+      "landing_lon_deg": -70.44156408340316
+    },
+    {
+      "radar": null,
+      "mass_g": 1.0,
+      "landing_lat_deg": 41.85190407486107,
+      "landing_lon_deg": -70.42501785429472
+    },
+    {
+      "radar": null,
+      "mass_g": 10.0,
+      "landing_lat_deg": 41.86102780830675,
+      "landing_lon_deg": -70.40825517406947
+    },
+    {
+      "radar": null,
+      "mass_g": 100.0,
+      "landing_lat_deg": 41.86538162197781,
+      "landing_lon_deg": -70.3910396030191
+    },
+    {
+      "radar": null,
+      "mass_g": 1000.0,
+      "landing_lat_deg": 41.86653097995219,
+      "landing_lon_deg": -70.37346090345761
+    },
+    {
+      "radar": null,
+      "mass_g": 10000.0,
+      "landing_lat_deg": 41.86552079182023,
+      "landing_lon_deg": -70.35601202075408
+    },
+    {
       "radar": "KBOX",
       "mass_g": 3.2,
       "landing_lat_deg": 41.85981795694916,
