@@ -337,8 +337,8 @@ def terminus_marker_summary(fit: dict, altitude_km: float) -> dict[str, float]:
     return marker
 
 
-def fitted_trajectory_to_terminus(fit: dict, upper_altitude_km: float, terminus_altitude_km: float) -> dict[str, np.ndarray]:
-    altitudes_km = np.linspace(float(upper_altitude_km), float(terminus_altitude_km), 240)
+def build_fitted_trajectory(fit: dict, upper_altitude_km: float, lower_altitude_km: float) -> dict[str, np.ndarray]:
+    altitudes_km = np.linspace(float(upper_altitude_km), float(lower_altitude_km), 320)
     states = [fit_model_state_at_altitude(fit, float(altitude_km)) for altitude_km in altitudes_km]
     time_unix = np.asarray([state[0] for state in states], dtype=float)
     pos_gcrs = np.asarray([state[1] for state in states], dtype=float)
@@ -490,10 +490,11 @@ def make_plot(
             if marker["dynamic_pressure_mpa"] > 0.0:
                 ax_q.scatter([marker["dynamic_pressure_mpa"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
 
-    ax_lat.plot(fitted_trajectory["lat_deg"], fitted_trajectory["alt_km"], color="0.12", lw=1.8, zorder=6)
+    above_terminus = fitted_trajectory["alt_km"] >= float(terminus_marker["alt_km"])
+    ax_lat.plot(fitted_trajectory["lat_deg"][above_terminus], fitted_trajectory["alt_km"][above_terminus], color="0.12", lw=1.8, zorder=6)
     ax_lon.plot(
-        fitted_trajectory["lon_deg"],
-        fitted_trajectory["alt_km"],
+        fitted_trajectory["lon_deg"][above_terminus],
+        fitted_trajectory["alt_km"][above_terminus],
         color="0.12",
         lw=1.8,
         label="Fitted ballistic meteor trajectory",
@@ -617,6 +618,7 @@ def main() -> None:
     p.add_argument("--trail-positions-h5", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_H5)
     p.add_argument("--marker-time", default="2026-05-30T18:06:23Z")
     p.add_argument("--terminus-altitude-km", type=float, default=33.61)
+    p.add_argument("--right-panel-min-altitude-km", type=float, default=18.0)
     p.add_argument("--dark-flight-kmz", type=Path, default=DEFAULT_DARK_FLIGHT_KMZ)
     p.add_argument("--dark-flight-json", type=Path, default=DEFAULT_DARK_FLIGHT_JSON)
     p.add_argument("--max-duration-s", type=float, default=7200.0)
@@ -647,7 +649,7 @@ def main() -> None:
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
-    fitted_trajectory = fitted_trajectory_to_terminus(fit, float(args.launch_altitude_km), float(args.terminus_altitude_km))
+    fitted_trajectory = build_fitted_trajectory(fit, float(args.launch_altitude_km), float(args.right_panel_min_altitude_km))
     elevation_summary = make_plot(
         args.out,
         paths,
