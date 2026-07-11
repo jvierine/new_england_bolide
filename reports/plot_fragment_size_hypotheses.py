@@ -337,6 +337,25 @@ def terminus_marker_summary(fit: dict, altitude_km: float) -> dict[str, float]:
     return marker
 
 
+def fitted_trajectory_to_terminus(fit: dict, upper_altitude_km: float, terminus_altitude_km: float) -> dict[str, np.ndarray]:
+    altitudes_km = np.linspace(float(upper_altitude_km), float(terminus_altitude_km), 240)
+    states = [fit_model_state_at_altitude(fit, float(altitude_km)) for altitude_km in altitudes_km]
+    time_unix = np.asarray([state[0] for state in states], dtype=float)
+    pos_gcrs = np.asarray([state[1] for state in states], dtype=float)
+    vel_gcrs = np.asarray([state[2] for state in states], dtype=float)
+    llh = gcrs_path_to_llh(pos_gcrs, time_unix)
+    speed_air = air_relative_speed(pos_gcrs, vel_gcrs, time_unix)
+    density_profile = build_density_profile(time_unix, [], np.r_[pos_gcrs[0], vel_gcrs[0]], float(time_unix[0]))
+    rho_air = np.asarray([density_at_alt(density_profile, altitude_m) for altitude_m in llh[:, 2]], dtype=float)
+    return {
+        "lat_deg": llh[:, 0],
+        "lon_deg": llh[:, 1],
+        "alt_km": llh[:, 2] / 1000.0,
+        "air_relative_speed_km_s": speed_air / 1000.0,
+        "dynamic_pressure_mpa": 0.5 * rho_air * speed_air**2 / 1.0e6,
+    }
+
+
 def load_dark_flight_kmz(path: Path) -> list[dict]:
     """Load Jormungandr2 radar-constrained flight paths from a KMZ."""
     if not path.exists():
@@ -435,6 +454,7 @@ def make_plot(
     launch: dict,
     marker_time_unix: float,
     terminus_marker: dict[str, float],
+    fitted_trajectory: dict[str, np.ndarray],
     dark_flight_paths: list[dict],
     dark_flight_detections: list[dict],
 ) -> dict[str, float]:
@@ -469,6 +489,18 @@ def make_plot(
             )
             if marker["dynamic_pressure_mpa"] > 0.0:
                 ax_q.scatter([marker["dynamic_pressure_mpa"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
+
+    ax_lat.plot(fitted_trajectory["lat_deg"], fitted_trajectory["alt_km"], color="0.12", lw=1.8, zorder=6)
+    ax_lon.plot(
+        fitted_trajectory["lon_deg"],
+        fitted_trajectory["alt_km"],
+        color="0.12",
+        lw=1.8,
+        label="Fitted ballistic meteor trajectory",
+        zorder=6,
+    )
+    ax_vel.plot(fitted_trajectory["air_relative_speed_km_s"], fitted_trajectory["alt_km"], color="0.12", lw=1.8, zorder=6)
+    ax_q.plot(fitted_trajectory["dynamic_pressure_mpa"], fitted_trajectory["alt_km"], color="0.12", lw=1.8, zorder=6)
 
     if terminus_marker:
         terminus_alt_km = float(terminus_marker["alt_km"])
@@ -615,6 +647,7 @@ def main() -> None:
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
+    fitted_trajectory = fitted_trajectory_to_terminus(fit, float(args.launch_altitude_km), float(args.terminus_altitude_km))
     elevation_summary = make_plot(
         args.out,
         paths,
@@ -622,6 +655,7 @@ def main() -> None:
         launch,
         marker_time,
         terminus_marker,
+        fitted_trajectory,
         dark_flight_paths,
         dark_flight_detections,
     )
