@@ -28,6 +28,90 @@
     "air_relative_speed_km_s": 24.351078762229662,
     "dynamic_pressure_mpa": 3.410610925771915
   },
+  "dark_flight_kmz": "data/marc_fries/cape_cod_bay_dark_flight_20260626.kmz",
+  "dark_flight_json": "data/marc_fries/cape_cod_bay_dark_flight_20260625.json",
+  "dark_flight_paths": [
+    {
+      "radar": "KBOX",
+      "mass_g": 3.2,
+      "landing_lat_deg": 41.85981795694916,
+      "landing_lon_deg": -70.41294447414552
+    },
+    {
+      "radar": "KBOX",
+      "mass_g": 14.5,
+      "landing_lat_deg": 41.86454517373529,
+      "landing_lon_deg": -70.3922793490746
+    },
+    {
+      "radar": "KBOX",
+      "mass_g": 72.0,
+      "landing_lat_deg": 41.86575589147142,
+      "landing_lon_deg": -70.37841397229332
+    },
+    {
+      "radar": "KOKX",
+      "mass_g": 177.2,
+      "landing_lat_deg": 41.86559813912476,
+      "landing_lon_deg": -70.37335997601585
+    },
+    {
+      "radar": "KBOX",
+      "mass_g": 334.7,
+      "landing_lat_deg": 41.86631397966736,
+      "landing_lon_deg": -70.37060531459495
+    },
+    {
+      "radar": "KENX",
+      "mass_g": 1425.2,
+      "landing_lat_deg": 41.86679635509976,
+      "landing_lon_deg": -70.37160409318666
+    }
+  ],
+  "dark_flight_radar_detections": [
+    {
+      "radar": "KBOX",
+      "time_utc": "18:08:18",
+      "lat_deg": 41.875665699126,
+      "lon_deg": -70.35464106092688,
+      "alt_km": 7.619604923947511
+    },
+    {
+      "radar": "KBOX",
+      "time_utc": "18:08:34",
+      "lat_deg": 41.8792137886769,
+      "lon_deg": -70.35734270073897,
+      "alt_km": 9.526074220810623
+    },
+    {
+      "radar": "KBOX",
+      "time_utc": "18:08:48",
+      "lat_deg": 41.883911112859224,
+      "lon_deg": -70.3691859557242,
+      "alt_km": 11.651718746743452
+    },
+    {
+      "radar": "KBOX",
+      "time_utc": "18:09:01",
+      "lat_deg": 41.8870579909234,
+      "lon_deg": -70.38948176353858,
+      "alt_km": 13.583985245958054
+    },
+    {
+      "radar": "KENX",
+      "time_utc": "18:06:57",
+      "lat_deg": 41.87606390650492,
+      "lon_deg": -70.3664880431796,
+      "alt_km": 13.159044513018612
+    },
+    {
+      "radar": "KOKX",
+      "time_utc": "18:08:42",
+      "lat_deg": 41.87586052892424,
+      "lon_deg": -70.35595311324744,
+      "alt_km": 7.200585291898075
+    }
+  ],
   "millstone_elevation_height_km": {
     "0": 0.9093969117582383,
     "15": 37.14370650635649,

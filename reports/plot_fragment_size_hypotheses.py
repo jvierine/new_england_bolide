@@ -6,9 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import matplotlib
 
@@ -35,6 +38,8 @@ DEFAULT_TRAJECTORY = Path("products/ballistic_head_trail_correlated_fit_v0p2p9_r
 DEFAULT_TRAIL_POSITION_H5 = [
     Path("reports/interactive_sparse_component_imager/beverly_trail_positions.h5"),
 ]
+DEFAULT_DARK_FLIGHT_KMZ = Path("data/marc_fries/cape_cod_bay_dark_flight_20260626.kmz")
+DEFAULT_DARK_FLIGHT_JSON = Path("data/marc_fries/cape_cod_bay_dark_flight_20260625.json")
 MILLSTONE_TX_LAT_DEG = 42.611
 MILLSTONE_TX_LON_DEG = -71.485
 MILLSTONE_TX_ALT_M = 80.0
@@ -332,6 +337,75 @@ def terminus_marker_summary(fit: dict, altitude_km: float) -> dict[str, float]:
     return marker
 
 
+def load_dark_flight_kmz(path: Path) -> list[dict]:
+    """Load Jormungandr2 radar-constrained flight paths from a KMZ."""
+    if not path.exists():
+        raise FileNotFoundError(f"Dark-flight KMZ does not exist: {path}")
+    with zipfile.ZipFile(path) as archive:
+        root = ET.fromstring(archive.read("doc.kml"))
+    namespace = {"kml": "http://www.opengis.net/kml/2.2"}
+    rows = []
+    for placemark in root.findall(".//kml:Placemark", namespace):
+        name = placemark.findtext("kml:name", default="", namespaces=namespace)
+        if not name.startswith("Flight "):
+            continue
+        coordinates_text = placemark.findtext(".//kml:LineString/kml:coordinates", default="", namespaces=namespace)
+        coordinates = []
+        for token in coordinates_text.split():
+            values = token.split(",")
+            if len(values) < 3:
+                continue
+            lon_deg, lat_deg, alt_m = map(float, values[:3])
+            coordinates.append((lat_deg, lon_deg, alt_m / 1000.0))
+        if not coordinates:
+            continue
+        match = re.search(r"_([0-9]+(?:\.[0-9]+)?)g$", name)
+        mass_g = float(match.group(1)) if match else float("nan")
+        radar = name.removeprefix("Flight ").split("_", 1)[0]
+        values = np.asarray(coordinates, dtype=float)
+        rows.append(
+            {
+                "name": name,
+                "radar": radar,
+                "mass_g": mass_g,
+                "lat_deg": values[:, 0],
+                "lon_deg": values[:, 1],
+                "alt_km": values[:, 2],
+                "landing_lat_deg": float(values[-1, 0]),
+                "landing_lon_deg": float(values[-1, 1]),
+            }
+        )
+    if not rows:
+        raise ValueError(f"No predicted dark-flight paths found in {path}")
+    return sorted(rows, key=lambda row: float(row["mass_g"]))
+
+
+def load_dark_flight_radar_detections(path: Path) -> list[dict]:
+    """Load the weather-radar centroids recorded in Marc Fries's JSON output."""
+    if not path.exists():
+        raise FileNotFoundError(f"Dark-flight JSON does not exist: {path}")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rows = []
+    for row in payload.get("Masses", []):
+        lat_deg = row.get("obs_blip_lat", row.get("blip_lat"))
+        lon_deg = row.get("obs_blip_lon", row.get("blip_lon"))
+        alt_m = row.get("obs_blip_alt_m")
+        if lat_deg is None or lon_deg is None or alt_m is None:
+            continue
+        rows.append(
+            {
+                "radar": str(row.get("Radar", "")),
+                "time_utc": str(row.get("Mean Time", "")),
+                "lat_deg": float(lat_deg),
+                "lon_deg": float(lon_deg),
+                "alt_km": float(alt_m) / 1000.0,
+            }
+        )
+    if not rows:
+        raise ValueError(f"No weather-radar centroids found in {path}")
+    return rows
+
+
 def component_reference_lonlat(paths: list[dict], components: list[dict]) -> tuple[float, float]:
     points = []
     for row in components:
@@ -354,7 +428,16 @@ def component_reference_lonlat(paths: list[dict], components: list[dict]) -> tup
     )
 
 
-def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict, marker_time_unix: float, terminus_marker: dict[str, float]) -> dict[str, float]:
+def make_plot(
+    out: Path,
+    paths: list[dict],
+    components: list[dict],
+    launch: dict,
+    marker_time_unix: float,
+    terminus_marker: dict[str, float],
+    dark_flight_paths: list[dict],
+    dark_flight_detections: list[dict],
+) -> dict[str, float]:
     fig, axes = plt.subplots(1, 4, figsize=(13.2, 5.0), sharey=True, constrained_layout=True)
     ax_lat, ax_lon, ax_vel, ax_q = axes
     linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
@@ -407,6 +490,36 @@ def make_plot(out: Path, paths: list[dict], components: list[dict], launch: dict
         ax_vel.scatter([terminus_marker["air_relative_speed_km_s"]], [terminus_alt_km], **marker_style)
         if terminus_marker["dynamic_pressure_mpa"] > 0.0:
             ax_q.scatter([terminus_marker["dynamic_pressure_mpa"]], [terminus_alt_km], **marker_style)
+
+    for idx, dark_path in enumerate(dark_flight_paths):
+        label = "Jormungandr2 dark flight (KMZ)" if idx == 0 else None
+        ax_lat.plot(dark_path["lat_deg"], dark_path["alt_km"], color="#16823b", lw=1.5, alpha=0.82, zorder=5)
+        ax_lon.plot(
+            dark_path["lon_deg"],
+            dark_path["alt_km"],
+            color="#16823b",
+            lw=1.5,
+            alpha=0.82,
+            label=label,
+            zorder=5,
+        )
+        ax_lat.scatter([dark_path["landing_lat_deg"]], [0.0], marker="s", s=24, color="#16823b", edgecolor="black", linewidth=0.4, zorder=7)
+        ax_lon.scatter([dark_path["landing_lon_deg"]], [0.0], marker="s", s=24, color="#16823b", edgecolor="black", linewidth=0.4, zorder=7)
+
+    if dark_flight_detections:
+        detection_lat = np.asarray([row["lat_deg"] for row in dark_flight_detections], dtype=float)
+        detection_lon = np.asarray([row["lon_deg"] for row in dark_flight_detections], dtype=float)
+        detection_alt = np.asarray([row["alt_km"] for row in dark_flight_detections], dtype=float)
+        detection_style = {
+            "marker": "D",
+            "s": 32,
+            "color": "#c9342f",
+            "edgecolor": "black",
+            "linewidth": 0.45,
+            "zorder": 8,
+        }
+        ax_lat.scatter(detection_lat, detection_alt, **detection_style)
+        ax_lon.scatter(detection_lon, detection_alt, label="Weather-radar centroid (JSON)", **detection_style)
 
     if components:
         stations = sorted(set(str(c["station"]) for c in components))
@@ -476,6 +589,8 @@ def main() -> None:
     p.add_argument("--trail-positions-h5", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_H5)
     p.add_argument("--marker-time", default="2026-05-30T18:06:23Z")
     p.add_argument("--terminus-altitude-km", type=float, default=33.61)
+    p.add_argument("--dark-flight-kmz", type=Path, default=DEFAULT_DARK_FLIGHT_KMZ)
+    p.add_argument("--dark-flight-json", type=Path, default=DEFAULT_DARK_FLIGHT_JSON)
     p.add_argument("--max-duration-s", type=float, default=7200.0)
     p.add_argument("--launch-altitude-km", type=float, default=90.0)
     p.add_argument("--density-kg-m3", type=float, default=3000.0)
@@ -501,8 +616,19 @@ def main() -> None:
     )
     ensure_gui_trail_position_h5([Path(v) for v in args.trail_positions_h5])
     components = load_components_h5([Path(v) for v in args.trail_positions_h5], max_height_km=120.0)
+    dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
+    dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
-    elevation_summary = make_plot(args.out, paths, components, launch, marker_time, terminus_marker)
+    elevation_summary = make_plot(
+        args.out,
+        paths,
+        components,
+        launch,
+        marker_time,
+        terminus_marker,
+        dark_flight_paths,
+        dark_flight_detections,
+    )
     lowest_blob = lowest_component_summary(fit, components)
 
     payload = {
@@ -514,6 +640,18 @@ def main() -> None:
         "marker_time_unix": float(marker_time),
         "marker_time_utc": utc_string(marker_time),
         "terminus_marker": terminus_marker,
+        "dark_flight_kmz": str(args.dark_flight_kmz),
+        "dark_flight_json": str(args.dark_flight_json),
+        "dark_flight_paths": [
+            {
+                "radar": row["radar"],
+                "mass_g": row["mass_g"],
+                "landing_lat_deg": row["landing_lat_deg"],
+                "landing_lon_deg": row["landing_lon_deg"],
+            }
+            for row in dark_flight_paths
+        ],
+        "dark_flight_radar_detections": dark_flight_detections,
         "millstone_elevation_height_km": elevation_summary,
         "millstone_tx_lat_deg": MILLSTONE_TX_LAT_DEG,
         "millstone_tx_lon_deg": MILLSTONE_TX_LON_DEG,
