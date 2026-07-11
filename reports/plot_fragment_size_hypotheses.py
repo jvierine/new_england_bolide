@@ -401,6 +401,29 @@ def load_dark_flight_kmz(path: Path) -> list[dict]:
     return sorted(rows, key=lambda row: (str(row["path_kind"]), float(row["mass_g"])))
 
 
+def register_generic_paths_to_terminus(paths: list[dict], terminus: dict[str, float]) -> dict[str, float]:
+    generic = [row for row in paths if row["path_kind"] == "generic_mass_hypothesis"]
+    if not generic:
+        return {}
+    source_lat = float(generic[0]["lat_deg"][0])
+    source_lon = float(generic[0]["lon_deg"][0])
+    delta_lat = float(terminus["lat_deg"]) - source_lat
+    delta_lon = float(terminus["lon_deg"]) - source_lon
+    for row in generic:
+        row["lat_deg"] = np.asarray(row["lat_deg"], dtype=float) + delta_lat
+        row["lon_deg"] = np.asarray(row["lon_deg"], dtype=float) + delta_lon
+        row["landing_lat_deg"] = float(row["landing_lat_deg"]) + delta_lat
+        row["landing_lon_deg"] = float(row["landing_lon_deg"]) + delta_lon
+    return {
+        "source_lat_deg": source_lat,
+        "source_lon_deg": source_lon,
+        "target_lat_deg": float(terminus["lat_deg"]),
+        "target_lon_deg": float(terminus["lon_deg"]),
+        "delta_lat_deg": delta_lat,
+        "delta_lon_deg": delta_lon,
+    }
+
+
 def load_dark_flight_radar_detections(path: Path) -> list[dict]:
     """Load the weather-radar centroids recorded in Marc Fries's JSON output."""
     if not path.exists():
@@ -664,6 +687,7 @@ def main() -> None:
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
+    generic_path_registration = register_generic_paths_to_terminus(dark_flight_paths, terminus_marker)
     fitted_trajectory = build_fitted_trajectory(fit, float(args.launch_altitude_km), float(args.right_panel_min_altitude_km))
     elevation_summary = make_plot(
         args.out,
@@ -688,6 +712,7 @@ def main() -> None:
         "marker_time_unix": float(marker_time),
         "marker_time_utc": utc_string(marker_time),
         "terminus_marker": terminus_marker,
+        "generic_path_registration": generic_path_registration,
         "dark_flight_kmz": str(args.dark_flight_kmz),
         "dark_flight_json": str(args.dark_flight_json),
         "dark_flight_paths": [
