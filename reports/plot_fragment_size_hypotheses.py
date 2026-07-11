@@ -448,14 +448,10 @@ def make_plot(
         style = linestyles[idx % len(linestyles)]
         q = np.asarray(path["dynamic_pressure_mpa"], dtype=float)
         q_plot = np.where(q > 0.0, q, np.nan)
-        ax_lat.plot(path["lat_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
-        ax_lon.plot(path["lon_deg"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
-        ax_vel.plot(path["air_relative_speed_km_s"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
+        ax_vel.plot(path["air_relative_speed_km_s"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
         ax_q.plot(q_plot, path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
         marker = interp_path_at_time(path, marker_time_unix)
         if marker is not None:
-            ax_lat.scatter([marker["lat_deg"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
-            ax_lon.scatter([marker["lon_deg"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
             marker_label = None
             if not marker_label_added:
                 marker_label = "18:06:23 UTC position"
@@ -492,7 +488,7 @@ def make_plot(
             ax_q.scatter([terminus_marker["dynamic_pressure_mpa"]], [terminus_alt_km], **marker_style)
 
     for idx, dark_path in enumerate(dark_flight_paths):
-        label = "Jormungandr2 dark flight (KMZ)" if idx == 0 else None
+        label = "Jörmungandr2 dark-flight model" if idx == 0 else None
         ax_lat.plot(dark_path["lat_deg"], dark_path["alt_km"], color="#16823b", lw=1.5, alpha=0.82, zorder=5)
         ax_lon.plot(
             dark_path["lon_deg"],
@@ -519,7 +515,7 @@ def make_plot(
             "zorder": 8,
         }
         ax_lat.scatter(detection_lat, detection_alt, **detection_style)
-        ax_lon.scatter(detection_lon, detection_alt, label="Weather-radar centroid (JSON)", **detection_style)
+        ax_lon.scatter(detection_lon, detection_alt, label="Weather-radar meteorite detections", **detection_style)
 
     if components:
         stations = sorted(set(str(c["station"]) for c in components))
