@@ -513,24 +513,6 @@ def make_plot(
                 zorder=4,
             )
 
-    if terminus_marker:
-        terminus_alt_km = float(terminus_marker["alt_km"])
-        marker_style = {
-            "marker": "o",
-            "s": 58,
-            "color": "C1",
-            "edgecolor": "black",
-            "linewidth": 0.65,
-            "zorder": 8,
-        }
-        ax_lat.scatter([terminus_marker["lat_deg"]], [terminus_alt_km], **marker_style)
-        ax_lon.scatter(
-            [terminus_marker["lon_deg"]],
-            [terminus_alt_km],
-            label=f"Terminus ({terminus_alt_km:.2f} km)",
-            **marker_style,
-        )
-
     for idx, dark_path in enumerate(dark_flight_paths):
         generic = dark_path["path_kind"] == "generic_mass_hypothesis"
         same_kind_before = any(row["path_kind"] == dark_path["path_kind"] for row in dark_flight_paths[:idx])
