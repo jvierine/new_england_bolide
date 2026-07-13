@@ -237,7 +237,12 @@ def load_components_h5(paths: list[Path], max_height_km: float) -> list[dict]:
     return rows
 
 
-def load_components_json(paths: list[Path], max_height_km: float, station: str = "beverly") -> list[dict]:
+def load_components_json(
+    paths: list[Path],
+    max_height_km: float,
+    station: str = "beverly",
+    min_height_km: float = 30.0,
+) -> list[dict]:
     """Load tracked trail-plasma positions from the AoD solution JSON."""
     rows = []
     for path in paths:
@@ -249,20 +254,21 @@ def load_components_json(paths: list[Path], max_height_km: float, station: str =
             alt_km = alt_m / 1000.0
             if str(row.get("station", "")).lower() != station.lower():
                 continue
-            if not np.isfinite(alt_km) or alt_km < 0.0 or alt_km > max_height_km:
+            if not np.isfinite(alt_km) or alt_km < min_height_km or alt_km > max_height_km:
                 continue
             # Reject the known AoD-alias solution far from the trajectory prior.
             if float(row.get("aod_prior_offset_deg", 0.0)) > 10.0:
                 continue
+            sigma_enu_m = np.asarray(row.get("uncertainty", {}).get("position_sigma_enu_m", [np.nan] * 3), dtype=float)
             rows.append(
                 {
                     "station": str(row.get("station", "")),
                     "lat_deg": float(row["lat_deg"]),
                     "lon_deg": float(row["lon_deg"]),
                     "alt_m": alt_m,
-                    "centroid_alt_sigma_m": np.nan,
-                    "blob_axis_length_along_m": np.nan,
-                    "blob_axis_length_cross_m": np.nan,
+                    "east_sigma_m": float(sigma_enu_m[0]),
+                    "north_sigma_m": float(sigma_enu_m[1]),
+                    "up_sigma_m": float(sigma_enu_m[2]),
                 }
             )
     return rows
@@ -554,6 +560,24 @@ def make_plot(
                     zorder=7,
                 )
 
+    if terminus_marker:
+        terminus_alt_km = float(terminus_marker["alt_km"])
+        marker_style = {
+            "marker": "o",
+            "s": 58,
+            "color": "C1",
+            "edgecolor": "black",
+            "linewidth": 0.65,
+            "zorder": 8,
+        }
+        ax_lat.scatter([terminus_marker["lat_deg"]], [terminus_alt_km], **marker_style)
+        ax_lon.scatter(
+            [terminus_marker["lon_deg"]],
+            [terminus_alt_km],
+            label=f"Terminus ({terminus_alt_km:.2f} km)",
+            **marker_style,
+        )
+
     for idx, dark_path in enumerate(dark_flight_paths):
         generic = dark_path["path_kind"] == "generic_mass_hypothesis"
         same_kind_before = any(row["path_kind"] == dark_path["path_kind"] for row in dark_flight_paths[:idx])
@@ -605,14 +629,11 @@ def make_plot(
             label = "Plasma trail position (Beverly)" if station == "beverly" else f"Plasma trail position ({station})"
             for row in rows:
                 z_km = float(row["alt_m"]) / 1000.0
-                alt_sigma_km = row.get("centroid_alt_sigma_m", np.nan) / 1000.0
-                horiz_km = max(
-                    row.get("blob_axis_length_along_m", np.nan) / 1000.0,
-                    row.get("blob_axis_length_cross_m", np.nan) / 1000.0,
+                height_km = 2.0 * row.get("up_sigma_m", np.nan) / 1000.0
+                lat_width = 2.0 * row.get("north_sigma_m", np.nan) / 111000.0
+                lon_width = 2.0 * row.get("east_sigma_m", np.nan) / (
+                    111000.0 * max(np.cos(np.deg2rad(float(row["lat_deg"]))), 0.1)
                 )
-                lat_width = horiz_km / 111.0
-                lon_width = horiz_km / (111.0 * max(np.cos(np.deg2rad(float(row["lat_deg"]))), 0.1))
-                height_km = max(2.0 * alt_sigma_km, row.get("blob_axis_length_cross_m", np.nan) / 1000.0)
                 add_plasma_blob(ax_lat, float(row["lat_deg"]), z_km, lat_width, height_km, color, zorder=1)
                 add_plasma_blob(ax_lon, float(row["lon_deg"]), z_km, lon_width, height_km, color, zorder=1)
             ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)

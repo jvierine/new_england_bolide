@@ -175,23 +175,23 @@
       "reached_sea_level": true
     }
   ],
-  "n_components": 33,
+  "n_components": 32,
   "lowest_altitude_blob": {
     "station": "beverly",
-    "blob_lat_deg": 41.887867149602286,
-    "blob_lon_deg": -70.42079268612513,
-    "blob_alt_km": 26.271304339651948,
+    "blob_lat_deg": 41.89413162565416,
+    "blob_lon_deg": -70.4409496294293,
+    "blob_alt_km": 32.58517720178794,
     "meteor_at_blob_altitude": {
-      "time_unix": 1780164382.7870474,
-      "time_utc": "2026-05-30T18:06:22.787047Z",
-      "lat_deg": 41.894382925670115,
-      "lon_deg": -70.40323464478263,
-      "alt_km": 26.2712963429112,
+      "time_unix": 1780164382.5046136,
+      "time_utc": "2026-05-30T18:06:22.504614Z",
+      "lat_deg": 41.90262559135037,
+      "lon_deg": -70.42704247022313,
+      "alt_km": 32.58516382722091,
       "velocity_reference_alt_km": 100.0,
-      "velocity_azimuth_deg": 114.8699851059128,
-      "velocity_elevation_deg": -70.85973833352134,
-      "ground_referenced_speed_km_s": 26.723848314438982,
-      "air_relative_speed_km_s": 22.260350695263643
+      "velocity_azimuth_deg": 114.85449795851281,
+      "velocity_elevation_deg": -70.88079108100008,
+      "ground_referenced_speed_km_s": 26.723852570502427,
+      "air_relative_speed_km_s": 24.767998130911252
     }
   }
 }
