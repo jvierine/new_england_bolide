@@ -532,7 +532,6 @@ def make_plot(
     ax_lat, ax_lon, ax_q = axes
     linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
 
-    marker_label_added = False
     for idx, path in enumerate(paths):
         label = f"{path['diameter_m']:g} m diameter hypothesis"
         style = linestyles[idx % len(linestyles)]
@@ -540,25 +539,16 @@ def make_plot(
         q_plot = np.where(q > 0.0, q, np.nan)
         show_dynamic_pressure = np.isclose(float(path["diameter_m"]), 1.0)
         if show_dynamic_pressure:
-            ax_q.plot(q_plot, path["alt_km"], color="0.35", lw=1.55, linestyle=style, label=label, zorder=4)
-        marker = interp_path_at_time(path, marker_time_unix) if show_dynamic_pressure else None
-        if marker is not None:
-            marker_label = None
-            if not marker_label_added:
-                marker_label = "18:06:23 UTC"
-                marker_label_added = True
-            if marker["dynamic_pressure_mpa"] > 0.0:
-                ax_q.scatter(
-                    [marker["dynamic_pressure_mpa"]],
-                    [marker["alt_km"]],
-                    marker="o",
-                    s=34,
-                    color="0.15",
-                    edgecolor="white",
-                    linewidth=0.45,
-                    label=marker_label,
-                    zorder=7,
-                )
+            above_terminus = np.asarray(path["alt_km"], dtype=float) >= float(terminus_marker["alt_km"])
+            ax_q.plot(
+                q_plot[above_terminus],
+                np.asarray(path["alt_km"], dtype=float)[above_terminus],
+                color="0.35",
+                lw=1.55,
+                linestyle=style,
+                label=label,
+                zorder=4,
+            )
 
     if terminus_marker:
         terminus_alt_km = float(terminus_marker["alt_km"])
