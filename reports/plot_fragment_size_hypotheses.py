@@ -29,20 +29,51 @@ from angle_departure_estimator import enu_to_ecef_matrix, geodetic_to_ecef  # no
 from estimate_head_echo_trajectory import ecef_to_geodetic_wgs84  # noqa: E402
 from fit_ballistic_head_trail import atmosphere_velocity_gcrs, build_density_profile, density_at_alt, dynamics, propagate_state, sphere_cd_area_over_mass  # noqa: E402
 from fit_combined_head_trail_eci import gcrs_to_ecef  # noqa: E402
-from reports.image_sparse_spectral_components import fit_model_state_at_altitude, parse_utc, utc_string  # noqa: E402
-
-
 OUT_FIG = Path("reports/figures/fragment_size_hypotheses.png")
 OUT_SUMMARY = Path("reports/fragment_size_hypotheses_summary.json")
 DEFAULT_TRAJECTORY = Path("products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json")
-DEFAULT_TRAIL_POSITION_H5 = [
-    Path("reports/interactive_sparse_component_imager/beverly_trail_positions.h5"),
+DEFAULT_TRAIL_POSITION_JSON = [
+    Path("products/specular_trail_positions/specular_trail_position_summary.json"),
 ]
 DEFAULT_DARK_FLIGHT_KMZ = Path("data/marc_fries/cape_cod_bay_dark_flight_20260626.kmz")
 DEFAULT_DARK_FLIGHT_JSON = Path("data/marc_fries/cape_cod_bay_dark_flight_20260625.json")
 MILLSTONE_TX_LAT_DEG = 42.611
 MILLSTONE_TX_LON_DEG = -71.485
 MILLSTONE_TX_ALT_M = 80.0
+
+
+def parse_utc(value: str) -> float:
+    """Parse an ISO-8601 UTC timestamp into Unix seconds."""
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def utc_string(time_unix: float) -> str:
+    """Format Unix seconds as an ISO-8601 UTC timestamp."""
+    return datetime.fromtimestamp(float(time_unix), tz=timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def fit_model_state_at_altitude(fit: dict, altitude_km: float) -> tuple[float, np.ndarray, np.ndarray]:
+    """Interpolate the saved fitted-model state at a requested altitude."""
+    model = fit["model"]
+    altitude_m = np.asarray(model["alt_m"], dtype=float)
+    target_m = float(altitude_km) * 1000.0
+    if target_m < float(np.nanmin(altitude_m)) or target_m > float(np.nanmax(altitude_m)):
+        raise ValueError(
+            f"Requested altitude {altitude_km:g} km is outside fitted model range "
+            f"{np.nanmin(altitude_m) / 1000.0:.2f}--{np.nanmax(altitude_m) / 1000.0:.2f} km"
+        )
+    order = np.argsort(altitude_m)
+    altitude_sorted = altitude_m[order]
+    time_unix = float(np.interp(target_m, altitude_sorted, np.asarray(model["time_unix"], dtype=float)[order]))
+    position = np.asarray(
+        [np.interp(target_m, altitude_sorted, np.asarray(model["position_gcrs_m"], dtype=float)[order, axis]) for axis in range(3)],
+        dtype=float,
+    )
+    velocity = np.asarray(
+        [np.interp(target_m, altitude_sorted, np.asarray(model["velocity_gcrs_mps"], dtype=float)[order, axis]) for axis in range(3)],
+        dtype=float,
+    )
+    return time_unix, position, velocity
 
 
 def gcrs_path_to_llh(pos_gcrs: np.ndarray, time_unix: np.ndarray) -> np.ndarray:
@@ -203,6 +234,37 @@ def load_components_h5(paths: list[Path], max_height_km: float) -> list[dict]:
                         "blob_axis_length_cross_m": float(h["blob_axis_length_cross_m"][idx]) if "blob_axis_length_cross_m" in h else np.nan,
                     }
                 )
+    return rows
+
+
+def load_components_json(paths: list[Path], max_height_km: float, station: str = "beverly") -> list[dict]:
+    """Load tracked trail-plasma positions from the AoD solution JSON."""
+    rows = []
+    for path in paths:
+        if not path.exists():
+            raise FileNotFoundError(f"Trail-position JSON does not exist: {path}")
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for row in payload.get("positions", []):
+            alt_m = float(row.get("alt_m", np.nan))
+            alt_km = alt_m / 1000.0
+            if str(row.get("station", "")).lower() != station.lower():
+                continue
+            if not np.isfinite(alt_km) or alt_km < 0.0 or alt_km > max_height_km:
+                continue
+            # Reject the known AoD-alias solution far from the trajectory prior.
+            if float(row.get("aod_prior_offset_deg", 0.0)) > 10.0:
+                continue
+            rows.append(
+                {
+                    "station": str(row.get("station", "")),
+                    "lat_deg": float(row["lat_deg"]),
+                    "lon_deg": float(row["lon_deg"]),
+                    "alt_m": alt_m,
+                    "centroid_alt_sigma_m": np.nan,
+                    "blob_axis_length_along_m": np.nan,
+                    "blob_axis_length_cross_m": np.nan,
+                }
+            )
     return rows
 
 
@@ -457,74 +519,40 @@ def make_plot(
     marker_time_unix: float,
     terminus_marker: dict[str, float],
     trajectory_min_altitude_km: float,
-    fitted_trajectory: dict[str, np.ndarray],
     dark_flight_paths: list[dict],
     dark_flight_detections: list[dict],
 ) -> dict[str, float]:
-    fig, axes = plt.subplots(1, 4, figsize=(13.2, 5.0), sharey=True, constrained_layout=True)
-    ax_lat, ax_lon, ax_vel, ax_q = axes
+    fig, axes = plt.subplots(1, 3, figsize=(10.4, 5.0), sharey=True, constrained_layout=True)
+    ax_lat, ax_lon, ax_q = axes
     linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
 
     marker_label_added = False
     for idx, path in enumerate(paths):
-        label = f"D={path['diameter_m']:g} m, m={path['mass_kg']:.2g} kg"
+        label = f"{path['diameter_m']:g} m diameter hypothesis"
         style = linestyles[idx % len(linestyles)]
-        mapped = np.asarray(path["alt_km"], dtype=float) >= float(trajectory_min_altitude_km)
-        ax_lat.plot(np.asarray(path["lat_deg"])[mapped], np.asarray(path["alt_km"])[mapped], color="0.35", lw=1.35, linestyle=style, zorder=4)
-        ax_lon.plot(np.asarray(path["lon_deg"])[mapped], np.asarray(path["alt_km"])[mapped], color="0.35", lw=1.35, linestyle=style, zorder=4)
         q = np.asarray(path["dynamic_pressure_mpa"], dtype=float)
         q_plot = np.where(q > 0.0, q, np.nan)
-        ax_vel.plot(path["air_relative_speed_km_s"], path["alt_km"], color="0.35", lw=1.35, linestyle=style, label=label, zorder=4)
-        ax_q.plot(q_plot, path["alt_km"], color="0.35", lw=1.35, linestyle=style, zorder=4)
-        marker = interp_path_at_time(path, marker_time_unix)
+        show_dynamic_pressure = np.isclose(float(path["diameter_m"]), 1.0)
+        if show_dynamic_pressure:
+            ax_q.plot(q_plot, path["alt_km"], color="0.35", lw=1.55, linestyle=style, label=label, zorder=4)
+        marker = interp_path_at_time(path, marker_time_unix) if show_dynamic_pressure else None
         if marker is not None:
             marker_label = None
             if not marker_label_added:
-                marker_label = "18:06:23 UTC position"
+                marker_label = "18:06:23 UTC"
                 marker_label_added = True
-            ax_vel.scatter(
-                [marker["air_relative_speed_km_s"]],
-                [marker["alt_km"]],
-                marker="o",
-                s=34,
-                color="0.15",
-                edgecolor="white",
-                linewidth=0.45,
-                label=marker_label,
-                zorder=7,
-            )
             if marker["dynamic_pressure_mpa"] > 0.0:
-                ax_q.scatter([marker["dynamic_pressure_mpa"]], [marker["alt_km"]], marker="o", s=34, color="0.15", edgecolor="white", linewidth=0.45, zorder=7)
-
-    above_terminus = fitted_trajectory["alt_km"] >= float(terminus_marker["alt_km"])
-    ax_lat.plot(fitted_trajectory["lat_deg"][above_terminus], fitted_trajectory["alt_km"][above_terminus], color="0.12", lw=1.8, zorder=6)
-    ax_lon.plot(
-        fitted_trajectory["lon_deg"][above_terminus],
-        fitted_trajectory["alt_km"][above_terminus],
-        color="0.12",
-        lw=1.8,
-        label="Fitted ballistic meteor trajectory",
-        zorder=6,
-    )
-    ax_vel.plot(fitted_trajectory["air_relative_speed_km_s"], fitted_trajectory["alt_km"], color="0.12", lw=1.8, zorder=6)
-    ax_q.plot(fitted_trajectory["dynamic_pressure_mpa"], fitted_trajectory["alt_km"], color="0.12", lw=1.8, zorder=6)
-
-    if terminus_marker:
-        terminus_alt_km = float(terminus_marker["alt_km"])
-        terminus_label = f"Terminus ({terminus_alt_km:.2f} km)"
-        marker_style = {
-            "marker": "o",
-            "s": 58,
-            "color": "C1",
-            "edgecolor": "black",
-            "linewidth": 0.65,
-            "zorder": 8,
-        }
-        ax_lat.scatter([terminus_marker["lat_deg"]], [terminus_alt_km], **marker_style)
-        ax_lon.scatter([terminus_marker["lon_deg"]], [terminus_alt_km], label=terminus_label, **marker_style)
-        ax_vel.scatter([terminus_marker["air_relative_speed_km_s"]], [terminus_alt_km], **marker_style)
-        if terminus_marker["dynamic_pressure_mpa"] > 0.0:
-            ax_q.scatter([terminus_marker["dynamic_pressure_mpa"]], [terminus_alt_km], **marker_style)
+                ax_q.scatter(
+                    [marker["dynamic_pressure_mpa"]],
+                    [marker["alt_km"]],
+                    marker="o",
+                    s=34,
+                    color="0.15",
+                    edgecolor="white",
+                    linewidth=0.45,
+                    label=marker_label,
+                    zorder=7,
+                )
 
     for idx, dark_path in enumerate(dark_flight_paths):
         generic = dark_path["path_kind"] == "generic_mass_hypothesis"
@@ -590,47 +618,29 @@ def make_plot(
             ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)
             ax_lon.scatter(lon, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, label=label, zorder=5)
 
-    ref_lat, ref_lon = component_reference_lonlat(paths, components)
-    elevation_levels_deg = [0.0, 15.0, 30.0, 45.0]
-    elevation_summary = {}
-    if np.isfinite(ref_lat) and np.isfinite(ref_lon):
-        lat_grid = np.linspace(*ax_lat.get_xlim(), 240)
-        lon_grid = np.linspace(*ax_lon.get_xlim(), 240)
-        for el in elevation_levels_deg:
-            lat_alt = np.array([elevation_altitude_km(lat, ref_lon, el) for lat in lat_grid], dtype=float)
-            lon_alt = np.array([elevation_altitude_km(ref_lat, lon, el) for lon in lon_grid], dtype=float)
-            lat_alt = np.where((lat_alt >= 0.0) & (lat_alt <= 120.0), lat_alt, np.nan)
-            lon_alt = np.where((lon_alt >= 0.0) & (lon_alt <= 120.0), lon_alt, np.nan)
-            label = f"Millstone {el:g} deg elevation"
-            ax_lat.plot(lat_grid, lat_alt, color="0.05", lw=0.9, ls=(0, (5, 3)), alpha=0.58, zorder=3)
-            ax_lon.plot(lon_grid, lon_alt, color="0.05", lw=0.9, ls=(0, (5, 3)), alpha=0.58, label=label, zorder=3)
-            elevation_summary[f"{el:g}"] = elevation_altitude_km(ref_lat, ref_lon, el)
-
     ax_lat.set_xlabel("Latitude (deg)")
     ax_lon.set_xlabel("Longitude (deg)")
-    ax_vel.set_xlabel("Air-relative speed (km/s)")
     ax_q.set_xlabel("Dynamic pressure (MPa)")
     ax_lat.set_ylabel("Height (km)")
     ax_lat.set_title("Latitude")
     ax_lon.set_title("Longitude")
-    ax_vel.set_title("Velocity")
     ax_q.set_title("Dynamic pressure")
     for ax in axes:
         ax.grid(True, alpha=0.28)
         ax.set_ylim(0, 120)
     ax_q.set_xscale("log")
     ax_lon.legend(loc="upper right", fontsize=7.2)
-    ax_vel.legend(loc="best", fontsize=7.2)
+    ax_q.legend(loc="best", fontsize=7.2)
     out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, dpi=260)
+    fig.savefig(out, dpi=260, facecolor="white", transparent=False)
     plt.close(fig)
-    return elevation_summary
+    return {}
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--trajectory", type=Path, default=DEFAULT_TRAJECTORY)
-    p.add_argument("--trail-positions-h5", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_H5)
+    p.add_argument("--trail-positions-json", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_JSON)
     p.add_argument("--marker-time", default="2026-05-30T18:06:23Z")
     p.add_argument("--terminus-altitude-km", type=float, default=33.61)
     p.add_argument("--right-panel-min-altitude-km", type=float, default=18.0)
@@ -639,7 +649,7 @@ def main() -> None:
     p.add_argument("--max-duration-s", type=float, default=7200.0)
     p.add_argument("--launch-altitude-km", type=float, default=90.0)
     p.add_argument("--density-kg-m3", type=float, default=3000.0)
-    p.add_argument("--diameters-m", nargs="+", type=float, default=[10.0, 1.0, 0.1, 0.01])
+    p.add_argument("--diameters-m", nargs="+", type=float, default=[1.0])
     p.add_argument("--cd", type=float, default=1.0)
     p.add_argument("--dt-s", type=float, default=0.25)
     p.add_argument("--max-step-s", type=float, default=10.0)
@@ -659,12 +669,10 @@ def main() -> None:
         float(args.dt_s),
         float(args.max_step_s),
     )
-    ensure_gui_trail_position_h5([Path(v) for v in args.trail_positions_h5])
-    components = load_components_h5([Path(v) for v in args.trail_positions_h5], max_height_km=120.0)
+    components = load_components_json([Path(v) for v in args.trail_positions_json], max_height_km=120.0)
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
-    fitted_trajectory = build_fitted_trajectory(fit, float(args.launch_altitude_km), float(args.right_panel_min_altitude_km))
     elevation_summary = make_plot(
         args.out,
         paths,
@@ -673,7 +681,6 @@ def main() -> None:
         marker_time,
         terminus_marker,
         float(args.right_panel_min_altitude_km),
-        fitted_trajectory,
         dark_flight_paths,
         dark_flight_detections,
     )
@@ -682,7 +689,7 @@ def main() -> None:
     payload = {
         "source_program": "reports/plot_fragment_size_hypotheses.py",
         "trajectory": str(args.trajectory),
-        "trail_positions_h5": [str(v) for v in args.trail_positions_h5],
+        "trail_positions_json": [str(v) for v in args.trail_positions_json],
         "figure": str(args.out),
         "launch": launch,
         "marker_time_unix": float(marker_time),
