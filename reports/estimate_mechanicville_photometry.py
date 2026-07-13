@@ -36,6 +36,7 @@ ASSUMED_HORIZONTAL_FOV_DEG = 120.0
 SOLAR_V_MAG = -26.76
 CHANNEL_NAMES = ("red", "green", "blue")
 EFFECTIVE_WAVELENGTH_UM = np.array([0.610, 0.540, 0.460])
+PROJECTION_SCENARIOS = ("rectilinear_120deg", "equidistant_180deg", "equisolid_180deg")
 
 
 def add_regions(
@@ -221,6 +222,37 @@ def pixel_solid_angle(image_shape: tuple[int, int], x: float, y: float) -> float
     return float(1.0 / (focal_px**2 * (1.0 + xn**2 + yn**2) ** 1.5))
 
 
+def illustrative_projection_solid_angles(
+    image_shape: tuple[int, int], x: float, y: float
+) -> np.ndarray:
+    """Local solid angles for the adopted rectilinear and two fisheye examples.
+
+    The fisheye examples assume that the image center is the optical center and
+    that half the image width maps to 90 degrees.  They are sensitivity cases,
+    not a calibration of the actual Wyze lens.
+    """
+    height, width = image_shape
+    rectilinear = pixel_solid_angle(image_shape, x, y)
+    cx = 0.5 * (width - 1)
+    cy = 0.5 * (height - 1)
+    radius_px = np.hypot(x - cx, y - cy)
+    image_radius_px = 0.5 * width
+
+    # Equidistant fisheye: r=f*theta and
+    # dOmega/dA = sin(theta)/(f^2*theta).
+    focal_equidistant_px = image_radius_px / (0.5 * np.pi)
+    theta = radius_px / focal_equidistant_px
+    equidistant = (
+        np.sin(theta) / (focal_equidistant_px**2 * theta)
+        if theta > 0 else 1.0 / focal_equidistant_px**2
+    )
+
+    # Equisolid fisheye: r=2*f*sin(theta/2), giving constant dOmega/dA=1/f^2.
+    focal_equisolid_px = image_radius_px / (2.0 * np.sin(0.25 * np.pi))
+    equisolid = 1.0 / focal_equisolid_px**2
+    return np.asarray((rectilinear, equidistant, equisolid), dtype=float)
+
+
 def estimate_photometry(
     image_rgb: np.ndarray, meteor_vertices: np.ndarray, sky_vertices: np.ndarray
 ) -> dict[str, np.ndarray | float | dict]:
@@ -231,6 +263,9 @@ def estimate_photometry(
     geometry = event_geometry()
     meteor_x, meteor_y = np.mean(meteor_vertices, axis=0)
     omega = pixel_solid_angle(encoded.shape[:2], meteor_x, meteor_y)
+    projection_omega = illustrative_projection_solid_angles(
+        encoded.shape[:2], meteor_x, meteor_y
+    )
 
     signal = np.empty(3)
     sky_level = np.empty(3)
@@ -267,6 +302,10 @@ def estimate_photometry(
             - extinction_mag[channel]
             - 5.0 * np.log10(geometry["range_m"] / 100_000.0)
         )
+    projection_absolute_mag = (
+        absolute_mag[None, :]
+        - 2.5 * np.log10(projection_omega[:, None] / omega)
+    )
     return {
         "geometry": geometry,
         "meteor_mask": meteor,
@@ -282,6 +321,8 @@ def estimate_photometry(
         "apparent_mag": apparent_mag,
         "absolute_mag_100km": absolute_mag,
         "pixel_solid_angle_sr": omega,
+        "projection_scenario_solid_angle_sr": projection_omega,
+        "projection_scenario_absolute_mag_100km": projection_absolute_mag,
     }
 
 
@@ -300,8 +341,15 @@ def write_hdf5(result: dict[str, np.ndarray | float | dict]) -> None:
             "for any clipped channel, true magnitude <= stored magnitude; "
             "equivalently true flux >= measured flux"
         )
+        h5.attrs["projection_scenario_status"] = (
+            "illustrative only; fisheye cases assume centered 180-deg circular mapping"
+        )
         h5.create_dataset("channel_name", data=np.asarray(CHANNEL_NAMES, dtype="S"))
         h5.create_dataset("effective_wavelength_um", data=EFFECTIVE_WAVELENGTH_UM)
+        h5.create_dataset(
+            "projection_scenario_name",
+            data=np.asarray(PROJECTION_SCENARIOS, dtype="S"),
+        )
         for key in (
             "linear_signal", "sky_level", "q_sky_pixels", "saturation_count",
             "sky_saturation_count", "background_rms",
@@ -312,6 +360,14 @@ def write_hdf5(result: dict[str, np.ndarray | float | dict]) -> None:
         h5.create_dataset("meteor_mask", data=result["meteor_mask"], compression="gzip")
         h5.create_dataset("sky_mask", data=result["sky_mask"], compression="gzip")
         h5.create_dataset("pixel_solid_angle_sr", data=result["pixel_solid_angle_sr"])
+        h5.create_dataset(
+            "projection_scenario_solid_angle_sr",
+            data=result["projection_scenario_solid_angle_sr"],
+        )
+        h5.create_dataset(
+            "projection_scenario_absolute_mag_100km",
+            data=result["projection_scenario_absolute_mag_100km"],
+        )
         geometry_group = h5.create_group("geometry")
         for key, value in result["geometry"].items():
             geometry_group.create_dataset(key, data=value)
@@ -362,6 +418,13 @@ def main() -> None:
             f"Q={result['q_sky_pixels'][index]:.3f}",
             f"saturated={result['saturation_count'][index]}/{result['meteor_mask'].sum()}",
             f"M100_upper_bound={result['absolute_mag_100km'][index]:.3f}",
+        )
+    for index, name in enumerate(PROJECTION_SCENARIOS):
+        values = result["projection_scenario_absolute_mag_100km"][index]
+        print(
+            name,
+            f"omega={result['projection_scenario_solid_angle_sr'][index]:.6e}",
+            "M100_RGB_upper_bounds=" + ",".join(f"{value:.3f}" for value in values),
         )
 
 
