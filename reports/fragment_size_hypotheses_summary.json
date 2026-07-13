@@ -1,8 +1,8 @@
 {
   "source_program": "reports/plot_fragment_size_hypotheses.py",
   "trajectory": "products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json",
-  "trail_positions_json": [
-    "products/specular_trail_positions/specular_trail_position_summary.json"
+  "trail_positions_h5": [
+    "data/interactive_sparse_component_imager/beverly_trail_positions.h5"
   ],
   "figure": "reports/figures/fragment_size_hypotheses.png",
   "launch": {
@@ -175,23 +175,23 @@
       "reached_sea_level": true
     }
   ],
-  "n_components": 32,
+  "n_components": 56,
   "lowest_altitude_blob": {
     "station": "beverly",
-    "blob_lat_deg": 41.89413162565416,
-    "blob_lon_deg": -70.4409496294293,
-    "blob_alt_km": 32.58517720178794,
+    "blob_lat_deg": 41.904095208654255,
+    "blob_lon_deg": -70.43868050162321,
+    "blob_alt_km": 33.60797690345068,
     "meteor_at_blob_altitude": {
-      "time_unix": 1780164382.5046136,
-      "time_utc": "2026-05-30T18:06:22.504614Z",
-      "lat_deg": 41.90262559135037,
-      "lon_deg": -70.42704247022313,
-      "alt_km": 32.58516382722091,
+      "time_unix": 1780164382.4608932,
+      "time_utc": "2026-05-30T18:06:22.460893Z",
+      "lat_deg": 41.90395879467968,
+      "lon_deg": -70.43089507304978,
+      "alt_km": 33.60797563678399,
       "velocity_reference_alt_km": 100.0,
-      "velocity_azimuth_deg": 114.85449795851281,
-      "velocity_elevation_deg": -70.88079108100008,
-      "ground_referenced_speed_km_s": 26.723852570502427,
-      "air_relative_speed_km_s": 24.767998130911252
+      "velocity_azimuth_deg": 114.85583787572261,
+      "velocity_elevation_deg": -70.88676210050797,
+      "ground_referenced_speed_km_s": 26.723437754394965,
+      "air_relative_speed_km_s": 25.03920112721688
     }
   }
 }

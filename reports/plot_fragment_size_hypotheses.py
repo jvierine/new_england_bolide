@@ -32,8 +32,8 @@ from fit_combined_head_trail_eci import gcrs_to_ecef  # noqa: E402
 OUT_FIG = Path("reports/figures/fragment_size_hypotheses.png")
 OUT_SUMMARY = Path("reports/fragment_size_hypotheses_summary.json")
 DEFAULT_TRAJECTORY = Path("products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json")
-DEFAULT_TRAIL_POSITION_JSON = [
-    Path("products/specular_trail_positions/specular_trail_position_summary.json"),
+DEFAULT_TRAIL_POSITION_H5 = [
+    Path("data/interactive_sparse_component_imager/beverly_trail_positions.h5"),
 ]
 DEFAULT_DARK_FLIGHT_KMZ = Path("data/marc_fries/cape_cod_bay_dark_flight_20260626.kmz")
 DEFAULT_DARK_FLIGHT_JSON = Path("data/marc_fries/cape_cod_bay_dark_flight_20260625.json")
@@ -234,43 +234,6 @@ def load_components_h5(paths: list[Path], max_height_km: float) -> list[dict]:
                         "blob_axis_length_cross_m": float(h["blob_axis_length_cross_m"][idx]) if "blob_axis_length_cross_m" in h else np.nan,
                     }
                 )
-    return rows
-
-
-def load_components_json(
-    paths: list[Path],
-    max_height_km: float,
-    station: str = "beverly",
-    min_height_km: float = 30.0,
-) -> list[dict]:
-    """Load tracked trail-plasma positions from the AoD solution JSON."""
-    rows = []
-    for path in paths:
-        if not path.exists():
-            raise FileNotFoundError(f"Trail-position JSON does not exist: {path}")
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        for row in payload.get("positions", []):
-            alt_m = float(row.get("alt_m", np.nan))
-            alt_km = alt_m / 1000.0
-            if str(row.get("station", "")).lower() != station.lower():
-                continue
-            if not np.isfinite(alt_km) or alt_km < min_height_km or alt_km > max_height_km:
-                continue
-            # Reject the known AoD-alias solution far from the trajectory prior.
-            if float(row.get("aod_prior_offset_deg", 0.0)) > 10.0:
-                continue
-            sigma_enu_m = np.asarray(row.get("uncertainty", {}).get("position_sigma_enu_m", [np.nan] * 3), dtype=float)
-            rows.append(
-                {
-                    "station": str(row.get("station", "")),
-                    "lat_deg": float(row["lat_deg"]),
-                    "lon_deg": float(row["lon_deg"]),
-                    "alt_m": alt_m,
-                    "east_sigma_m": float(sigma_enu_m[0]),
-                    "north_sigma_m": float(sigma_enu_m[1]),
-                    "up_sigma_m": float(sigma_enu_m[2]),
-                }
-            )
     return rows
 
 
@@ -619,11 +582,14 @@ def make_plot(
             label = "Plasma trail position (Beverly)" if station == "beverly" else f"Plasma trail position ({station})"
             for row in rows:
                 z_km = float(row["alt_m"]) / 1000.0
-                height_km = 2.0 * row.get("up_sigma_m", np.nan) / 1000.0
-                lat_width = 2.0 * row.get("north_sigma_m", np.nan) / 111000.0
-                lon_width = 2.0 * row.get("east_sigma_m", np.nan) / (
-                    111000.0 * max(np.cos(np.deg2rad(float(row["lat_deg"]))), 0.1)
+                alt_sigma_km = row.get("centroid_alt_sigma_m", np.nan) / 1000.0
+                horiz_km = max(
+                    row.get("blob_axis_length_along_m", np.nan) / 1000.0,
+                    row.get("blob_axis_length_cross_m", np.nan) / 1000.0,
                 )
+                lat_width = horiz_km / 111.0
+                lon_width = horiz_km / (111.0 * max(np.cos(np.deg2rad(float(row["lat_deg"]))), 0.1))
+                height_km = max(2.0 * alt_sigma_km, row.get("blob_axis_length_cross_m", np.nan) / 1000.0)
                 add_plasma_blob(ax_lat, float(row["lat_deg"]), z_km, lat_width, height_km, color, zorder=1)
                 add_plasma_blob(ax_lon, float(row["lon_deg"]), z_km, lon_width, height_km, color, zorder=1)
             ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)
@@ -651,7 +617,7 @@ def make_plot(
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--trajectory", type=Path, default=DEFAULT_TRAJECTORY)
-    p.add_argument("--trail-positions-json", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_JSON)
+    p.add_argument("--trail-positions-h5", nargs="+", type=Path, default=DEFAULT_TRAIL_POSITION_H5)
     p.add_argument("--marker-time", default="2026-05-30T18:06:23Z")
     p.add_argument("--terminus-altitude-km", type=float, default=33.61)
     p.add_argument("--right-panel-min-altitude-km", type=float, default=18.0)
@@ -680,7 +646,7 @@ def main() -> None:
         float(args.dt_s),
         float(args.max_step_s),
     )
-    components = load_components_json([Path(v) for v in args.trail_positions_json], max_height_km=120.0)
+    components = load_components_h5([Path(v) for v in args.trail_positions_h5], max_height_km=120.0)
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
@@ -700,7 +666,7 @@ def main() -> None:
     payload = {
         "source_program": "reports/plot_fragment_size_hypotheses.py",
         "trajectory": str(args.trajectory),
-        "trail_positions_json": [str(v) for v in args.trail_positions_json],
+        "trail_positions_h5": [str(v) for v in args.trail_positions_h5],
         "figure": str(args.out),
         "launch": launch,
         "marker_time_unix": float(marker_time),
