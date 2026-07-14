@@ -62,6 +62,12 @@ TRAIL_POSITION_EXCLUDE = [
     # Isolated Beverly AoD solution that appears as the first trail point in Figure 8.
     {"station": "beverly", "unix_time": 1780164384.88, "tol_s": 0.03},
 ]
+WEATHER_RADAR_SITES = {
+    "KBOX": (41.9558, -71.1369),
+    "KENX": (42.5864, -74.0641),
+    "KOKX": (40.8655, -72.8639),
+    "TBOS": (42.1581, -70.9333),
+}
 
 
 def add_version_stamp(ax, version: str | None) -> None:
@@ -1304,10 +1310,13 @@ def plot_station_measurement_ballistic_overview(
             tx_ref_lat = float(tx_lat)
             tx_ref_lon = float(tx_lon)
 
+    weather_lats = np.array([site[0] for site in WEATHER_RADAR_SITES.values()], dtype=float)
+    weather_lons = np.array([site[1] for site in WEATHER_RADAR_SITES.values()], dtype=float)
+
     measurement_lon = np.r_[trail_llh[:, 1], head_llh[:, 1]]
     measurement_lat = np.r_[trail_llh[:, 0], head_llh[:, 0]]
-    all_lon = np.r_[station_lons, ballistic_llh[:, 1], fragment_llh[:, 1], impact_llh[1], measurement_lon]
-    all_lat = np.r_[station_lats, ballistic_llh[:, 0], fragment_llh[:, 0], impact_llh[0], measurement_lat]
+    all_lon = np.r_[station_lons, weather_lons, ballistic_llh[:, 1], fragment_llh[:, 1], impact_llh[1], measurement_lon]
+    all_lat = np.r_[station_lats, weather_lats, ballistic_llh[:, 0], fragment_llh[:, 0], impact_llh[0], measurement_lat]
     extent = [
         float(np.nanmin(all_lon) - 0.28),
         float(np.nanmax(all_lon) + 0.38),
@@ -1462,7 +1471,7 @@ def plot_station_measurement_ballistic_overview(
             color="0.1",
             transform=data_crs,
             zorder=8,
-            label=None if receiver_labeled else "receivers",
+            label=None if receiver_labeled else "VHF meteor-radar receivers",
         )
         receiver_labeled = True
         ax.text(rx_lon + 0.035, rx_lat + 0.02, short_station_name(station), fontsize=17, transform=data_crs, zorder=9, clip_on=True)
@@ -1472,8 +1481,46 @@ def plot_station_measurement_ballistic_overview(
             ax.text(tx_lon + 0.035, tx_lat + 0.02, "TX", fontsize=17, weight="bold", transform=data_crs, zorder=9, clip_on=True)
             tx_seen.add(tx_key)
 
+    weather_label_offsets = {
+        "KBOX": (-0.34, 0.02),
+        "KENX": (0.04, 0.03),
+        "KOKX": (0.04, 0.03),
+        "TBOS": (0.04, 0.03),
+    }
+    for radar_index, (radar, (radar_lat, radar_lon)) in enumerate(WEATHER_RADAR_SITES.items()):
+        ax.scatter(
+            radar_lon,
+            radar_lat,
+            marker="D",
+            s=92,
+            facecolor="deepskyblue",
+            edgecolor="0.1",
+            linewidth=0.8,
+            transform=data_crs,
+            zorder=9,
+            label="weather radars (solid fragments)" if radar_index == 0 else None,
+        )
+        dlon, dlat = weather_label_offsets[radar]
+        ax.text(
+            radar_lon + dlon,
+            radar_lat + dlat,
+            radar,
+            fontsize=15,
+            weight="bold",
+            color="navy",
+            transform=data_crs,
+            zorder=10,
+            clip_on=True,
+        )
+
     add_version_stamp(ax, getattr(args, "plot_version_label", None))
-    ax.legend(loc="lower left", fontsize=17, framealpha=0.92)
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.08),
+        ncol=2,
+        fontsize=14,
+        framealpha=0.92,
+    )
     fig.savefig(out, dpi=420, bbox_inches="tight")
     plt.close(fig)
 
