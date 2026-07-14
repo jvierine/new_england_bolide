@@ -1,0 +1,50 @@
+{
+  "source": "reports/generate_beverly_rcs_range_path.py",
+  "input_h5": "/Users/jvi019/src/new_england_bolide/products/sparse_residual_noise_power/head_echo_snr_rdmf_progression_stage_noise_beverly_zoom.h5",
+  "input_attrs": {
+    "description": "Beverly RDMF progression normalized by per-stage robust off-path noise",
+    "gaussian_summary_csv": "/Users/jvi019/src/new_england_bolide/reports/head_echo_gaussian_fit_summary_v0p2p7_1coh_2incoh_zp16_sparse_dcmean.csv",
+    "half_width_px": "10",
+    "noise_exclude_km": "3.0",
+    "polarization_noise_mode": "txsteer",
+    "rdmf_h5": "/Users/jvi019/src/new_england_bolide/products/rdmf_exact_highres_180615_10s_merged_20260602_095431/rdmf_peak_beverly_merged.h5",
+    "selection_mode": "center",
+    "source_script": "reports/generate_beverly_snr_progression_stage_noise.py",
+    "trajectory_json": "/Users/jvi019/src/new_england_bolide/products/ballistic_head_trail_correlated_fit_v0p2p7_zp16_neighbor0p5/ballistic_head_trail_correlated_fit.json"
+  },
+  "station": "beverly",
+  "snr_dataset": "txsteer_pol_snr_db",
+  "selection": "modeled Beverly range bin from stage-noise-normalized trace",
+  "pt_w": 500.0,
+  "tx_gain_db": 7.0,
+  "rx_gain_db": 3.0,
+  "system_temp_k": 15400.0,
+  "bandwidth_hz": 100.0,
+  "snr_cutoff_db": null,
+  "xlim_start_rel": -1.0,
+  "xlim_end_rel": 2.0,
+  "altitude_ticks_km": [
+    110.0,
+    100.0,
+    90.0,
+    80.0,
+    72.0,
+    60.0,
+    50.0
+  ],
+  "noise_power_w": 2.1261994600000002e-17,
+  "frequency_hz": 31650000.0,
+  "summary": {
+    "n": 301,
+    "median_dbsm": 15.395832522614892,
+    "p05_dbsm": 6.593937639243254,
+    "p95_dbsm": 27.527304457159044,
+    "min_dbsm": -13.30933408835294,
+    "max_dbsm": 30.341577094914662,
+    "median_snr_db": 2.6487573026908433,
+    "noise_power_w": 2.1261994600000002e-17,
+    "snr_cutoff_db": null,
+    "xlim_start_rel": -1.0,
+    "xlim_end_rel": 2.0
+  }
+}
