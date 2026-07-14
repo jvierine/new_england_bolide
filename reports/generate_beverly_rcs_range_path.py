@@ -94,8 +94,8 @@ def main() -> None:
         "--altitude-ticks-km",
         type=float,
         nargs="+",
-        default=[110.0, 100.0, 90.0, 80.0, 72.0, 60.0, 50.0],
-        help="Altitude values shown on the top axis; 90 and 72 km mark head-echo onset and disappearance.",
+        default=[110.0, 100.0, 90.0, 80.0, 70.0, 60.0, 50.0],
+        help="Altitude values shown on the top axis; 90 and 70 km bracket the head-echo interval.",
     )
     args = p.parse_args()
 
