@@ -19,6 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import h5py
 import numpy as np
+from matplotlib.colors import Normalize
 from matplotlib.patches import Ellipse
 from scipy.integrate import solve_ivp
 
@@ -40,6 +41,8 @@ DEFAULT_DARK_FLIGHT_JSON = Path("data/marc_fries/cape_cod_bay_dark_flight_202606
 MILLSTONE_TX_LAT_DEG = 42.611
 MILLSTONE_TX_LON_DEG = -71.485
 MILLSTONE_TX_ALT_M = 80.0
+SPARSE_SPECTRAL_BIN_WIDTH_HZ = 2.0
+SPARSE_NOISE_BANDWIDTH_HZ = 2.0
 
 
 def parse_utc(value: str) -> float:
@@ -229,6 +232,7 @@ def load_components_h5(paths: list[Path], max_height_km: float) -> list[dict]:
                         "lat_deg": float(h["lat_deg"][idx]),
                         "lon_deg": float(h["lon_deg"][idx]),
                         "alt_m": alt_m,
+                        "snr_db_2hz": float(h["snr_db_2hz"][idx]) if "snr_db_2hz" in h else np.nan,
                         "centroid_alt_sigma_m": float(h["centroid_alt_sigma_m"][idx]) if "centroid_alt_sigma_m" in h else np.nan,
                         "blob_axis_length_along_m": float(h["blob_axis_length_along_m"][idx]) if "blob_axis_length_along_m" in h else np.nan,
                         "blob_axis_length_cross_m": float(h["blob_axis_length_cross_m"][idx]) if "blob_axis_length_cross_m" in h else np.nan,
@@ -491,9 +495,18 @@ def make_plot(
     dark_flight_paths: list[dict],
     dark_flight_detections: list[dict],
 ) -> dict[str, float]:
-    fig, axes = plt.subplots(1, 3, figsize=(10.4, 5.0), sharey=True, constrained_layout=True)
+    fig, axes = plt.subplots(1, 3, figsize=(10.4, 5.5), sharey=True, constrained_layout=True)
     ax_lat, ax_lon, ax_q = axes
     linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
+    component_snr = np.asarray([float(row.get("snr_db_2hz", np.nan)) for row in components], dtype=float)
+    finite_snr = component_snr[np.isfinite(component_snr)]
+    if finite_snr.size == 0:
+        raise ValueError("No finite 2 Hz-bandwidth SNR values are available for the plasma-trail components")
+    snr_step_db = 2.0
+    snr_vmin = snr_step_db * math.floor(float(np.nanmin(finite_snr)) / snr_step_db)
+    snr_vmax = snr_step_db * math.ceil(float(np.nanmax(finite_snr)) / snr_step_db)
+    snr_norm = Normalize(vmin=snr_vmin, vmax=snr_vmax)
+    snr_cmap = plt.get_cmap("viridis")
 
     for idx, path in enumerate(paths):
         label = f"{path['diameter_m']:g} m diameter hypothesis"
@@ -554,16 +567,17 @@ def make_plot(
 
     if components:
         stations = sorted(set(str(c["station"]) for c in components))
-        colors = {"beverly": "#1f77b4", "clinton": "#d62728"}
         for station in stations:
             rows = [c for c in components if str(c["station"]) == station]
             lat = np.array([float(c["lat_deg"]) for c in rows])
             lon = np.array([float(c["lon_deg"]) for c in rows])
             alt = np.array([float(c["alt_m"]) / 1000.0 for c in rows])
-            color = colors.get(station, "C2")
-            label = "Plasma trail position (Beverly)" if station == "beverly" else f"Plasma trail position ({station})"
+            snr_db = np.array([float(c.get("snr_db_2hz", np.nan)) for c in rows])
+            label = "VHF plasma-trail positions (Beverly)" if station == "beverly" else f"VHF plasma-trail positions ({station})"
             for row in rows:
                 z_km = float(row["alt_m"]) / 1000.0
+                snr_value = float(row.get("snr_db_2hz", np.nan))
+                color = snr_cmap(snr_norm(snr_value)) if np.isfinite(snr_value) else "0.6"
                 alt_sigma_km = row.get("centroid_alt_sigma_m", np.nan) / 1000.0
                 horiz_km = max(
                     row.get("blob_axis_length_along_m", np.nan) / 1000.0,
@@ -574,8 +588,33 @@ def make_plot(
                 height_km = max(2.0 * alt_sigma_km, row.get("blob_axis_length_cross_m", np.nan) / 1000.0)
                 add_plasma_blob(ax_lat, float(row["lat_deg"]), z_km, lat_width, height_km, color, zorder=1)
                 add_plasma_blob(ax_lon, float(row["lon_deg"]), z_km, lon_width, height_km, color, zorder=1)
-            ax_lat.scatter(lat, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, zorder=5)
-            ax_lon.scatter(lon, alt, s=18, color=color, edgecolor="black", linewidth=0.35, alpha=0.95, label=label, zorder=5)
+            marker_style = {
+                "c": snr_db,
+                "cmap": snr_cmap,
+                "norm": snr_norm,
+                "s": 20,
+                "edgecolor": "black",
+                "linewidth": 0.35,
+                "alpha": 0.98,
+                "zorder": 5,
+            }
+            ax_lat.scatter(lat, alt, **marker_style)
+            ax_lon.scatter(lon, alt, label=label, **marker_style)
+
+    snr_mappable = plt.cm.ScalarMappable(norm=snr_norm, cmap=snr_cmap)
+    snr_mappable.set_array([])
+    snr_colorbar = fig.colorbar(
+        snr_mappable,
+        ax=[ax_lat, ax_lon],
+        location="bottom",
+        orientation="horizontal",
+        fraction=0.075,
+        pad=0.10,
+        aspect=35,
+    )
+    snr_colorbar.set_label(
+        "VHF plasma-echo SNR (dB; 2 Hz spectral-bin width and noise bandwidth)"
+    )
 
     ax_lat.set_xlabel("Latitude (deg)")
     ax_lon.set_xlabel("Longitude (deg)")
@@ -593,7 +632,12 @@ def make_plot(
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=260, facecolor="white", transparent=False)
     plt.close(fig)
-    return {}
+    return {
+        "plasma_snr_min_db_2hz": float(np.nanmin(finite_snr)),
+        "plasma_snr_max_db_2hz": float(np.nanmax(finite_snr)),
+        "sparse_spectral_bin_width_hz": SPARSE_SPECTRAL_BIN_WIDTH_HZ,
+        "sparse_noise_bandwidth_hz": SPARSE_NOISE_BANDWIDTH_HZ,
+    }
 
 
 def main() -> None:
@@ -632,7 +676,7 @@ def main() -> None:
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
-    elevation_summary = make_plot(
+    plot_metadata = make_plot(
         args.out,
         paths,
         components,
@@ -666,7 +710,8 @@ def main() -> None:
             for row in dark_flight_paths
         ],
         "dark_flight_radar_detections": dark_flight_detections,
-        "millstone_elevation_height_km": elevation_summary,
+        "plot_metadata": plot_metadata,
+        "millstone_elevation_height_km": {},
         "millstone_tx_lat_deg": MILLSTONE_TX_LAT_DEG,
         "millstone_tx_lon_deg": MILLSTONE_TX_LON_DEG,
         "millstone_tx_alt_m": MILLSTONE_TX_ALT_M,

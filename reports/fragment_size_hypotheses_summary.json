@@ -6,27 +6,27 @@
   ],
   "figure": "reports/figures/fragment_size_hypotheses.png",
   "launch": {
-    "time_unix": 1780164380.2109993,
-    "time_utc": "2026-05-30T18:06:20.210999Z",
+    "time_unix": 1780164380.227711,
+    "time_utc": "2026-05-30T18:06:20.227711Z",
     "altitude_km": 90.0,
     "density_kg_m3": 4.565150135796375e-06,
-    "inertial_speed_km_s": 26.83225639906045,
-    "air_relative_speed_km_s": 26.726692621635184
+    "inertial_speed_km_s": 26.139461770752348,
+    "air_relative_speed_km_s": 26.026806687344997
   },
   "marker_time_unix": 1780164383.0,
   "marker_time_utc": "2026-05-30T18:06:23.000000Z",
   "terminus_marker": {
-    "time_unix": 1780164382.4608085,
-    "time_utc": "2026-05-30T18:06:22.460809Z",
-    "lat_deg": 41.90396143117711,
-    "lon_deg": -70.43090271011226,
-    "alt_km": 33.60999868692737,
+    "time_unix": 1780164382.550693,
+    "time_utc": "2026-05-30T18:06:22.550693Z",
+    "lat_deg": 41.91008284529317,
+    "lon_deg": -70.42059474118133,
+    "alt_km": 33.60999355173204,
     "velocity_reference_alt_km": 100.0,
-    "velocity_azimuth_deg": 114.85583291561755,
-    "velocity_elevation_deg": -70.88676882202158,
-    "ground_referenced_speed_km_s": 26.72343775567082,
-    "air_relative_speed_km_s": 25.03960163821062,
-    "dynamic_pressure_mpa": 3.6062035271129176
+    "velocity_azimuth_deg": 111.8367701691119,
+    "velocity_elevation_deg": -70.00394319388437,
+    "ground_referenced_speed_km_s": 26.02342893765742,
+    "air_relative_speed_km_s": 24.369566161604403,
+    "dynamic_pressure_mpa": 3.4157911460129906
   },
   "dark_flight_kmz": "data/marc_fries/cape_cod_bay_dark_flight_20260626.kmz",
   "dark_flight_json": "data/marc_fries/cape_cod_bay_dark_flight_20260625.json",
@@ -148,6 +148,12 @@
       "alt_km": 7.200585291898075
     }
   ],
+  "plot_metadata": {
+    "plasma_snr_min_db_2hz": 13.542100527032675,
+    "plasma_snr_max_db_2hz": 35.2923694926709,
+    "sparse_spectral_bin_width_hz": 2.0,
+    "sparse_noise_bandwidth_hz": 2.0
+  },
   "millstone_elevation_height_km": {},
   "millstone_tx_lat_deg": 42.611,
   "millstone_tx_lon_deg": -71.485,
@@ -160,18 +166,18 @@
       "diameter_m": 1.0,
       "mass_kg": 1570.7963267948965,
       "cd_area_over_mass_m2_kg": 0.0005,
-      "final_height_km": 0.04329165659286082,
-      "final_air_relative_speed_km_s": 0.21618635923086993,
-      "final_lat_deg": 41.86129533549554,
-      "final_lon_deg": -70.30779479353149,
+      "final_height_km": 0.02507459150440991,
+      "final_air_relative_speed_km_s": 0.2121121421543899,
+      "final_lat_deg": 41.87050428492997,
+      "final_lon_deg": -70.28861311620044,
       "marker": {
-        "lat_deg": 41.88957658898836,
-        "lon_deg": -70.38936172935647,
-        "alt_km": 22.597616034634544,
-        "air_relative_speed_km_s": 18.247468721378528,
-        "dynamic_pressure_mpa": 8.770078070542324
+        "lat_deg": 41.89897248014975,
+        "lon_deg": -70.38349877927651,
+        "alt_km": 24.45347127685169,
+        "air_relative_speed_km_s": 19.3629339112706,
+        "dynamic_pressure_mpa": 7.670305900238868
       },
-      "final_dynamic_pressure_mpa": 0.028454527143519877,
+      "final_dynamic_pressure_mpa": 0.027461527270048892,
       "reached_sea_level": true
     }
   ],
@@ -182,16 +188,16 @@
     "blob_lon_deg": -70.43868050162321,
     "blob_alt_km": 33.60797690345068,
     "meteor_at_blob_altitude": {
-      "time_unix": 1780164382.4608932,
-      "time_utc": "2026-05-30T18:06:22.460893Z",
-      "lat_deg": 41.90395879467968,
-      "lon_deg": -70.43089507304978,
-      "alt_km": 33.60797563678399,
+      "time_unix": 1780164382.5507808,
+      "time_utc": "2026-05-30T18:06:22.550781Z",
+      "lat_deg": 41.91008039555415,
+      "lon_deg": -70.42058652586798,
+      "alt_km": 33.60797049415298,
       "velocity_reference_alt_km": 100.0,
-      "velocity_azimuth_deg": 114.85583787572261,
-      "velocity_elevation_deg": -70.88676210050797,
-      "ground_referenced_speed_km_s": 26.723437754394965,
-      "air_relative_speed_km_s": 25.03920112721688
+      "velocity_azimuth_deg": 111.83677560155382,
+      "velocity_elevation_deg": -70.00393613372377,
+      "ground_referenced_speed_km_s": 26.023428936332976,
+      "air_relative_speed_km_s": 24.36915992302669
     }
   }
 }
