@@ -1292,9 +1292,6 @@ def plot_station_measurement_ballistic_overview(
         ]
     )
     _t_ballistic, ballistic_llh = ballistic_llh_from_altitude(params, t_ref, density_profile, args, start_alt_km=300.0)
-    nominal = impact_payload["nominal"]
-    fragment_llh = np.asarray(nominal["fragment_llh"], dtype=float)
-    impact_llh = np.asarray(nominal["impact_llh"], dtype=float)
 
     station_configs = load_all_station_configs(args.data_dir)
     station_lons = []
@@ -1315,8 +1312,8 @@ def plot_station_measurement_ballistic_overview(
 
     measurement_lon = np.r_[trail_llh[:, 1], head_llh[:, 1]]
     measurement_lat = np.r_[trail_llh[:, 0], head_llh[:, 0]]
-    all_lon = np.r_[station_lons, weather_lons, ballistic_llh[:, 1], fragment_llh[:, 1], impact_llh[1], measurement_lon]
-    all_lat = np.r_[station_lats, weather_lats, ballistic_llh[:, 0], fragment_llh[:, 0], impact_llh[0], measurement_lat]
+    all_lon = np.r_[station_lons, weather_lons, ballistic_llh[:, 1], measurement_lon]
+    all_lat = np.r_[station_lats, weather_lats, ballistic_llh[:, 0], measurement_lat]
     extent = [
         float(np.nanmin(all_lon) - 0.28),
         float(np.nanmax(all_lon) + 0.38),
@@ -1402,9 +1399,6 @@ def plot_station_measurement_ballistic_overview(
     plot_terminus_marker(ax, ballistic_llh, args, data_crs, size=145, zorder=9)
     alt_label_offsets = {
         300: (-0.30, -0.27),
-        200: (-0.21, -0.225),
-        90: (-0.09, -0.195),
-        71: (0.165, -0.225),
         30: (0.285, -0.30),
     }
     alt_km = ballistic_llh[:, 2] / 1000.0
@@ -1436,28 +1430,6 @@ def plot_station_measurement_ballistic_overview(
             transform=data_crs,
             zorder=10,
         )
-    ax.plot(
-        fragment_llh[:, 1],
-        fragment_llh[:, 0],
-        color="C1",
-        lw=3.2,
-        transform=data_crs,
-        zorder=6,
-        label="nominal 10 cm ground fall",
-    )
-    ax.scatter(
-        impact_llh[1],
-        impact_llh[0],
-        s=210,
-        color="C3",
-        marker="*",
-        edgecolors="k",
-        linewidths=0.7,
-        transform=data_crs,
-        zorder=8,
-        label="nominal sea-level impact",
-    )
-
     receiver_labeled = False
     tx_seen = set()
     for station, cfg in station_configs.items():
