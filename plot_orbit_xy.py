@@ -21,6 +21,7 @@ DEFAULT_SAMPLES = Path("products/orbit_determination/best_fit_orbit.h5")
 DEFAULT_OUT = Path("reports/figures/orbit_xy_bolide.png")
 DEFAULT_MACROS = Path("reports/orbit_analysis_macros.tex")
 DEFAULT_NEA_MATCHES = Path("products/orbit_determination/nea_jopek_matches.csv")
+DEFAULT_METEORITE_ORBITS = Path("reports/meteorite_orbits_info_orbits.csv")
 
 J2000 = Time("2000-01-01T12:00:00", scale="tdb")
 
@@ -322,6 +323,29 @@ def read_closest_nea(path: Path, target_epoch: Time) -> tuple[np.ndarray, str, s
     return np.array([a_au * AU, e, inc, argp, raan, true_anomaly], dtype=float), orbit_label, position_label
 
 
+def read_meteorite_fall_orbits(path: Path) -> list[np.ndarray]:
+    """Read complete published meteorite-fall orbits from the local catalog snapshot."""
+    if not path.exists():
+        return []
+    orbits: list[np.ndarray] = []
+    with path.open("r", encoding="utf-8", newline="") as fh:
+        for row in csv.DictReader(fh):
+            try:
+                a_au = float(row["a_au"])
+                e = float(row["e"])
+                inc = float(row["i_deg"])
+                argp = float(row["arg_peri_deg"])
+                raan = float(row["node_deg"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not (a_au > 0.0 and 0.0 <= e < 1.0):
+                continue
+            values = np.array([a_au * AU, e, inc, argp, raan, 0.0], dtype=float)
+            if np.all(np.isfinite(values)):
+                orbits.append(values)
+    return orbits
+
+
 def draw_orbits(
     ax,
     best: np.ndarray | None,
@@ -330,6 +354,7 @@ def draw_orbits(
     limits: tuple[float, float],
     label_names: set[str],
     closest_nea: tuple[np.ndarray, str, str] | None,
+    meteorite_fall_orbits: list[np.ndarray],
 ) -> int:
     for name in PLANETS:
         color = PLANET_COLORS[name]
@@ -359,6 +384,19 @@ def draw_orbits(
         if name in {"Uranus", "Neptune", "Pluto"}:
             size = 34
         ax.scatter(px, py, s=size, color=color, edgecolor="white", linewidth=0.5, zorder=6)
+
+    for kep in meteorite_fall_orbits:
+        x, y = kepler_to_xy(kep, n_points=500)
+        ax.plot(x, y, color="#668da6", alpha=0.20, lw=0.75, zorder=1.5)
+    if meteorite_fall_orbits:
+        ax.plot(
+            [],
+            [],
+            color="#668da6",
+            alpha=0.75,
+            lw=1.3,
+            label=f"Known meteorite falls ({len(meteorite_fall_orbits)})",
+        )
 
     finite_samples = 0
     cloud_points = []
@@ -448,6 +486,7 @@ def plot(args: argparse.Namespace) -> None:
     validate_macro_metadata(macros, metadata)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
     closest_nea = read_closest_nea(args.nea_matches, epoch)
+    meteorite_fall_orbits = read_meteorite_fall_orbits(args.meteorite_orbits)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update(
@@ -469,6 +508,7 @@ def plot(args: argparse.Namespace) -> None:
         limits,
         {"Mercury", "Venus", "Earth", "Mars", "Jupiter"},
         closest_nea,
+        meteorite_fall_orbits,
     )
     style_axis(ax_inner, limits)
     add_kepler_inset(ax_inner, sample_kepler, args.macro_tex)
@@ -487,6 +527,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samples-h5", type=Path, default=DEFAULT_SAMPLES)
     parser.add_argument("--macro-tex", type=Path, default=DEFAULT_MACROS)
     parser.add_argument("--nea-matches", type=Path, default=DEFAULT_NEA_MATCHES)
+    parser.add_argument("--meteorite-orbits", type=Path, default=DEFAULT_METEORITE_ORBITS)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     return parser.parse_args()
 
