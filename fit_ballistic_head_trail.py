@@ -6,11 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import shutil
 import sys
 import types
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import matplotlib
 
@@ -68,6 +71,45 @@ WEATHER_RADAR_SITES = {
     "KOKX": (40.8655, -72.8639),
     "TBOS": (42.1581, -70.9333),
 }
+DEFAULT_MARC_FRIES_DARK_FLIGHT_KMZ = ROOT / "data" / "marc_fries" / "cape_cod_bay_dark_flight_20260626.kmz"
+
+
+def load_marc_fries_radar_constrained_paths(path: Path = DEFAULT_MARC_FRIES_DARK_FLIGHT_KMZ) -> list[dict]:
+    """Load Jormungandr2 weather-radar-constrained paths from Marc Fries's KMZ."""
+    if not path.exists():
+        return []
+    with zipfile.ZipFile(path) as archive:
+        root = ET.fromstring(archive.read("doc.kml"))
+    namespace = {"kml": "http://www.opengis.net/kml/2.2"}
+    paths = []
+    for placemark in root.findall(".//kml:Placemark", namespace):
+        name = placemark.findtext("kml:name", default="", namespaces=namespace)
+        if not name.startswith("Flight "):
+            continue
+        coordinates_text = placemark.findtext(".//kml:LineString/kml:coordinates", default="", namespaces=namespace)
+        coordinates = []
+        for token in coordinates_text.split():
+            values = token.split(",")
+            if len(values) < 3:
+                continue
+            lon_deg, lat_deg, alt_m = map(float, values[:3])
+            coordinates.append((lat_deg, lon_deg, alt_m / 1000.0))
+        if not coordinates:
+            continue
+        mass_match = re.search(r"_([0-9]+(?:\.[0-9]+)?)g$", name)
+        values = np.asarray(coordinates, dtype=float)
+        paths.append(
+            {
+                "name": name,
+                "mass_g": float(mass_match.group(1)) if mass_match else float("nan"),
+                "lat_deg": values[:, 0],
+                "lon_deg": values[:, 1],
+                "alt_km": values[:, 2],
+                "landing_lat_deg": float(values[-1, 0]),
+                "landing_lon_deg": float(values[-1, 1]),
+            }
+        )
+    return sorted(paths, key=lambda row: float(row["mass_g"]))
 
 
 def add_version_stamp(ax, version: str | None) -> None:
@@ -1309,11 +1351,14 @@ def plot_station_measurement_ballistic_overview(
 
     weather_lats = np.array([site[0] for site in WEATHER_RADAR_SITES.values()], dtype=float)
     weather_lons = np.array([site[1] for site in WEATHER_RADAR_SITES.values()], dtype=float)
+    dark_flight_paths = load_marc_fries_radar_constrained_paths()
+    dark_flight_lats = np.concatenate([path["lat_deg"] for path in dark_flight_paths]) if dark_flight_paths else np.array([])
+    dark_flight_lons = np.concatenate([path["lon_deg"] for path in dark_flight_paths]) if dark_flight_paths else np.array([])
 
     measurement_lon = np.r_[trail_llh[:, 1], head_llh[:, 1]]
     measurement_lat = np.r_[trail_llh[:, 0], head_llh[:, 0]]
-    all_lon = np.r_[station_lons, weather_lons, ballistic_llh[:, 1], measurement_lon]
-    all_lat = np.r_[station_lats, weather_lats, ballistic_llh[:, 0], measurement_lat]
+    all_lon = np.r_[station_lons, weather_lons, ballistic_llh[:, 1], measurement_lon, dark_flight_lons]
+    all_lat = np.r_[station_lats, weather_lats, ballistic_llh[:, 0], measurement_lat, dark_flight_lats]
     extent = [
         float(np.nanmin(all_lon) - 0.28),
         float(np.nanmax(all_lon) + 0.38),
@@ -1340,34 +1385,6 @@ def plot_station_measurement_ballistic_overview(
         ax.grid(True, color="0.72", linewidth=0.4)
         ax.tick_params(labelsize=18)
 
-    if tx_ref_lat is not None and tx_ref_lon is not None:
-        contour_lon = np.linspace(extent[0], extent[1], 260)
-        contour_lat = np.linspace(extent[2], extent[3], 220)
-        lon_grid, lat_grid = np.meshgrid(contour_lon, contour_lat)
-        tx_lat_rad = np.deg2rad(tx_ref_lat)
-        tx_lon_rad = np.deg2rad(tx_ref_lon)
-        lat_rad = np.deg2rad(lat_grid)
-        lon_rad = np.deg2rad(lon_grid)
-        dlat = lat_rad - tx_lat_rad
-        dlon = lon_rad - tx_lon_rad
-        a = np.sin(0.5 * dlat) ** 2 + np.cos(tx_lat_rad) * np.cos(lat_rad) * np.sin(0.5 * dlon) ** 2
-        dist_km = 2.0 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
-        range_contours = ax.contour(
-            lon_grid,
-            lat_grid,
-            dist_km,
-            levels=[50, 100, 150, 200, 250, 300, 350],
-            colors="0.25",
-            linewidths=0.55,
-            alpha=0.30,
-            transform=data_crs,
-            zorder=1.5,
-        )
-        contour_labels = ax.clabel(range_contours, fmt=lambda value: f"{int(value)} km", fontsize=12, inline=True)
-        for text in contour_labels:
-            text.set_alpha(0.45)
-            text.set_zorder(1.6)
-
     h, lon_edges, lat_edges = np.histogram2d(measurement_lon, measurement_lat, bins=(220, 170), range=[extent[:2], extent[2:]])
     h = h.T
     h[h <= 0] = np.nan
@@ -1387,6 +1404,19 @@ def plot_station_measurement_ballistic_overview(
     cbar.ax.tick_params(labelsize=18)
     cbar.ax.yaxis.label.set_size(20)
 
+    ax.scatter(
+        trail_llh[:, 1],
+        trail_llh[:, 0],
+        marker="o",
+        s=32,
+        facecolors="none",
+        edgecolors="#5e3c99",
+        linewidths=1.25,
+        transform=data_crs,
+        zorder=22,
+        label="VHF trail-echo positions",
+    )
+
     ax.plot(
         ballistic_llh[:, 1],
         ballistic_llh[:, 0],
@@ -1394,12 +1424,10 @@ def plot_station_measurement_ballistic_overview(
         lw=3.2,
         transform=data_crs,
         zorder=6,
-        label="ballistic fit, 300 km to 30 km",
+        label="ballistic head/trail fit",
     )
-    plot_terminus_marker(ax, ballistic_llh, args, data_crs, size=145, zorder=9)
     alt_label_offsets = {
         300: (-0.30, -0.27),
-        30: (0.285, -0.30),
     }
     alt_km = ballistic_llh[:, 2] / 1000.0
     order = np.argsort(alt_km)
@@ -1430,6 +1458,31 @@ def plot_station_measurement_ballistic_overview(
             transform=data_crs,
             zorder=10,
         )
+
+    for path_index, dark_path in enumerate(dark_flight_paths):
+        ax.plot(
+            dark_path["lon_deg"],
+            dark_path["lat_deg"],
+            color="#16823b",
+            lw=1.8,
+            alpha=0.82,
+            transform=data_crs,
+            zorder=7,
+            label="Fries J2 weather-radar dark flight" if path_index == 0 else None,
+        )
+    if dark_flight_paths:
+        ax.scatter(
+            [path["landing_lon_deg"] for path in dark_flight_paths],
+            [path["landing_lat_deg"] for path in dark_flight_paths],
+            marker="s",
+            s=52,
+            color="#16823b",
+            edgecolor="black",
+            linewidth=0.55,
+            transform=data_crs,
+            zorder=9,
+            label="J2 sea-level landing locations",
+        )
     receiver_labeled = False
     tx_seen = set()
     for station, cfg in station_configs.items():
@@ -1455,7 +1508,7 @@ def plot_station_measurement_ballistic_overview(
 
     weather_label_offsets = {
         "KBOX": (-0.34, 0.02),
-        "KENX": (0.04, 0.03),
+        "KENX": (0.04, -0.13),
         "KOKX": (0.04, 0.03),
         "TBOS": (0.04, 0.03),
     }

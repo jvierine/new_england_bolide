@@ -385,16 +385,17 @@ def draw_orbits(
             size = 34
         ax.scatter(px, py, s=size, color=color, edgecolor="white", linewidth=0.5, zorder=6)
 
+    meteorite_color = "#3f6f8a"
     for kep in meteorite_fall_orbits:
         x, y = kepler_to_xy(kep, n_points=500)
-        ax.plot(x, y, color="#668da6", alpha=0.20, lw=0.75, zorder=1.5)
+        ax.plot(x, y, color=meteorite_color, alpha=0.34, lw=0.85, zorder=1.5)
     if meteorite_fall_orbits:
         ax.plot(
             [],
             [],
-            color="#668da6",
-            alpha=0.75,
-            lw=1.3,
+            color=meteorite_color,
+            alpha=0.9,
+            lw=1.5,
             label=f"Known meteorite falls ({len(meteorite_fall_orbits)})",
         )
 
@@ -485,7 +486,7 @@ def plot(args: argparse.Namespace) -> None:
     metadata = read_orbit_metadata(args.orbit_h5)
     validate_macro_metadata(macros, metadata)
     epoch = Time(t_ref_unix, scale="utc", format="unix")
-    closest_nea = read_closest_nea(args.nea_matches, epoch)
+    closest_nea = read_closest_nea(args.nea_matches, epoch) if args.show_closest_nea else None
     meteorite_fall_orbits = read_meteorite_fall_orbits(args.meteorite_orbits)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -527,6 +528,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--samples-h5", type=Path, default=DEFAULT_SAMPLES)
     parser.add_argument("--macro-tex", type=Path, default=DEFAULT_MACROS)
     parser.add_argument("--nea-matches", type=Path, default=DEFAULT_NEA_MATCHES)
+    parser.add_argument(
+        "--show-closest-nea",
+        action="store_true",
+        help="Show the closest catalogue NEA orbit and its position at the bolide epoch.",
+    )
     parser.add_argument("--meteorite-orbits", type=Path, default=DEFAULT_METEORITE_ORBITS)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     return parser.parse_args()

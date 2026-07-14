@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Overlay known meteorite-fall tracks on an existing orbit-XY figure.
+"""Replace the closest-NEA overlay with known meteorite-fall tracks.
 
 This helper preserves a published fit-specific raster when its Monte Carlo HDF5
 product is unavailable locally. The axes bounds and pixel rectangle must match
@@ -15,6 +15,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+from scipy import ndimage
 
 from plot_orbit_xy import kepler_to_xy, read_meteorite_fall_orbits
 
@@ -36,8 +37,25 @@ def data_to_pixels(
     return px, py
 
 
+def remove_closest_nea(base: Image.Image) -> Image.Image:
+    """Remove the green closest-NEA curve, marker, and two legend entries."""
+    rgb = np.asarray(base.convert("RGB")).copy()
+    red = rgb[..., 0].astype(float)
+    green = rgb[..., 1].astype(float)
+    blue = rgb[..., 2].astype(float)
+    mask = (green > 70) & (green > 1.08 * red) & (green > 1.02 * blue)
+    mask = ndimage.binary_dilation(mask, iterations=6)
+    _distance, indices = ndimage.distance_transform_edt(mask, return_indices=True)
+    rgb[mask] = rgb[tuple(axis[mask] for axis in indices)]
+
+    # The original legend is opaque white.  Clear the two former NEA rows so
+    # that a meteorite-fall key can be drawn in their place.
+    rgb[70:205, 760:1668] = 255
+    return Image.fromarray(rgb).convert("RGBA")
+
+
 def overlay(args: argparse.Namespace) -> int:
-    base = Image.open(args.base).convert("RGBA")
+    base = remove_closest_nea(Image.open(args.base))
     width, height = base.size
     tracks = read_meteorite_fall_orbits(args.catalog)
     if not tracks:
@@ -53,7 +71,24 @@ def overlay(args: argparse.Namespace) -> int:
     for kep in tracks:
         x, y = kepler_to_xy(kep, n_points=720)
         px, py = data_to_pixels(x, y, tuple(args.axes_pixels), tuple(args.limits))
-        ax.plot(px, py, color="#4f86a6", alpha=0.22, lw=0.9, solid_capstyle="round")
+        ax.plot(px, py, color="#3f6f8a", alpha=0.34, lw=0.95, solid_capstyle="round")
+    ax.plot(
+        [810, 875],
+        [105, 105],
+        color="#3f6f8a",
+        alpha=0.95,
+        lw=3.0,
+        solid_capstyle="round",
+    )
+    ax.text(
+        905,
+        112,
+        f"Known meteorite falls ({len(tracks)})",
+        color="black",
+        fontsize=35,
+        ha="left",
+        va="center",
+    )
     buffer = io.BytesIO()
     fig.savefig(buffer, format="png", dpi=args.dpi, transparent=True, pad_inches=0)
     buffer.seek(0)
@@ -64,15 +99,15 @@ def overlay(args: argparse.Namespace) -> int:
     copy_width = min(width, rendered.shape[1])
     overlay_rgba[:copy_height, :copy_width] = rendered[:copy_height, :copy_width]
 
-    # Keep the published legend and Keplerian-element inset completely intact.
-    overlay_rgba[45:395, 390:1680, 3] = 0
+    # Keep the Keplerian-element inset intact.  Meteorite tracks and their
+    # legend key are allowed in the published legend region.
     yy, xx = np.mgrid[:height, :width]
     inset_x_fade = np.clip((xx - 700.0) / 200.0, 0.0, 1.0)
     inset_y_fade = np.clip((1150.0 - yy) / 200.0, 0.0, 1.0)
     inset_keep = np.maximum(inset_x_fade, inset_y_fade)
     overlay_rgba[..., 3] = np.rint(overlay_rgba[..., 3] * inset_keep).astype(np.uint8)
 
-    composed = Image.alpha_composite(base, Image.fromarray(overlay_rgba, mode="RGBA"))
+    composed = Image.alpha_composite(base, Image.fromarray(overlay_rgba))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     composed.convert("RGB").save(args.out, dpi=(240, 240))
     print(f"Wrote {args.out} with {len(tracks)} complete meteorite-fall tracks")
