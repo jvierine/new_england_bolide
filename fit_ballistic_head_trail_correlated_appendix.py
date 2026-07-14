@@ -71,7 +71,7 @@ DEFAULT_HEAD_SELECTION = (
     ROOT
     / "reports"
     / "head_echo_python_selection_v0p2p9_rdmf_txsteer_pol_rinterp4_zp16_3incoh_180618_180623"
-    / "head_echo_python_measurement_selection.csv"
+    / "head_echo_python_measurement_selection.h5"
 )
 DEFAULT_OUT_DIR = ROOT / "products" / "ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh"
 DEFAULT_REPORT_DIR = ROOT / "reports" / "figures" / "appendix_correlated_fit_v0p2p9_rinterp4_zp16_3incoh"
@@ -164,7 +164,21 @@ def fixed_log10_cd_area_over_mass(args) -> float:
 
 
 def load_selected_head_observations(path: Path) -> list[dict]:
-    df = pd.read_csv(path)
+    path = Path(path)
+    if path.suffix.lower() in {".h5", ".hdf5"}:
+        columns: dict[str, np.ndarray] = {}
+        with h5py.File(path, "r") as h:
+            for name, dataset in h.items():
+                values = dataset[()]
+                if values.dtype.kind in {"S", "O"}:
+                    values = np.asarray(
+                        [value.decode("utf-8") if isinstance(value, bytes) else str(value) for value in values],
+                        dtype=object,
+                    )
+                columns[name] = values
+        df = pd.DataFrame(columns)
+    else:
+        df = pd.read_csv(path)
     if "real_range" not in df.columns:
         df["real_range"] = df["selection"].astype(str).str.lower() == "real"
     if "real_doppler" not in df.columns:
