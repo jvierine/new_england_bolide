@@ -492,6 +492,7 @@ def make_plot(
     marker_time_unix: float,
     terminus_marker: dict[str, float],
     trajectory_min_altitude_km: float,
+    fitted_trajectory: dict[str, np.ndarray],
     dark_flight_paths: list[dict],
     dark_flight_detections: list[dict],
 ) -> dict[str, float]:
@@ -525,6 +526,22 @@ def make_plot(
                 label=label,
                 zorder=4,
             )
+
+    ax_lat.plot(
+        fitted_trajectory["lat_deg"],
+        fitted_trajectory["alt_km"],
+        color="0.12",
+        lw=1.8,
+        zorder=6,
+    )
+    ax_lon.plot(
+        fitted_trajectory["lon_deg"],
+        fitted_trajectory["alt_km"],
+        color="0.12",
+        lw=1.8,
+        label="Fitted ballistic meteor trajectory",
+        zorder=6,
+    )
 
     for idx, dark_path in enumerate(dark_flight_paths):
         generic = dark_path["path_kind"] == "generic_mass_hypothesis"
@@ -620,9 +637,9 @@ def make_plot(
     ax_lon.set_xlabel("Longitude (deg)")
     ax_q.set_xlabel("Dynamic pressure (MPa)")
     ax_lat.set_ylabel("Height (km)")
-    ax_lat.set_title("Latitude")
-    ax_lon.set_title("Longitude")
-    ax_q.set_title("Dynamic pressure")
+    ax_lat.set_title("a)", loc="left")
+    ax_lon.set_title("b)", loc="left")
+    ax_q.set_title("c)", loc="left")
     for ax in axes:
         ax.grid(True, alpha=0.28)
         ax.set_ylim(0, 120)
@@ -676,6 +693,11 @@ def main() -> None:
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
+    fitted_trajectory = build_fitted_trajectory(
+        fit,
+        float(args.launch_altitude_km),
+        float(args.terminus_altitude_km),
+    )
     plot_metadata = make_plot(
         args.out,
         paths,
@@ -684,6 +706,7 @@ def main() -> None:
         marker_time,
         terminus_marker,
         float(args.right_panel_min_altitude_km),
+        fitted_trajectory,
         dark_flight_paths,
         dark_flight_detections,
     )
