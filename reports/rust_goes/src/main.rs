@@ -31,7 +31,7 @@ fn main() -> Result<()> {
     axes.yticks = vec![41.,42.,43.,44.];
     axes.xticklabels = Some((69..=73).rev().map(|v|format!(r"${v}^\circ\mathrm{{W}}$")).collect());
     axes.yticklabels = Some((41..=44).map(|v|format!(r"${v}^\circ\mathrm{{N}}$")).collect());
-    let mut panel = Panel::new(Rect::new(20.,15.,137.,142.), axes);
+    let mut panel = Panel::new(Rect::new(20.,11.,137.,142.), axes);
     panel.push(Layer::Image(image::open(data.join("cloud_background.png"))?.into_rgba8()));
     for points in scene.coast {
         let mut line = Line::new(points,"#42c5df");
@@ -43,7 +43,7 @@ fn main() -> Result<()> {
     fig.save(data.join("goes19_visible_clouds.pdf"))?;
     fig.save(data.join("goes19_visible_clouds.png"))?;
     fig.panels[0].layers.insert(1,Layer::PolygonMesh(PolygonMesh::new(scene.polygons,scene.values,scale)?));
-    fig.colorbars.push(Colorbar::new(Rect::new(160.,15.,3.,142.),scale,
+    fig.colorbars.push(Colorbar::new(Rect::new(160.,11.,3.,142.),scale,
         r"GLM flash count (flashes min$^{-1}$)", (1..=maximum).map(|v|v as f64).collect()));
     fig.save(data.join("goes19_visible_clouds_glm_fed.pdf"))?;
     fig.save(data.join("goes19_visible_clouds_glm_fed.png"))?;
@@ -54,7 +54,7 @@ fn main() -> Result<()> {
     fig.panels[0].layers[1] = Layer::PolygonMesh(PolygonMesh::new(
         scene.energy_polygons,scene.energy_fj.iter().map(|v|v/1000.).collect(),energy_scale)?);
     fig.colorbars.clear();
-    fig.colorbars.push(Colorbar::new(Rect::new(160.,15.,3.,142.),energy_scale,
+    fig.colorbars.push(Colorbar::new(Rect::new(160.,11.,3.,142.),energy_scale,
         r"Accumulated GLM event energy (pJ pixel$^{-1}$)",vec![0.001,0.01,0.1,1.,10.,100.]));
     fig.labels.clear();
     fig.labels.push(Label::new("GOES-19, 30 May 2026, 18:06:20--24 UTC",90.,5.));
@@ -63,7 +63,7 @@ fn main() -> Result<()> {
 
     let mut curve = Figure::new(IntendedUse::ArticleWide);
     curve.width_mm = 180.;
-    curve.height_mm = 100.;
+    curve.height_mm = 85.;
     let mut axes = Axes::new([1.5,3.4],[0.,3.5],
         "Seconds after 18:06:20 UTC on 30 May 2026",
         "GLM event energy (pJ per 10 ms bin)");
@@ -73,12 +73,20 @@ fn main() -> Result<()> {
         label: "Modeled altitude (km)".into(),
         ticks: scene.altitude_ticks.iter().map(|[time,altitude]| (*time,*altitude)).collect(),
     });
-    let mut p = Panel::new(Rect::new(22.,30.,150.,52.),axes);
+    let mut p = Panel::new(Rect::new(22.,17.,150.,52.),axes);
     let steps = scene.light_curve.iter().flat_map(|[t,e]| [[t-0.005,e/1000.],[t+0.005,e/1000.]]).collect();
     p.push(Layer::Line(Line::new(steps,"#a52c20")));
     curve.panels.push(p);
-    curve.labels.push(Label::new("GOES-19 GLM bolide light curve",95.,4.));
     curve.save(data.join("goes19_glm_event_energy_lightcurve.pdf"))?;
     curve.save(data.join("goes19_glm_event_energy_lightcurve.png"))?;
+    let mut combined = fig.clone();
+    combined.height_mm = 244.;
+    let mut light_curve_panel = curve.panels[0].clone();
+    light_curve_panel.rect = Rect::new(20.,178.,137.,50.);
+    combined.panels.push(light_curve_panel);
+    combined.labels.push(Label::new("(a)",15.,5.));
+    combined.labels.push(Label::new("(b)",15.,164.));
+    combined.save(data.join("goes19_clouds_energy_lightcurve.pdf"))?;
+    combined.save(data.join("goes19_clouds_energy_lightcurve.png"))?;
     Ok(())
 }
