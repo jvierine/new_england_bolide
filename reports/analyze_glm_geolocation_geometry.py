@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 import xarray as xr
 from pyproj import Geod
+from scipy.optimize import brentq
 
 from compare_glm_trajectory import A, B, ECEF, GEODETIC, angles, reported_point, satellite_position
 from prepare_goes_glm_flash_density import DATA, TRAJECTORY, apparent_trajectory
@@ -76,6 +77,42 @@ def main():
     for a,b in zip(earth[::10],ellipse[::10]): print(a,b)
     _,_,le_height=GEODETIC.transform(*projected[i])
     print("Reference lightning ellipsoid geodetic height:",le_height/1000)
+
+    heights = np.array([90000.,50000.,33610.])
+    sampled = {k:np.interp(heights,mh[::-1],np.asarray(model[k])[::-1])
+               for k in ["lon_deg","lat_deg","alt_m"]}
+    apparent = apparent_trajectory(sampled,np.zeros(len(heights)),sat_lon,sat_height)[:,:2]
+    source = np.column_stack(ECEF.transform(sampled["lon_deg"],sampled["lat_deg"],heights))
+    # Independent scalar root solving checks the analytic quadratic projection.
+    axes = np.array([A+14000.,A+14000.,6362755.])
+    for p,expected in zip(source,apparent):
+        ray = (p-satellite)/np.linalg.norm(p-satellite)
+        travel = brentq(lambda u: np.sum(((p+u*ray)/axes)**2)-1,0.,500000.,xtol=1e-6)
+        q = p+travel*ray
+        observed = reported_point(expected[None,0],expected[None,1])[0]
+        np.testing.assert_allclose(q,observed,atol=1e-5,rtol=0)
+    track_heights = np.linspace(90000.,33610.,250)
+    track = {k:np.interp(track_heights,mh[::-1],np.asarray(model[k])[::-1])
+             for k in ["lon_deg","lat_deg","alt_m"]}
+    expected_track = apparent_trajectory(track,np.zeros(250),sat_lon,sat_height)[:,:2]
+    pre=np.asarray(fit["fragment_impact"]["nominal"]["pre_break_llh"])
+    full=np.vstack([pre[pre[:,2]>mh.max()],np.column_stack([model["lat_deg"],model["lon_deg"],mh])])
+    full=full[np.argsort(full[:,2])]
+    high=np.linspace(300000.,90000.,150)
+    extension=np.column_stack([np.interp(high,full[:,2],full[:,1]),np.interp(high,full[:,2],full[:,0])])
+    true_track=np.column_stack([track["lon_deg"],track["lat_deg"]])
+    true_points=np.column_stack([sampled["lon_deg"],sampled["lat_deg"]])
+    with h5py.File(DATA/"glm_geolocation_geometry.h5","a") as out:
+        out.create_dataset("paired_height_km",data=heights/1000)
+        out.create_dataset("paired_ground_lonlat_deg",data=true_points)
+        out.create_dataset("paired_glm_lonlat_deg",data=apparent)
+        out.attrs["independent_brentq_position_tolerance_m"]=1e-5
+    scene={"ground":true_track.tolist(),"expected":expected_track.tolist(),
+           "extension":extension.tolist(),"ground_points":true_points.tolist(),
+           "expected_points":apparent.tolist(),"heights_km":(heights/1000).tolist(),
+           "coast":json.loads((DATA/"rustplotlib_scene.json").read_text())["coast"]}
+    (DATA/"glm_projection_explanation_scene.json").write_text(json.dumps(scene))
+    print("Independent ray--ellipsoid root check passed (10 micrometres).")
 
 
 if __name__=="__main__":
