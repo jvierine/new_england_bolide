@@ -72,7 +72,7 @@ fn main() -> Result<()> {
     fig.colorbars.push(Colorbar::new(Rect::new(160.,11.,3.,75.),energy_scale,
         r"Accumulated GLM event energy (pJ pixel$^{-1}$)",vec![0.001,0.01,0.1,1.,10.,100.]));
     fig.labels.clear();
-    fig.labels.push(Label::new(r"GOES-19, 30 May 2026 ($h\geq30$ km)",90.,5.));
+    fig.labels.push(Label::new("GOES-19, 30 May 2026",90.,5.));
     let mut halo = Line::new(scene.apparent_trajectory.clone(),"#ffffff");halo.width_pt=3.;
     fig.panels[0].push(Layer::Line(halo));
     let mut trajectory = Line::new(scene.apparent_trajectory,"#003c9e");trajectory.width_pt=1.5;
