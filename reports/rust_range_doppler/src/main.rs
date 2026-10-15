@@ -31,12 +31,8 @@ fn main() -> Result<()> {
             .expect("directory containing scene.h5"),
     );
     let h = hdf5::File::open(dir.join("scene.h5"))?;
-    let mut f = Figure::new(IntendedUse::ArticleWide);
-    f.width_mm = 164.6;
-    f.height_mm = 146.;
-    f.font_pt = 10.;
-    f.latex.font_pt = 10.;
-    f.tight_export = false;
+    let article = ArticleLayout::new(164.6, 10.)?;
+    let mut f = article.figure(1., 146.)?;
     for i in 0..2 {
         let g = h.group(&format!("panel_{i}"))?;
         if i == 1 {
@@ -155,7 +151,7 @@ fn main() -> Result<()> {
         ));
         f.panels.push(p);
     }
-    f.save(dir.join("ballistic_head_trail_correlated_range_doppler_fit.pdf"))?;
+    f.save_for_article(dir.join("ballistic_head_trail_correlated_range_doppler_fit.pdf"), "reports/figures/appendix_correlated_fit/ballistic_head_trail_correlated_range_doppler_fit.pdf")?;
     f.save(dir.join("ballistic_head_trail_correlated_range_doppler_fit.png"))?;
     Ok(())
 }

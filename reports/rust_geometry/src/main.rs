@@ -118,16 +118,11 @@ fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let h = hdf5::File::open(&args[1])?;
     let out = PathBuf::from(&args[2]);
-    let mut f = Figure::new(IntendedUse::Custom {
-        width_mm: 128.4,
-        font_pt: 10.,
-    });
-    f.height_mm = 125.;
-    f.tight_export = false;
+    let article = ArticleLayout::new(164.6, 10.)?;
+    let mut f = article.figure(128.4 / 164.6, 125.)?;
     f.raster_dpi = 450.;
     f.latex.cache = out.parent().unwrap().join(".geometry-latex-cache");
     f.latex.preamble="\\usepackage[T1]{fontenc}\n\\usepackage{amsmath,amssymb}\n\\usepackage{newtxtext,newtxmath}".into();
-    f.latex.font_pt = 10.;
     let specs = [
         ("Pomfret", RX, "triangle", 2.3, -3.),
         ("Siena", RX, "triangle", 2.6, 1.6),
@@ -308,7 +303,7 @@ fn main() -> Result<()> {
         label(&mut f, &glyphs, &yt[i], X - 6.5, a[1], "#3f4845", false);
     }
     f.panels.push(p);
-    f.save(out.with_extension("pdf"))?;
+    f.save_for_article(out.with_extension("pdf"), "reports/figures/appendix_correlated_fit/article_observing_geometry.pdf")?;
     f.save(out.with_extension("png"))?;
     println!("Rendered {}", out.display());
     Ok(())
