@@ -11,7 +11,7 @@ struct Scene {
     coast: Vec<Vec<[f64;2]>>,
     maximum_flashes_per_minute: u32,
     energy_polygons: Vec<Vec<[f64;2]>>,
-    energy_fj: Vec<f64>,
+    figure1_energy_fj: Vec<f64>,
     light_curve: Vec<[f64;2]>,
     altitude_ticks: Vec<[f64;2]>,
     borders: Vec<Vec<[f64;2]>>,
@@ -67,12 +67,12 @@ fn main() -> Result<()> {
     let energy_scale = fig.scale(Scale::new([0.001,100.],Normalization::Log,
         ColorMap::new(vec![[1.,0.92,0.05],[1.,0.45,0.01],[0.75,0.,0.]])?)?);
     fig.panels[0].layers[1] = Layer::PolygonMesh(PolygonMesh::new(
-        scene.energy_polygons,scene.energy_fj.iter().map(|v|v/1000.).collect(),energy_scale)?);
+        scene.energy_polygons,scene.figure1_energy_fj.iter().map(|v|v/1000.).collect(),energy_scale)?);
     fig.colorbars.clear();
     fig.colorbars.push(Colorbar::new(Rect::new(160.,11.,3.,75.),energy_scale,
         r"Accumulated GLM event energy (pJ pixel$^{-1}$)",vec![0.001,0.01,0.1,1.,10.,100.]));
     fig.labels.clear();
-    fig.labels.push(Label::new("GOES-19, 30 May 2026, 18:06:20--24 UTC",90.,5.));
+    fig.labels.push(Label::new(r"GOES-19, 30 May 2026 ($h\geq30$ km)",90.,5.));
     let mut halo = Line::new(scene.apparent_trajectory.clone(),"#ffffff");halo.width_pt=3.;
     fig.panels[0].push(Layer::Line(halo));
     let mut trajectory = Line::new(scene.apparent_trajectory,"#003c9e");trajectory.width_pt=1.5;
@@ -94,6 +94,10 @@ fn main() -> Result<()> {
     fig.panels[0].legend = Some(legend);
     fig.save(data.join("goes19_visible_clouds_glm_energy.pdf"))?;
     fig.save(data.join("goes19_visible_clouds_glm_energy.png"))?;
+    let mut paper = fig.clone();
+    paper.labels.push(Label::new("(b)",15.,5.));
+    paper.save(data.join("goes19_figure1_panels.pdf"))?;
+    paper.save(data.join("goes19_figure1_panels.png"))?;
 
     let mut curve = Figure::new(IntendedUse::ArticleWide);
     curve.width_mm = 180.;
@@ -118,18 +122,5 @@ fn main() -> Result<()> {
     curve.panels.push(p);
     curve.save(data.join("goes19_glm_event_energy_lightcurve.pdf"))?;
     curve.save(data.join("goes19_glm_event_energy_lightcurve.png"))?;
-    let mut combined = fig.clone();
-    combined.height_mm = 177.;
-    let mut light_curve_panel = curve.panels[0].clone();
-    light_curve_panel.rect = Rect::new(20.,111.,137.,50.);
-    combined.panels.push(light_curve_panel);
-    combined.labels.push(Label::new("(a)",15.,5.));
-    combined.labels.push(Label::new("(b)",15.,97.));
-    combined.save(data.join("goes19_clouds_energy_lightcurve.pdf"))?;
-    combined.save(data.join("goes19_clouds_energy_lightcurve.png"))?;
-    combined.labels.retain(|label| label.latex!="(a)" && label.latex!="(b)");
-    combined.labels.push(Label::new("(b)",15.,5.));
-    combined.labels.push(Label::new("(c)",15.,97.));
-    combined.save(data.join("goes19_figure1_panels.pdf"))?;
     Ok(())
 }

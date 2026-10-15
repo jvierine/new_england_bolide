@@ -125,6 +125,14 @@ def main():
         sat_height = float(glm.nominal_satellite_height)*1000
     apparent = apparent_trajectory(trajectory["model"],model_seconds,sat_lon,sat_height)
     terminus_time = float(np.interp(33.61,model_altitude[::-1],model_seconds[::-1]))
+    cutoff_time = float(np.interp(30.,model_altitude[::-1],model_seconds[::-1]))
+    event_altitude = np.interp(event_seconds,model_seconds,model_altitude,left=np.nan,right=np.nan)
+    paper_selection = bolide & (event_altitude >= 30.)
+    paper_energy_map = np.zeros_like(energy_map)
+    np.add.at(paper_energy_map,(row[paper_selection],col[paper_selection]),event_energy[paper_selection])
+    np.testing.assert_allclose(paper_energy_map.sum(),event_energy[paper_selection].sum(),rtol=1e-12,atol=0)
+    assert np.all(event_seconds[paper_selection] <= cutoff_time)
+    assert np.all(paper_energy_map <= energy_map)
     apparent_terminus = [float(np.interp(terminus_time,model_seconds,apparent[:,i])) for i in [0,1]]
     centers = (time_edges[:-1]+time_edges[1:])/2
     curve_altitude = np.interp(centers, model_seconds, model_altitude, left=np.nan, right=np.nan)
@@ -198,6 +206,8 @@ def main():
         out.attrs["altitude_interpretation"] = "Continued fitted trajectory; below nominal 33.61 km radar terminus not a measured bolide altitude"
         out.attrs["apparent_trajectory_projection"] = "Satellite sightline intersected with 14/6-km GLM lightning ellipsoid; nominal satellite position"
         out.attrs["radar_terminus_seconds_after_180620"] = terminus_time
+        out.attrs["figure1_minimum_modeled_altitude_km"] = 30.
+        out.attrs["figure1_cutoff_seconds_after_180620"] = cutoff_time
         out.create_dataset("expected_glm_longitude_latitude_time",data=apparent)
         out.create_dataset("expected_glm_terminus_longitude_latitude",data=apparent_terminus)
         for key,val,unit in [
@@ -207,6 +217,8 @@ def main():
             ("event_latitude",np.asarray(lat)[bolide],"degrees_north"),
             ("event_longitude",np.asarray(lon)[bolide],"degrees_east"),
             ("pixel_energy",energy_map,"J"),
+            ("figure1_event_selection",paper_selection[bolide],"1"),
+            ("figure1_pixel_energy",paper_energy_map,"J"),
             ("pixel_x_edges",xe,"m"),("pixel_y_edges",ye,"m"),
             ("time_bin_edges",time_edges,"s after 2026-05-30T18:06:20 UTC"),
             ("time_bin_modeled_altitude",curve_altitude,"km"),
@@ -221,6 +233,7 @@ def main():
              "terminus_time": terminus_time,
              "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],
              "energy_polygons": energy_polygons,"energy_fj": energy_values,
+             "figure1_energy_fj": [float(paper_energy_map[r,c]*1e15) for r,c in energy_pixel_indices],
              "altitude_ticks": altitude_ticks,
              "animation_times": ((animation_edges[:-1]+animation_edges[1:])/2).tolist(),
              "animation_energy_pj": (animation_energy*1e12).tolist(),
@@ -231,6 +244,8 @@ def main():
     print("Pixel energy range:",min(energy_values),max(energy_values),"fJ")
     print("Maximum 10-ms bin:",light_curve.max()*1e15,"fJ")
     print("Maximum animated pixel energy:",animation_energy.max()*1e12,"pJ per 2 ms")
+    print("Figure 1 >=30 km:",paper_selection.sum(),"events; cutoff:",cutoff_time,
+          "s after 18:06:20; energy:",paper_energy_map.sum()*1e12,"pJ")
 
 
 if __name__ == "__main__":
