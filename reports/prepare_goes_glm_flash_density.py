@@ -11,7 +11,7 @@ import cartopy.io.shapereader as shp
 import h5py
 import numpy as np
 from PIL import Image
-from pyproj import Proj
+from pyproj import Proj, Transformer
 from scipy.ndimage import map_coordinates
 import xarray as xr
 
@@ -19,6 +19,27 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "products/goes19_glm_20260530"
 BOUNDS = [-73.2, -68.3, 40.3, 44.2]
 TRAJECTORY = ROOT / "products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json"
+
+
+def apparent_trajectory(model, seconds, sat_lon, sat_height):
+    """Project the 3-D trajectory onto GLM's assumed lightning ellipsoid."""
+    from compare_glm_trajectory import A, B, reported_point, satellite_position, angles
+    xyz = np.column_stack(Transformer.from_crs("EPSG:4979", "EPSG:4978", always_xy=True).transform(
+        model["lon_deg"], model["lat_deg"], model["alt_m"]))
+    satellite = satellite_position(sat_lon, sat_height)
+    ray = xyz-satellite
+    q = 1/np.array([(A+14000.)**2, (A+14000.)**2, 6362755.**2])
+    aa = np.sum(ray*ray*q, axis=1)
+    bb = 2*np.sum(satellite*ray*q, axis=1)
+    cc = np.sum(satellite*satellite*q)-1
+    distance = (-bb-np.sqrt(bb*bb-4*aa*cc))/(2*aa)
+    point = satellite+distance[:,None]*ray
+    lon = np.degrees(np.arctan2(point[:,1], point[:,0]))
+    gc = np.arctan2(point[:,2], np.hypot(point[:,0], point[:,1]))
+    lat = np.degrees(np.arctan(np.tan(gc)/(B/A)**2))
+    np.testing.assert_allclose(angles(reported_point(lon,lat),sat_lon,sat_height),
+                               angles(xyz,sat_lon,sat_height),atol=1e-12,rtol=0)
+    return np.column_stack([lon,lat,seconds])
 
 
 def clusters(values):
@@ -99,6 +120,12 @@ def main():
     model_altitude = np.asarray(trajectory["model"]["alt_m"])/1000
     if not (np.all(np.diff(model_seconds)>0) and np.all(np.diff(model_altitude)<0)):
         raise ValueError("Trajectory must be monotonic in time and altitude")
+    with xr.open_dataset(sources[1]) as glm:
+        sat_lon = float(glm.nominal_satellite_subpoint_lon)
+        sat_height = float(glm.nominal_satellite_height)*1000
+    apparent = apparent_trajectory(trajectory["model"],model_seconds,sat_lon,sat_height)
+    terminus_time = float(np.interp(33.61,model_altitude[::-1],model_seconds[::-1]))
+    apparent_terminus = [float(np.interp(terminus_time,model_seconds,apparent[:,i])) for i in [0,1]]
     centers = (time_edges[:-1]+time_edges[1:])/2
     curve_altitude = np.interp(centers, model_seconds, model_altitude, left=np.nan, right=np.nan)
     altitude_ticks = []
@@ -140,6 +167,13 @@ def main():
             clipped = record.intersection(window)
             parts = list(clipped.geoms) if hasattr(clipped,"geoms") else [clipped]
             coast.extend(np.asarray(g.coords).tolist() for g in parts if g.geom_type == "LineString")
+    borders = []
+    reader = shp.Reader(shp.natural_earth("10m","cultural","admin_1_states_provinces_lines"))
+    for geom in reader.geometries():
+        if geom.intersects(window):
+            clipped = geom.intersection(window)
+            parts = list(clipped.geoms) if hasattr(clipped,"geoms") else [clipped]
+            borders.extend(np.asarray(g.coords).tolist() for g in parts if g.geom_type == "LineString")
     with h5py.File(DATA / "glm_flash_density_180600_180700.h5","w") as out:
         out.attrs["quantity"] = "Distinct flashes per native GLM pixel in 60 seconds"
         out.attrs["window_utc"] = "2026-05-30T18:06:00Z/2026-05-30T18:07:00Z"
@@ -162,6 +196,9 @@ def main():
         out.attrs["trajectory_sha256"] = hashlib.sha256(TRAJECTORY.read_bytes()).hexdigest()
         out.attrs["trajectory_fit_version"] = str(trajectory["trajectory_fit_version"])
         out.attrs["altitude_interpretation"] = "Continued fitted trajectory; below nominal 33.61 km radar terminus not a measured bolide altitude"
+        out.attrs["apparent_trajectory_projection"] = "Satellite sightline intersected with 14/6-km GLM lightning ellipsoid; nominal satellite position"
+        out.create_dataset("expected_glm_longitude_latitude_time",data=apparent)
+        out.create_dataset("expected_glm_terminus_longitude_latitude",data=apparent_terminus)
         for key,val,unit in [
             ("event_energy",event_energy[bolide],"J"),
             ("event_seconds_after_180620",event_seconds[bolide],"s"),
@@ -178,6 +215,8 @@ def main():
             ("time_bin_energy",light_curve,"J per 10 ms bin")]:
             out.create_dataset(key,data=val).attrs["units"] = unit
     scene = {"bounds": BOUNDS, "polygons": polygons, "values": values, "coast": coast,
+             "borders": borders, "apparent_trajectory": apparent[(model_seconds>=0)&(model_seconds<terminus_time),:2].tolist()+[apparent_terminus],
+             "apparent_terminus": apparent_terminus,
              "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],
              "energy_polygons": energy_polygons,"energy_fj": energy_values,
              "altitude_ticks": altitude_ticks,

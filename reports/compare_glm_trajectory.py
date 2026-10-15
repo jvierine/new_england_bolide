@@ -125,8 +125,9 @@ def main():
     position = np.column_stack(ECEF.transform(mlon,mlat,malt))
     mapped_lon,mapped_lat,mapped_height = intersect_model_height(observed,sat_lon,sat_height,malt)
     check_angles = angles(np.column_stack(ECEF.transform(mapped_lon,mapped_lat,mapped_height)),sat_lon,sat_height)
-    np.testing.assert_allclose(check_angles[0],ox,atol=1e-12,rtol=0)
-    np.testing.assert_allclose(check_angles[1],oy,atol=1e-12,rtol=0)
+    # Allow centimetre-scale geodetic/ECEF round-trip error, far below GLM resolution.
+    np.testing.assert_allclose(check_angles[0],ox,atol=1e-9,rtol=0)
+    np.testing.assert_allclose(check_angles[1],oy,atol=1e-9,rtol=0)
     _,_,separation = Geod(ellps="GRS80").inv(mapped_lon,mapped_lat,mlon,mlat)
     tx,ty = angles(position,sat_lon,sat_height)
     dx,dy = (ox-tx)*1e6,(oy-ty)*1e6
