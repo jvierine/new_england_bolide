@@ -52,9 +52,9 @@ fn main() -> Result<()> {
         panel.push(Layer::Line(line));
     }
     for points in scene.borders {
-        let mut halo = Line::new(points.clone(),"#111111");halo.width_pt = 1.5;
+        let mut halo = Line::new(points.clone(),"#ffffff");halo.width_pt = 1.1;
         panel.push(Layer::Line(halo));
-        let mut line = Line::new(points,"#6dd8eb");line.width_pt = 0.75;
+        let mut line = Line::new(points,"#16889e");line.width_pt = 0.65;
         panel.push(Layer::Line(line));
     }
     fig.panels.push(panel);

@@ -185,10 +185,17 @@ def main():
             parts = list(clipped.geoms) if hasattr(clipped,"geoms") else [clipped]
             coast.extend(np.asarray(g.coords).tolist() for g in parts if g.geom_type == "LineString")
     borders = []
+    from shapely.ops import unary_union
+    land = shp.Reader(shp.natural_earth("10m","physical","land"))
+    land_mask = unary_union([geom.intersection(window) for geom in land.geometries()
+                             if geom is not None and geom.intersects(window)])
     reader = shp.Reader(shp.natural_earth("10m","cultural","admin_1_states_provinces_lines"))
-    for geom in reader.geometries():
-        if geom.intersects(window):
-            clipped = geom.intersection(window)
+    for record in reader.records():
+        geom = record.geometry
+        if (geom is not None and geom.intersects(window)
+                and record.attributes["FEATURECLA"] == "Admin-1 boundary"):
+            clipped = geom.intersection(window).intersection(land_mask)
+            assert clipped.difference(land_mask).length < 1e-9
             parts = list(clipped.geoms) if hasattr(clipped,"geoms") else [clipped]
             borders.extend(np.asarray(g.coords).tolist() for g in parts if g.geom_type == "LineString")
     with h5py.File(DATA / "glm_flash_density_180600_180700.h5","w") as out:
