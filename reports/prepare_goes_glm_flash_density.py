@@ -5,6 +5,7 @@ claiming to reproduce NOAA's operational 2-km gridded product.
 """
 from pathlib import Path
 import json
+import hashlib
 
 import cartopy.io.shapereader as shp
 import h5py
@@ -17,6 +18,7 @@ import xarray as xr
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "products/goes19_glm_20260530"
 BOUNDS = [-73.2, -68.3, 40.3, 44.2]
+TRAJECTORY = ROOT / "products/ballistic_head_trail_correlated_fit_v0p2p9_rinterp4_zp16_3incoh/ballistic_head_trail_correlated_fit.json"
 
 
 def clusters(values):
@@ -91,6 +93,20 @@ def main():
     total_energy = event_energy[bolide].sum()
     np.testing.assert_allclose(energy_map.sum(),total_energy,rtol=1e-12,atol=0)
     np.testing.assert_allclose(light_curve.sum(),total_energy,rtol=1e-12,atol=0)
+    trajectory = json.loads(TRAJECTORY.read_text())
+    epoch = np.datetime64("2026-05-30T18:06:20", "ns").astype("int64")/1e9
+    model_seconds = np.asarray(trajectory["model"]["time_unix"])-epoch
+    model_altitude = np.asarray(trajectory["model"]["alt_m"])/1000
+    if not (np.all(np.diff(model_seconds)>0) and np.all(np.diff(model_altitude)<0)):
+        raise ValueError("Trajectory must be monotonic in time and altitude")
+    centers = (time_edges[:-1]+time_edges[1:])/2
+    curve_altitude = np.interp(centers, model_seconds, model_altitude, left=np.nan, right=np.nan)
+    altitude_ticks = []
+    for altitude in [60,50,40,30,20]:
+        tick_time = float(np.interp(altitude, model_altitude[::-1], model_seconds[::-1]))
+        if 1.5 <= tick_time <= 3.4:
+            np.testing.assert_allclose(np.interp(tick_time,model_seconds,model_altitude),altitude,atol=1e-8)
+            altitude_ticks.append([tick_time,altitude])
     polygons, values, energy_polygons, energy_values = [], [], [], []
     for r,c in zip(*np.where(counts > 0)):
         xx = [xe[c],xe[c+1],xe[c+1],xe[c]]
@@ -128,6 +144,10 @@ def main():
         out.attrs["total_received_energy_J"] = total_energy
         out.attrs["light_curve_bin_width_s"] = 0.01
         out.attrs["zero_bin_meaning"] = "No selected Level-2 events in bin; not proof of zero physical emission"
+        out.attrs["trajectory_source"] = str(TRAJECTORY.relative_to(ROOT))
+        out.attrs["trajectory_sha256"] = hashlib.sha256(TRAJECTORY.read_bytes()).hexdigest()
+        out.attrs["trajectory_fit_version"] = str(trajectory["trajectory_fit_version"])
+        out.attrs["altitude_interpretation"] = "Continued fitted trajectory; below nominal 33.61 km radar terminus not a measured bolide altitude"
         for key,val,unit in [
             ("event_energy",event_energy[bolide],"J"),
             ("event_seconds_after_180620",event_seconds[bolide],"s"),
@@ -137,11 +157,13 @@ def main():
             ("pixel_energy",energy_map,"J"),
             ("pixel_x_edges",xe,"m"),("pixel_y_edges",ye,"m"),
             ("time_bin_edges",time_edges,"s after 2026-05-30T18:06:20 UTC"),
+            ("time_bin_modeled_altitude",curve_altitude,"km"),
             ("time_bin_energy",light_curve,"J per 10 ms bin")]:
             out.create_dataset(key,data=val).attrs["units"] = unit
     scene = {"bounds": BOUNDS, "polygons": polygons, "values": values, "coast": coast,
              "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],
              "energy_polygons": energy_polygons,"energy_fj": energy_values,
+             "altitude_ticks": altitude_ticks,
              "light_curve": np.column_stack([(time_edges[:-1]+time_edges[1:])/2,light_curve*1e15]).tolist()}
     (DATA / "rustplotlib_scene.json").write_text(json.dumps(scene))
     print("Maximum flashes/min:",counts.max(),"illuminated pixels:",len(values))

@@ -13,6 +13,7 @@ struct Scene {
     energy_polygons: Vec<Vec<[f64;2]>>,
     energy_fj: Vec<f64>,
     light_curve: Vec<[f64;2]>,
+    altitude_ticks: Vec<[f64;2]>,
 }
 
 fn main() -> Result<()> {
@@ -62,13 +63,17 @@ fn main() -> Result<()> {
 
     let mut curve = Figure::new(IntendedUse::ArticleWide);
     curve.width_mm = 180.;
-    curve.height_mm = 85.;
+    curve.height_mm = 100.;
     let mut axes = Axes::new([1.5,3.4],[0.,3.5],
         "Seconds after 18:06:20 UTC on 30 May 2026",
         "GLM event energy (pJ per 10 ms bin)");
     axes.xticks = vec![1.5,2.,2.5,3.];
     axes.yticks = vec![0.,1.,2.,3.];
-    let mut p = Panel::new(Rect::new(22.,12.,150.,52.),axes);
+    axes.secondary_x = Some(SecondaryAxis {
+        label: "Modeled altitude (km)".into(),
+        ticks: scene.altitude_ticks.iter().map(|[time,altitude]| (*time,*altitude)).collect(),
+    });
+    let mut p = Panel::new(Rect::new(22.,30.,150.,52.),axes);
     let steps = scene.light_curve.iter().flat_map(|[t,e]| [[t-0.005,e/1000.],[t+0.005,e/1000.]]).collect();
     p.push(Layer::Line(Line::new(steps,"#a52c20")));
     curve.panels.push(p);
