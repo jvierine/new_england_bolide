@@ -1,4 +1,4 @@
-"""Prepare a cloud raster and native-pixel one-minute GLM flash counts for Rustplotlib.
+"""Prepare ABI clouds, GLM flash counts, event energies, and a light curve.
 
 Pixel outlines are reconstructed from local event-center spacing, rather than
 claiming to reproduce NOAA's operational 2-km gridded product.
@@ -48,7 +48,7 @@ def main():
     cloud = map_coordinates(source, [iy-y0, ix-x0], order=0, mode="constant", cval=np.nan)
     gray = (np.nan_to_num(np.clip(cloud, 0, 1))*255).astype("uint8")
     Image.fromarray(gray).convert("RGBA").save(DATA / "cloud_background.png")
-    lat, lon, flash = [], [], []
+    lat, lon, flash, event_energy, event_seconds, event_ids = [], [], [], [], [], []
     sources = sorted(DATA.glob("OR_GLM*s20261501806*.nc"))
     if len(sources) != 3:
         raise ValueError("Need all three 20-second granules for the full minute")
@@ -64,6 +64,10 @@ def main():
             lat.extend(ds.event_lat.values[keep])
             lon.extend(ds.event_lon.values[keep])
             flash.extend(starts[parents[g]] for g in ds.event_parent_group_id.values[keep])
+            event_energy.extend(ds.event_energy.values[keep])
+            event_seconds.extend((ds.event_time_offset.values[keep]
+                                 - np.datetime64("2026-05-30T18:06:20"))/np.timedelta64(1,"s"))
+            event_ids.extend(ds.event_id.values[keep])
     ex, ey = projection(np.asarray(lon), np.asarray(lat))
     xc, xe = clusters(ex)
     yc, ye = clusters(ey)
@@ -74,13 +78,29 @@ def main():
     counts = np.zeros((len(yc),len(xc)), dtype="int32")
     for r,c,_ in unique:
         counts[int(r),int(c)] += 1
-    polygons, values = [], []
+    event_energy = np.asarray(event_energy, dtype="float64")
+    event_seconds = np.asarray(event_seconds, dtype="float64")
+    bolide = ((event_seconds >= 0) & (event_seconds < 4)
+              & np.isfinite(event_energy) & (event_energy >= 0))
+    if np.unique(np.asarray(event_ids)[bolide]).size != bolide.sum():
+        raise ValueError("Duplicate event IDs in bolide selection")
+    energy_map = np.zeros_like(counts, dtype="float64")
+    np.add.at(energy_map, (row[bolide], col[bolide]), event_energy[bolide])
+    time_edges = np.linspace(0,4,401)
+    light_curve, _ = np.histogram(event_seconds[bolide],bins=time_edges,weights=event_energy[bolide])
+    total_energy = event_energy[bolide].sum()
+    np.testing.assert_allclose(energy_map.sum(),total_energy,rtol=1e-12,atol=0)
+    np.testing.assert_allclose(light_curve.sum(),total_energy,rtol=1e-12,atol=0)
+    polygons, values, energy_polygons, energy_values = [], [], [], []
     for r,c in zip(*np.where(counts > 0)):
         xx = [xe[c],xe[c+1],xe[c+1],xe[c]]
         yy = [ye[r],ye[r],ye[r+1],ye[r+1]]
         llon,llat = projection(xx,yy,inverse=True)
         polygons.append(np.column_stack([llon,llat]).tolist())
         values.append(int(counts[r,c]))
+        if energy_map[r,c] > 0:
+            energy_polygons.append(polygons[-1])
+            energy_values.append(float(energy_map[r,c]*1e15))
     coast = []
     reader = shp.Reader(shp.natural_earth("10m","physical","coastline"))
     from shapely.geometry import box
@@ -99,10 +119,35 @@ def main():
         out.create_dataset("pixel_x_edges_m",data=xe)
         out.create_dataset("pixel_y_edges_m",data=ye)
         out.create_dataset("cloud_reflectance",data=cloud,compression="gzip")
+    with h5py.File(DATA / "glm_bolide_event_energy.h5","w") as out:
+        out.attrs["quantity"] = "GLM Level-2 event radiant energy at the instrument, in the GLM passband"
+        out.attrs["selection_window_utc"] = "2026-05-30T18:06:20Z/2026-05-30T18:06:24Z"
+        out.attrs["spatial_selection"] = "41.5 < latitude < 43.5; -71.5 < longitude < -69.5"
+        out.attrs["pixel_geometry"] = "Reconstructed from local event-center spacing; no altitude parallax correction"
+        out.attrs["sources"] = json.dumps([p.name for p in sources])
+        out.attrs["total_received_energy_J"] = total_energy
+        out.attrs["light_curve_bin_width_s"] = 0.01
+        out.attrs["zero_bin_meaning"] = "No selected Level-2 events in bin; not proof of zero physical emission"
+        for key,val,unit in [
+            ("event_energy",event_energy[bolide],"J"),
+            ("event_seconds_after_180620",event_seconds[bolide],"s"),
+            ("event_id",np.asarray(event_ids)[bolide],"1"),
+            ("event_latitude",np.asarray(lat)[bolide],"degrees_north"),
+            ("event_longitude",np.asarray(lon)[bolide],"degrees_east"),
+            ("pixel_energy",energy_map,"J"),
+            ("pixel_x_edges",xe,"m"),("pixel_y_edges",ye,"m"),
+            ("time_bin_edges",time_edges,"s after 2026-05-30T18:06:20 UTC"),
+            ("time_bin_energy",light_curve,"J per 10 ms bin")]:
+            out.create_dataset(key,data=val).attrs["units"] = unit
     scene = {"bounds": BOUNDS, "polygons": polygons, "values": values, "coast": coast,
-             "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources]}
+             "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],
+             "energy_polygons": energy_polygons,"energy_fj": energy_values,
+             "light_curve": np.column_stack([(time_edges[:-1]+time_edges[1:])/2,light_curve*1e15]).tolist()}
     (DATA / "rustplotlib_scene.json").write_text(json.dumps(scene))
     print("Maximum flashes/min:",counts.max(),"illuminated pixels:",len(values))
+    print("Energy selection:",bolide.sum(),"events; total:",total_energy,"J")
+    print("Pixel energy range:",min(energy_values),max(energy_values),"fJ")
+    print("Maximum 10-ms bin:",light_curve.max()*1e15,"fJ")
 
 
 if __name__ == "__main__":
