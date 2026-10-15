@@ -33,7 +33,7 @@ def clusters(values):
 
 def main():
     west, east, south, north = BOUNDS
-    abi = xr.open_dataset(next(DATA.glob("OR_ABI*.nc")))
+    abi = xr.open_dataset(next(DATA.glob("OR_ABI-L2-CMIPC*.nc")))
     meta = abi.goes_imager_projection.attrs
     h = meta["perspective_point_height"]
     projection = Proj(proj="geos", h=h, lon_0=meta["longitude_of_projection_origin"],
