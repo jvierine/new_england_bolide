@@ -108,6 +108,7 @@ def main():
             np.testing.assert_allclose(np.interp(tick_time,model_seconds,model_altitude),altitude,atol=1e-8)
             altitude_ticks.append([tick_time,altitude])
     polygons, values, energy_polygons, energy_values = [], [], [], []
+    energy_pixel_indices = []
     for r,c in zip(*np.where(counts > 0)):
         xx = [xe[c],xe[c+1],xe[c+1],xe[c]]
         yy = [ye[r],ye[r],ye[r+1],ye[r+1]]
@@ -117,6 +118,19 @@ def main():
         if energy_map[r,c] > 0:
             energy_polygons.append(polygons[-1])
             energy_values.append(float(energy_map[r,c]*1e15))
+            energy_pixel_indices.append((int(r),int(c)))
+    animation_dt = 0.002
+    animation_start = 1.5
+    animation_count = 950
+    animation_edges = animation_start + np.arange(animation_count+1)*animation_dt
+    animation_energy = np.zeros((animation_count,len(energy_polygons)),dtype="float64")
+    pixel_lookup = {rc:i for i,rc in enumerate(energy_pixel_indices)}
+    for t,e,r,c in zip(event_seconds[bolide],event_energy[bolide],row[bolide],col[bolide]):
+        frame_index = int(np.searchsorted(animation_edges,t,side="right")-1)
+        if not 0 <= frame_index < animation_count:
+            raise ValueError("Selected event outside animation window")
+        animation_energy[frame_index,pixel_lookup[(int(r),int(c))]] += e
+    np.testing.assert_allclose(animation_energy.sum(),total_energy,rtol=1e-12,atol=0)
     coast = []
     reader = shp.Reader(shp.natural_earth("10m","physical","coastline"))
     from shapely.geometry import box
@@ -158,18 +172,24 @@ def main():
             ("pixel_x_edges",xe,"m"),("pixel_y_edges",ye,"m"),
             ("time_bin_edges",time_edges,"s after 2026-05-30T18:06:20 UTC"),
             ("time_bin_modeled_altitude",curve_altitude,"km"),
+            ("animation_time_bin_edges",animation_edges,"s after 2026-05-30T18:06:20 UTC"),
+            ("animation_pixel_energy",animation_energy,"J per pixel per 2 ms bin"),
+            ("animation_pixel_row_col",np.asarray(energy_pixel_indices),"index"),
             ("time_bin_energy",light_curve,"J per 10 ms bin")]:
             out.create_dataset(key,data=val).attrs["units"] = unit
     scene = {"bounds": BOUNDS, "polygons": polygons, "values": values, "coast": coast,
              "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],
              "energy_polygons": energy_polygons,"energy_fj": energy_values,
              "altitude_ticks": altitude_ticks,
+             "animation_times": ((animation_edges[:-1]+animation_edges[1:])/2).tolist(),
+             "animation_energy_pj": (animation_energy*1e12).tolist(),
              "light_curve": np.column_stack([(time_edges[:-1]+time_edges[1:])/2,light_curve*1e15]).tolist()}
     (DATA / "rustplotlib_scene.json").write_text(json.dumps(scene))
     print("Maximum flashes/min:",counts.max(),"illuminated pixels:",len(values))
     print("Energy selection:",bolide.sum(),"events; total:",total_energy,"J")
     print("Pixel energy range:",min(energy_values),max(energy_values),"fJ")
     print("Maximum 10-ms bin:",light_curve.max()*1e15,"fJ")
+    print("Maximum animated pixel energy:",animation_energy.max()*1e12,"pJ per 2 ms")
 
 
 if __name__ == "__main__":
