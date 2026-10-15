@@ -17,6 +17,7 @@ struct Scene {
     borders: Vec<Vec<[f64;2]>>,
     apparent_trajectory: Vec<[f64;2]>,
     apparent_terminus: [f64;2],
+    terminus_time: f64,
 }
 
 fn main() -> Result<()> {
@@ -24,6 +25,7 @@ fn main() -> Result<()> {
     let scene: Scene = serde_json::from_slice(&fs::read(data.join("rustplotlib_scene.json"))?)?;
     let mut fig = Figure::new(IntendedUse::ArticleWide);
     fig.width_mm = 180.;
+    fig.font_pt = 11.5;
     fig.height_mm = 105.;
     let maximum = scene.maximum_flashes_per_minute.max(2);
     let scale = fig.scale(Scale::new([1.,maximum as f64], Normalization::Linear,
@@ -81,13 +83,21 @@ fn main() -> Result<()> {
         [lon+0.025*angle.cos(),lat+0.025*(137./75.)*(north-south)/(east-west)*angle.sin()]
     }).collect();
     let marker_scale=fig.scale(Scale::new([0.,1.],Normalization::Linear,
-        ColorMap::new(vec![[1.,0.45,0.],[1.,0.45,0.]])?)?);
+        ColorMap::new(vec![[0.,0.48,0.32],[0.,0.48,0.32]])?)?);
     fig.panels[0].push(Layer::PolygonMesh(PolygonMesh::new(vec![marker],vec![0.5],marker_scale)?));
+    let mut legend = Legend::new(vec![
+        LegendEntry::line("Expected GLM trajectory", "#003c9e"),
+        LegendEntry::circle("Radar terminus", "#007a52"),
+    ]);
+    legend.position = LegendPosition::UpperLeft;
+    legend.avoid_layers = vec![1,fig.panels[0].layers.len()-2,fig.panels[0].layers.len()-1];
+    fig.panels[0].legend = Some(legend);
     fig.save(data.join("goes19_visible_clouds_glm_energy.pdf"))?;
     fig.save(data.join("goes19_visible_clouds_glm_energy.png"))?;
 
     let mut curve = Figure::new(IntendedUse::ArticleWide);
     curve.width_mm = 180.;
+    curve.font_pt = 11.5;
     curve.height_mm = 85.;
     let mut axes = Axes::new([1.5,3.4],[0.,3.5],
         "Seconds after 18:06:20 UTC on 30 May 2026",
@@ -101,6 +111,10 @@ fn main() -> Result<()> {
     let mut p = Panel::new(Rect::new(22.,17.,150.,52.),axes);
     let steps = scene.light_curve.iter().flat_map(|[t,e]| [[t-0.005,e/1000.],[t+0.005,e/1000.]]).collect();
     p.push(Layer::Line(Line::new(steps,"#a52c20")));
+    let mut terminus = Line::new(vec![[scene.terminus_time,0.],[scene.terminus_time,3.5]],"#007a52");
+    terminus.width_pt = 1.1;
+    terminus.dash = Some("1.5 1".into());
+    p.push(Layer::Line(terminus));
     curve.panels.push(p);
     curve.save(data.join("goes19_glm_event_energy_lightcurve.pdf"))?;
     curve.save(data.join("goes19_glm_event_energy_lightcurve.png"))?;
@@ -113,5 +127,9 @@ fn main() -> Result<()> {
     combined.labels.push(Label::new("(b)",15.,97.));
     combined.save(data.join("goes19_clouds_energy_lightcurve.pdf"))?;
     combined.save(data.join("goes19_clouds_energy_lightcurve.png"))?;
+    combined.labels.retain(|label| label.latex!="(a)" && label.latex!="(b)");
+    combined.labels.push(Label::new("(b)",15.,5.));
+    combined.labels.push(Label::new("(c)",15.,97.));
+    combined.save(data.join("goes19_figure1_panels.pdf"))?;
     Ok(())
 }

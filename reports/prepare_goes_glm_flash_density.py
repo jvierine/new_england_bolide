@@ -197,6 +197,7 @@ def main():
         out.attrs["trajectory_fit_version"] = str(trajectory["trajectory_fit_version"])
         out.attrs["altitude_interpretation"] = "Continued fitted trajectory; below nominal 33.61 km radar terminus not a measured bolide altitude"
         out.attrs["apparent_trajectory_projection"] = "Satellite sightline intersected with 14/6-km GLM lightning ellipsoid; nominal satellite position"
+        out.attrs["radar_terminus_seconds_after_180620"] = terminus_time
         out.create_dataset("expected_glm_longitude_latitude_time",data=apparent)
         out.create_dataset("expected_glm_terminus_longitude_latitude",data=apparent_terminus)
         for key,val,unit in [
@@ -217,6 +218,7 @@ def main():
     scene = {"bounds": BOUNDS, "polygons": polygons, "values": values, "coast": coast,
              "borders": borders, "apparent_trajectory": apparent[(model_seconds>=0)&(model_seconds<terminus_time),:2].tolist()+[apparent_terminus],
              "apparent_terminus": apparent_terminus,
+             "terminus_time": terminus_time,
              "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],
              "energy_polygons": energy_polygons,"energy_fj": energy_values,
              "altitude_ticks": altitude_ticks,
