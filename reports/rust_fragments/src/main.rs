@@ -87,7 +87,7 @@ fn main() -> Result<()> {
     let data = hdf5::File::open(dir.join("scene.h5"))?;
     let mut f = Figure::new(IntendedUse::ArticleWide);
     f.width_mm = 164.6;
-    f.height_mm = 134.;
+    f.height_mm = 124.;
     f.font_pt = 10.;
     f.latex.font_pt = 10.;
     for i in 0..3 {
@@ -98,7 +98,7 @@ fn main() -> Result<()> {
         } else {
             [limits[0], limits[1]]
         };
-        let ylim = [0., 120.];
+        let ylim = [0., 100.];
         let xlabel = match i {
             0 => r"Latitude ($^\circ$N)",
             1 => r"Longitude ($^\circ$W)",
@@ -126,11 +126,11 @@ fn main() -> Result<()> {
                 "$10$".into(),
             ]);
         }
-        axes.yticks = vec![0., 20., 40., 60., 80., 100., 120.];
+        axes.yticks = vec![0., 20., 40., 60., 80., 100.];
         if i > 0 {
             axes.yticks.clear();
         }
-        let rect = Rect::new(16. + i as f64 * 50., 32., 44., 85.);
+        let rect = Rect::new(16. + i as f64 * 50., 22., 44., 85.);
         let mut p = Panel::new(rect, axes);
         if i < 2 {
             p.push(Layer::Image(blob_image(&g, xlim, ylim)?));
@@ -175,33 +175,34 @@ fn main() -> Result<()> {
         f.labels.push(Label::new(
             format!("({})", ['a', 'b', 'c'][i]),
             rect.x + 1.,
-            26.,
+            18.,
         ));
         if i == 2 {
             f.labels
-                .push(Label::new("Fitted trajectory", rect.x + 25., 43.));
+                .push(Label::new("Fitted trajectory", rect.x + 25., 30.));
         }
         f.panels.push(p);
     }
     // A shared key above the panels leaves the observed features unobscured.
     let mut key = Panel::new(
-        Rect::new(0., 0., 164.6, 21.),
-        Axes::new([0., 164.6], [0., 21.], "", ""),
+        Rect::new(0., 0., 164.6, 13.),
+        Axes::new([0., 164.6], [0., 13.], "", ""),
     );
     key.axes_visible = false;
     for (kind, x, y, text) in [
-        (2, 17., 7., "VHF plasma trail"),
-        (1, 94., 7., "Weather-radar detections"),
+        (2, 17., 4., "VHF plasma trail"),
+        (1, 94., 4., "Weather-radar detections"),
     ] {
-        marker(&mut f, &mut key, [x, 21. - y], kind)?;
-        f.labels.push(Label::new(text, x + 24., y));
+        marker(&mut f, &mut key, [x, 13. - y], kind)?;
+        let glyphs = f.latex.typeset([text.to_string()])?;
+        f.labels.push(Label::new(text, x + 4. + glyphs[text].width_pt * 25.4 / 72. / 2., y));
     }
     for (x, y, dashed, text) in [
-        (14., 17., true, "J2 generic mass hypotheses"),
-        (91., 17., false, "J2 radar-constrained paths"),
+        (14., 10., true, "J2 generic mass hypotheses"),
+        (91., 10., false, "J2 radar-constrained paths"),
     ] {
         let mut l = Line::new(
-            vec![[x, 21. - y], [x + 6., 21. - y]],
+            vec![[x, 13. - y], [x + 6., 13. - y]],
             if dashed { LIGHT_GREEN } else { GREEN },
         );
         if dashed {
@@ -209,7 +210,8 @@ fn main() -> Result<()> {
         }
         l.width_pt = 1.;
         key.push(Layer::Line(l));
-        f.labels.push(Label::new(text, x + 37., y));
+        let glyphs = f.latex.typeset([text.to_string()])?;
+        f.labels.push(Label::new(text, x + 9. + glyphs[text].width_pt * 25.4 / 72. / 2., y));
     }
     f.panels.push(key);
     f.save(dir.join("fragment_size_hypotheses.pdf"))?;
