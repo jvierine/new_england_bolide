@@ -134,6 +134,15 @@ def main():
     assert np.all(event_seconds[paper_selection] <= cutoff_time)
     assert np.all(paper_energy_map <= energy_map)
     apparent_terminus = [float(np.interp(terminus_time,model_seconds,apparent[:,i])) for i in [0,1]]
+    ground = np.column_stack([trajectory["model"]["lon_deg"],trajectory["model"]["lat_deg"]])
+    ground_terminus = [float(np.interp(terminus_time,model_seconds,ground[:,i])) for i in [0,1]]
+    track_selection = (model_seconds>=0)&(model_seconds<terminus_time)
+    mapping_heights = np.array([90.,50.,33.61])
+    mapping_times = np.interp(mapping_heights,model_altitude[::-1],model_seconds[::-1])
+    mapping_model = {key:np.interp(mapping_times,model_seconds,trajectory["model"][key])
+                     for key in ["lon_deg","lat_deg","alt_m"]}
+    mapping_ground = np.column_stack([mapping_model["lon_deg"],mapping_model["lat_deg"]])
+    mapping_expected = apparent_trajectory(mapping_model,mapping_times,sat_lon,sat_height)[:,:2]
     centers = (time_edges[:-1]+time_edges[1:])/2
     curve_altitude = np.interp(centers, model_seconds, model_altitude, left=np.nan, right=np.nan)
     altitude_ticks = []
@@ -210,6 +219,9 @@ def main():
         out.attrs["figure1_cutoff_seconds_after_180620"] = cutoff_time
         out.create_dataset("expected_glm_longitude_latitude_time",data=apparent)
         out.create_dataset("expected_glm_terminus_longitude_latitude",data=apparent_terminus)
+        out.create_dataset("mapping_heights_km",data=mapping_heights)
+        out.create_dataset("mapping_ground_longitude_latitude",data=mapping_ground)
+        out.create_dataset("mapping_expected_glm_longitude_latitude",data=mapping_expected)
         for key,val,unit in [
             ("event_energy",event_energy[bolide],"J"),
             ("event_seconds_after_180620",event_seconds[bolide],"s"),
@@ -228,7 +240,10 @@ def main():
             ("time_bin_energy",light_curve,"J per 10 ms bin")]:
             out.create_dataset(key,data=val).attrs["units"] = unit
     scene = {"bounds": BOUNDS, "polygons": polygons, "values": values, "coast": coast,
-             "borders": borders, "apparent_trajectory": apparent[(model_seconds>=0)&(model_seconds<terminus_time),:2].tolist()+[apparent_terminus],
+             "borders": borders, "apparent_trajectory": apparent[track_selection,:2].tolist()+[apparent_terminus],
+             "ground_trajectory": ground[track_selection].tolist()+[ground_terminus],
+             "mapping_heights_km": mapping_heights.tolist(),
+             "mapping_ground": mapping_ground.tolist(),"mapping_expected": mapping_expected.tolist(),
              "apparent_terminus": apparent_terminus,
              "terminus_time": terminus_time,
              "maximum_flashes_per_minute": int(counts.max()), "source_files": [p.name for p in sources],

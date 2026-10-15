@@ -16,6 +16,10 @@ struct Scene {
     altitude_ticks: Vec<[f64;2]>,
     borders: Vec<Vec<[f64;2]>>,
     apparent_trajectory: Vec<[f64;2]>,
+    ground_trajectory: Vec<[f64;2]>,
+    mapping_heights_km: Vec<f64>,
+    mapping_ground: Vec<[f64;2]>,
+    mapping_expected: Vec<[f64;2]>,
     apparent_terminus: [f64;2],
     terminus_time: f64,
 }
@@ -73,6 +77,23 @@ fn main() -> Result<()> {
         r"Accumulated GLM event energy (pJ pixel$^{-1}$)",vec![0.001,0.01,0.1,1.,10.,100.]));
     fig.labels.clear();
     fig.labels.push(Label::new("GOES-19, 30 May 2026",90.,5.));
+    let first_overlay = fig.panels[0].layers.len();
+    for (i,(&ground,&expected)) in scene.mapping_ground.iter().zip(&scene.mapping_expected).enumerate() {
+        let points=vec![ground,expected];
+        let mut halo=Line::new(points.clone(),"#ffffff");halo.width_pt=1.3;
+        fig.panels[0].push(Layer::Line(halo));
+        let mut mapping=Line::new(points,"#555b60");mapping.width_pt=0.7;mapping.dash=Some("1.1 0.9".into());
+        fig.panels[0].push(Layer::Line(mapping));
+        let x=20.+(expected[0]-west)/(east-west)*137.;
+        let y=11.+(north-expected[1])/(north-south)*75.;
+        let mut label=Label::new(format!("{} km",scene.mapping_heights_km[i]),x+15.,y-0.5);
+        label.color="#003c9e".into();
+        fig.labels.push(label);
+    }
+    let mut halo=Line::new(scene.ground_trajectory.clone(),"#ffffff");halo.width_pt=3.;
+    fig.panels[0].push(Layer::Line(halo));
+    let mut ground=Line::new(scene.ground_trajectory,"#007a52");ground.width_pt=1.5;
+    fig.panels[0].push(Layer::Line(ground));
     let mut halo = Line::new(scene.apparent_trajectory.clone(),"#ffffff");halo.width_pt=3.;
     fig.panels[0].push(Layer::Line(halo));
     let mut trajectory = Line::new(scene.apparent_trajectory,"#003c9e");trajectory.width_pt=1.5;
@@ -87,10 +108,13 @@ fn main() -> Result<()> {
     fig.panels[0].push(Layer::PolygonMesh(PolygonMesh::new(vec![marker],vec![0.5],marker_scale)?));
     let mut legend = Legend::new(vec![
         LegendEntry::line("Expected GLM trajectory", "#003c9e"),
+        LegendEntry::line("True ground track", "#007a52"),
+        LegendEntry::line("Equal-height mapping", "#555b60"),
         LegendEntry::circle("Radar terminus", "#007a52"),
     ]);
+    if let LegendSymbol::Line {dash,..}=&mut legend.entries[2].symbol {*dash=Some("1.1 0.9".into());}
     legend.position = LegendPosition::UpperLeft;
-    legend.avoid_layers = vec![1,fig.panels[0].layers.len()-2,fig.panels[0].layers.len()-1];
+    legend.avoid_layers = std::iter::once(1).chain(first_overlay..fig.panels[0].layers.len()).collect();
     fig.panels[0].legend = Some(legend);
     fig.save(data.join("goes19_visible_clouds_glm_energy.pdf"))?;
     fig.save(data.join("goes19_visible_clouds_glm_energy.png"))?;
