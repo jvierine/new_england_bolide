@@ -387,7 +387,7 @@ def build_fitted_trajectory(fit: dict, upper_altitude_km: float, lower_altitude_
         "lon_deg": llh[:, 1],
         "alt_km": llh[:, 2] / 1000.0,
         "air_relative_speed_km_s": speed_air / 1000.0,
-        "dynamic_pressure_mpa": 0.5 * rho_air * speed_air**2 / 1.0e6,
+        "dynamic_pressure_mpa": rho_air * speed_air**2 / 1.0e6,
     }
 
 
@@ -492,12 +492,12 @@ def make_plot(
     marker_time_unix: float,
     terminus_marker: dict[str, float],
     trajectory_min_altitude_km: float,
+    fitted_trajectory: dict[str, np.ndarray],
     dark_flight_paths: list[dict],
     dark_flight_detections: list[dict],
 ) -> dict[str, float]:
     fig, axes = plt.subplots(1, 3, figsize=(10.4, 5.5), sharey=True, constrained_layout=True)
     ax_lat, ax_lon, ax_q = axes
-    linestyles = ["-", "--", ":", "-.", (0, (3, 1, 1, 1, 1, 1))]
     component_snr = np.asarray([float(row.get("snr_db_2hz", np.nan)) for row in components], dtype=float)
     finite_snr = component_snr[np.isfinite(component_snr)]
     if finite_snr.size == 0:
@@ -508,23 +508,14 @@ def make_plot(
     snr_norm = Normalize(vmin=snr_vmin, vmax=snr_vmax)
     snr_cmap = plt.get_cmap("viridis")
 
-    for idx, path in enumerate(paths):
-        label = f"{path['diameter_m']:g} m diameter hypothesis"
-        style = linestyles[idx % len(linestyles)]
-        q = np.asarray(path["dynamic_pressure_mpa"], dtype=float)
-        q_plot = np.where(q > 0.0, q, np.nan)
-        show_dynamic_pressure = np.isclose(float(path["diameter_m"]), 1.0)
-        if show_dynamic_pressure:
-            above_terminus = np.asarray(path["alt_km"], dtype=float) >= float(terminus_marker["alt_km"])
-            ax_q.plot(
-                q_plot[above_terminus],
-                np.asarray(path["alt_km"], dtype=float)[above_terminus],
-                color="0.35",
-                lw=1.55,
-                linestyle=style,
-                label=label,
-                zorder=4,
-            )
+    ax_q.plot(
+        fitted_trajectory["dynamic_pressure_mpa"],
+        fitted_trajectory["alt_km"],
+        color="0.35",
+        lw=1.55,
+        label="Fitted meteor trajectory",
+        zorder=4,
+    )
 
     for idx, dark_path in enumerate(dark_flight_paths):
         generic = dark_path["path_kind"] == "generic_mass_hypothesis"
@@ -618,7 +609,7 @@ def make_plot(
 
     ax_lat.set_xlabel("Latitude (deg)")
     ax_lon.set_xlabel("Longitude (deg)")
-    ax_q.set_xlabel("Dynamic pressure (MPa)")
+    ax_q.set_xlabel(r"Dynamic pressure $\rho v_{\rm air}^{2}$ (MPa)")
     ax_lat.set_ylabel("Height (km)")
     ax_lat.set_title("a)", loc="left")
     ax_lon.set_title("b)", loc="left")
@@ -676,6 +667,9 @@ def main() -> None:
     dark_flight_paths = load_dark_flight_kmz(args.dark_flight_kmz)
     dark_flight_detections = load_dark_flight_radar_detections(args.dark_flight_json)
     terminus_marker = terminus_marker_summary(fit, float(args.terminus_altitude_km))
+    fitted_trajectory = build_fitted_trajectory(
+        fit, float(args.launch_altitude_km), float(args.terminus_altitude_km)
+    )
     plot_metadata = make_plot(
         args.out,
         paths,
@@ -684,6 +678,7 @@ def main() -> None:
         marker_time,
         terminus_marker,
         float(args.right_panel_min_altitude_km),
+        fitted_trajectory,
         dark_flight_paths,
         dark_flight_detections,
     )
