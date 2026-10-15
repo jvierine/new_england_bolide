@@ -119,7 +119,24 @@ fn main() -> Result<()> {
     fig.save(data.join("goes19_visible_clouds_glm_energy.pdf"))?;
     fig.save(data.join("goes19_visible_clouds_glm_energy.png"))?;
     let mut paper = fig.clone();
-    paper.labels.push(Label::new("(b)",15.,5.));
+    let offset=75.;
+    paper.width_mm+=offset;
+    for panel in &mut paper.panels {
+        panel.rect.x+=offset;
+        for label in &mut panel.labels {label.x+=offset;}
+    }
+    for bar in &mut paper.colorbars {bar.rect.x+=offset;}
+    for label in &mut paper.labels {label.x+=offset;}
+    let photo_path=PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../figures/optical_mechanicville_cropped.png");
+    let photo=image::open(photo_path)?.into_rgba8();
+    let width=75.*photo.width() as f64/photo.height() as f64;
+    let mut optical=Panel::new(Rect::new(2.,11.,width,75.),Axes::new([0.,1.],[0.,1.],"",""));
+    optical.axes_visible=false;
+    optical.push(Layer::Image(photo));
+    paper.panels.insert(0,optical);
+    paper.labels.push(Label::new("(a)",5.,5.));
+    paper.labels.push(Label::new("(b)",20.+offset+3.,5.));
     paper.save(data.join("goes19_figure1_panels.pdf"))?;
     paper.save(data.join("goes19_figure1_panels.png"))?;
 
