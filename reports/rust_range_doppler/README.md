@@ -22,5 +22,8 @@ both observations and model curves; the article caption defines the symbols.
 Muted blue, terracotta and sage identify Beverly, Clinton and Pomfret. The
 renderer remaps only station colors, including covariance envelopes and legend
 keys; archived coordinates and uncertainty magnitudes are unchanged.
+The article replot omits the isolated Clinton Doppler pick at 18:06:21.240 UTC
+(source index 323) at the author's request. This is a display-only exclusion;
+the saved fit, model curves and covariance are not modified or refitted.
 Rustplotlib supplies vector markers, physical-size error-bar caps and the
 data-avoiding legend. The archived fit's reference epoch is 18:06:16.26 UTC.

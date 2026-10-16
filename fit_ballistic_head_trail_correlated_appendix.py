@@ -794,7 +794,7 @@ def sample_ballistic_params(params: np.ndarray, cov: np.ndarray, n: int, seed: i
     return rng.multivariate_normal(params, clean, size=n, check_valid="ignore")
 
 
-def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_profile, args) -> None:
+def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_profile, args, *, excluded_doppler_keys=()) -> None:
     stations = sorted(set(o["station"] for o in obs))
     fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharex=True, constrained_layout=True)
     samples = sample_ballistic_params(params, cov, args.range_doppler_uncertainty_samples)
@@ -811,6 +811,8 @@ def plot_correlated_range_doppler(out: Path, params, cov, obs, t_ref, density_pr
         sig_d = np.array([o["doppler_sigma_hz"] for o in so], dtype=float) / 1000.0
         use_r = np.array([bool(o.get("use_range", True)) for o in so], dtype=bool)
         use_d = np.array([bool(o.get("use_doppler", True)) for o in so], dtype=bool)
+        # Presentation-only exclusions do not alter predictions or fit inputs.
+        use_d &= np.array([(o["station"], o["source_idx"]) not in excluded_doppler_keys for o in so])
         tr = times - t_ref
         sample_r = []
         sample_d = []
