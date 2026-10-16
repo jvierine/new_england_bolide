@@ -3,6 +3,18 @@ use hdf5::types::VarLenUnicode;
 use rustplotlib::*;
 use std::path::PathBuf;
 
+const STATION_COLORS: [[u8; 3]; 3] = [[82, 120, 140], [173, 120, 97], [112, 134, 117]];
+
+fn muted_rgb(rgb: &[f64]) -> [f64; 3] {
+    let original = [[31, 119, 180], [255, 127, 14], [44, 160, 44]];
+    for (source, target) in original.iter().zip(STATION_COLORS) {
+        if (0..3).all(|i| (rgb[i] * 255. - source[i] as f64).abs() < 0.5) {
+            return target.map(|v| v as f64 / 255.);
+        }
+    }
+    [rgb[0], rgb[1], rgb[2]]
+}
+
 fn points(g: &hdf5::Group) -> Result<Vec<[f64; 2]>> {
     Ok(g.dataset("xy")?
         .read_raw::<f64>()?
@@ -79,7 +91,8 @@ fn main() -> Result<()> {
         for name in bands.member_names()? {
             let b = bands.group(&name)?;
             let rgba = b.dataset("rgba")?.read_raw::<f64>()?;
-            let rgb = [0, 1, 2].map(|j| rgba[j] * rgba[3] + 1. - rgba[3]);
+            let muted = muted_rgb(&rgba);
+            let rgb = [0, 1, 2].map(|j| muted[j] * rgba[3] + 1. - rgba[3]);
             let scale = f.scale(Scale::new(
                 [0., 1.],
                 Normalization::Linear,
@@ -95,7 +108,7 @@ fn main() -> Result<()> {
         let errors = g.group("errors")?;
         for name in errors.member_names()? {
             let e = errors.group(&name)?;
-            let rgb = e.dataset("rgba")?.read_raw::<f64>()?;
+            let rgb = muted_rgb(&e.dataset("rgba")?.read_raw::<f64>()?);
             let mut l = Line::new(points(&e)?, &color(&rgb));
             l.width_pt = 0.6;
             p.push(Layer::Line(l));
@@ -103,7 +116,7 @@ fn main() -> Result<()> {
         let lines = g.group("lines")?;
         for name in lines.member_names()? {
             let l = lines.group(&name)?;
-            let rgb = l.dataset("rgb")?.read_raw::<f64>()?;
+            let rgb = muted_rgb(&l.dataset("rgb")?.read_raw::<f64>()?);
             let xy = points(&l)?;
             if l.attr("draw_line")?.read_scalar::<bool>()? {
                 let mut line = Line::new(xy.clone(), &color(&rgb));
@@ -130,9 +143,18 @@ fn main() -> Result<()> {
         }
         if i == 0 {
             let mut legend = Legend::new(vec![
-                LegendEntry::line("Beverly", "#1f77b4"),
-                LegendEntry::line("Clinton", "#ff7f0e"),
-                LegendEntry::line("Pomfret", "#2ca02c"),
+                LegendEntry::line(
+                    "Beverly",
+                    &color(&STATION_COLORS[0].map(|v| v as f64 / 255.)),
+                ),
+                LegendEntry::line(
+                    "Clinton",
+                    &color(&STATION_COLORS[1].map(|v| v as f64 / 255.)),
+                ),
+                LegendEntry::line(
+                    "Pomfret",
+                    &color(&STATION_COLORS[2].map(|v| v as f64 / 255.)),
+                ),
             ]);
             legend.avoid_layers = (protected_start..p.layers.len()).collect();
             p.legend = Some(legend);
@@ -154,4 +176,25 @@ fn main() -> Result<()> {
     f.save_for_article(dir.join("ballistic_head_trail_correlated_range_doppler_fit.pdf"), "reports/figures/appendix_correlated_fit/ballistic_head_trail_correlated_range_doppler_fit.pdf")?;
     f.save(dir.join("ballistic_head_trail_correlated_range_doppler_fit.png"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn station_palette_is_consistent_and_leaves_other_colors_unchanged() {
+        for (source, target) in [[31, 119, 180], [255, 127, 14], [44, 160, 44]]
+            .iter()
+            .zip(STATION_COLORS)
+        {
+            let source = source.map(|v| v as f64 / 255.);
+            assert_eq!(muted_rgb(&source), target.map(|v| v as f64 / 255.));
+            assert_eq!(
+                muted_rgb(&[source[0], source[1], source[2], 0.15]),
+                muted_rgb(&source)
+            );
+        }
+        assert_eq!(muted_rgb(&[0., 0., 0.]), [0., 0., 0.]);
+    }
 }

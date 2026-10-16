@@ -19,5 +19,8 @@ HDF5_DIR=/opt/anaconda3 DYLD_FALLBACK_LIBRARY_PATH=/opt/anaconda3/lib \
 
 Output is a native 164.6 mm-wide PDF with 10 pt text. Station colors identify
 both observations and model curves; the article caption defines the symbols.
+Muted blue, terracotta and sage identify Beverly, Clinton and Pomfret. The
+renderer remaps only station colors, including covariance envelopes and legend
+keys; archived coordinates and uncertainty magnitudes are unchanged.
 Rustplotlib supplies vector markers, physical-size error-bar caps and the
 data-avoiding legend. The archived fit's reference epoch is 18:06:16.26 UTC.
