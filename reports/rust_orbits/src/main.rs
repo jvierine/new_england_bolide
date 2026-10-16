@@ -69,6 +69,17 @@ fn main() -> Result<()> {
     }
     let sample_end = panel.layers.len();
     panel.rasterize_lines(sample_start..sample_end, 450.)?;
+    let nominal_layer = panel.layers.len();
+    line(
+        &mut panel,
+        points(&h.dataset("nominal_xy")?.read_raw::<f64>()?),
+        BOLIDE,
+        1.3,
+        1.,
+    );
+    let aphelion = h.dataset("nominal_aphelion_xy")?.read_raw::<f64>()?;
+    line(&mut panel, vec![[aphelion[0], aphelion[1]], [aphelion[0], -5.5], [3.2, -5.5]], BOLIDE, 0.55, 1.);
+    panel.label_at("Cape Cod Bay Bolide", [3.2, -6.1]).color = BOLIDE.into();
     for (name, color) in planets {
         let v = h
             .dataset(&format!("planets/{name}/position_xy"))?
@@ -99,7 +110,14 @@ fn main() -> Result<()> {
         .map(|(name, color)| LegendEntry::line(*name, *color))
         .collect();
     entries.extend([
-        LegendEntry::line("Bolide", BOLIDE),
+        LegendEntry {
+            label: "Bolide orbit".into(),
+            symbol: LegendSymbol::Line {
+                color: BOLIDE.into(),
+                width_pt: 1.3,
+                dash: None,
+            },
+        },
         LegendEntry::line("57 meteorites", METEORITES),
         LegendEntry::circle("Sun", "#c69e35"),
     ]);
@@ -109,7 +127,7 @@ fn main() -> Result<()> {
     legend.padding_mm = 1.;
     legend.background_opacity = 0.96;
     legend.avoid_layers = (comparison_start..comparison_end)
-        .chain([sample_start])
+        .chain([sample_start, nominal_layer])
         .collect();
     panel.legend = Some(legend);
     f.panels.push(panel);

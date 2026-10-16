@@ -6,7 +6,7 @@ and exports a checked LaTeX inclusion. Both axes use the original -8 to 8 AU
 limits and the same physical scale.
 
 The archived `input.h5` retains all 2,000 v0.3.1 Keplerian samples, the 57
-complete catalogue orbits, planetary elements at the original epoch, and input
+complete catalogue orbits, nominal elements, planetary elements at the original epoch, and input
 hashes. Curves use the original `plot_orbit_xy.py` functions and point counts:
 500 for bolide/meteorite orbits, 900 for planets. No refitting or resampling of
 the orbital-element distribution is performed. The source catalogue is read
@@ -25,7 +25,11 @@ checks all curve coordinates against the original plotting functions, and
 writes `products/orbit_figure/scene.h5` plus the archive. Figure exports are
 `products/orbit_figure/orbit_xy_bolide.pdf`, `.png`, and `.include.tex`.
 
-The 57 comparison orbits are pale blue-gray hairlines. All 2,000 bolide curves
+The solid dark line is the nominal Cape Cod Bay orbit, using the exact same
+color and width as its legend key. An exact true-anomaly-180-degree aphelion
+anchor connects to the direct Cape Cod Bay label below the orbit ensemble.
+The 57 comparison orbits are pale blue-gray
+hairlines. All 2,000 bolide curves
 form a darker uncertainty ensemble, rasterized together at 450 dpi to keep the
 PDF compact. Planetary orbits, catalogue curves, axes and labels remain vector.
 The redundant orbital-element inset and provenance stamp are omitted; values

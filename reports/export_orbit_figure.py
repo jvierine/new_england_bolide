@@ -30,7 +30,7 @@ def main():
         orbit_path = ROOT / source.DEFAULT_ORBIT
         macros_path = args.article / "reports/orbit_analysis_macros.tex"
         meteorites_path = args.article / "reports/meteorite_orbits_info_orbits.csv"
-        samples, _, _, epoch_unix = source.read_kepler(orbit_path)
+        samples, nominal, _, epoch_unix = source.read_kepler(orbit_path)
         metadata = source.read_orbit_metadata(orbit_path)
         macros = source.read_macro_values(macros_path)
         source.validate_macro_metadata(macros, metadata)
@@ -41,6 +41,7 @@ def main():
         args.archive.parent.mkdir(parents=True, exist_ok=True)
         with h5py.File(args.archive, "w") as h:
             h["samples_kepler"] = samples
+            h["nominal_kepler"] = nominal
             h["meteorites_kepler"] = meteorites
             h.attrs["epoch_unix"] = epoch_unix
             h.attrs["trajectory_fit_version"] = metadata["trajectory_fit_version"]
@@ -52,6 +53,7 @@ def main():
                 h[f"planets/{name}"] = source.planet_kepler(name, Time(epoch_unix, scale="utc", format="unix"))
         with h5py.File(args.archive) as h:
             np.testing.assert_array_equal(h["samples_kepler"][:], samples)
+            np.testing.assert_array_equal(h["nominal_kepler"][:], nominal)
             np.testing.assert_array_equal(h["meteorites_kepler"][:], meteorites)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -60,6 +62,12 @@ def main():
             out.attrs[key] = value
         samples = inp["samples_kepler"][:]
         meteorites = inp["meteorites_kepler"][:]
+        out["nominal_xy"] = curve(inp["nominal_kepler"][:], 1000)
+        aphelion = inp["nominal_kepler"][:]
+        aphelion[5] = 180.
+        aphelion_orbit = pyorb.Orbit(M0=pyorb.M_sol, degrees=True, type="true", num=1)
+        aphelion_orbit.kepler = aphelion[:, None]
+        out["nominal_aphelion_xy"] = aphelion_orbit.cartesian[:2, 0] / source.AU
         for name, elements in [("samples_xy", samples.T), ("meteorites_xy", meteorites)]:
             xy = np.asarray([curve(k, 500) for k in elements])
             out.create_dataset(name, data=xy, compression="gzip", shuffle=True)
@@ -72,6 +80,8 @@ def main():
             g["position_xy"] = orbit.cartesian[:2, 0] / source.AU
         out.attrs["counts"] = json.dumps({"samples": samples.shape[1], "meteorites": len(meteorites)})
     with h5py.File(args.out) as h:
+        with h5py.File(args.archive) as inp:
+            np.testing.assert_array_equal(h["nominal_xy"][:], curve(inp["nominal_kepler"][:], 1000))
         for name, elements in [("samples_xy", samples.T), ("meteorites_xy", meteorites)]:
             for i, kep in enumerate(elements):
                 np.testing.assert_array_equal(h[name][i], curve(kep, 500))
