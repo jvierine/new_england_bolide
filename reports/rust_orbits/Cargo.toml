@@ -1,0 +1,9 @@
+[package]
+name = "cape-cod-orbit-figure"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rustplotlib = { path = "../../../rustplotlib" }
+anyhow = "1"
+hdf5 = { package = "hdf5-metno", version = "0.12" }
