@@ -1,9 +1,23 @@
 #!/usr/bin/env python3
+"""Generate the bolide viewer or refresh its orbit from the current article.
+
+Orbit-only refresh (preserves embedded observations and image assets)::
+
+    python reports/generate_bolide_webgl_viewer.py \
+        --existing-viewer reports/figures/bolide_webgl_volume_viewer.html \
+        --article-orbit-table ../cape_cod_bay/reports/orbit_parameter_table.tex
+
+The article table supplies the published elements, uncertainties, and epoch;
+the generated asset records its fit version and SHA-256 for provenance.
+"""
 from __future__ import annotations
 
 import argparse
 import base64
 import json
+import hashlib
+import re
+from datetime import datetime, timezone
 import math
 import mimetypes
 import struct
@@ -29,7 +43,7 @@ DEFAULT_TYCHO = str(Path.home() / "src/meteor_viz/web/data/tycho2_mag8_embedded.
 DEFAULT_EARTH_TEXTURE = "reports/figures/world.jpg"
 NE_SHAPE_ROOT = Path.home() / ".local/share/cartopy/shapefiles/natural_earth"
 CSS_VERSION = "2026.06.12.1"
-JS_VERSION = "2026.06.12.28"
+JS_VERSION = "2026.10.30.1"
 AU_M = 149_597_870_700.0
 
 
@@ -129,8 +143,9 @@ const SolarApproachScene = (() => {
     argp: solar.orbit.omega_deg * DEG,
     node: solar.orbit.Omega_deg * DEG,
   };
-  const meteorMeanAtEntry = trueToMeanAnomaly(solar.orbit.nu_deg * DEG, meteorElements.e);
   const meteorN = Math.sqrt(MU / Math.pow(meteorElements.a, 3));
+  const meteorMeanAtEntry = trueToMeanAnomaly(solar.orbit.nu_deg * DEG, meteorElements.e)
+    + meteorN * (solar.entry_unix - (solar.orbit_epoch_unix ?? solar.entry_unix)) / 86400;
   const periodDays = 2 * Math.PI / meteorN;
   const entryTDay = (solar.entry_unix - J2000_UNIX_SECOND) / 86400.0;
   const CLOSE_START_U = 0.542;
@@ -139,7 +154,7 @@ const SolarApproachScene = (() => {
   const FREEZE_ALTITUDE_KM = 40000.0;
   const FINAL_APPROACH_DISTANCE_KM = 40000.0;
   const FINAL_APPROACH_STEP_KM = 100.0;
-  const ENTRY_SPEED_KM_S = 25.8;
+  const ENTRY_SPEED_KM_S = solar.entry_speed_km_s ?? 25.8;
   const FREEZE_CAMERA_START_U = 0.62;
   const FREEZE_CAMERA_END_U = 0.84;
   function meteorPositionAtUnix(unix) {
@@ -167,7 +182,7 @@ const SolarApproachScene = (() => {
     const introDays = 2.0 * periodDays;
     u = Math.max(0, Math.min(1, u));
     const closeStart = CLOSE_START_U;
-    const closeApproachSeconds = (CLOSE_START_ALTITUDE_KM - solar.entry_altitude_km) / 25.8;
+    const closeApproachSeconds = (CLOSE_START_ALTITUDE_KM - solar.entry_altitude_km) / ENTRY_SPEED_KM_S;
     const closeStartUnix = solar.entry_unix - closeApproachSeconds;
     if (u < closeStart) {
       const q = u / closeStart;
@@ -656,6 +671,72 @@ def load_solar_orbit(path: Path | None, trajectory: list[dict]) -> dict | None:
             "nu_deg": float(std[5]),
         },
     }
+
+
+def load_article_orbit(table: Path, solar: dict) -> dict:
+    """Use the published table rather than potentially stale orbit HDF5 files.
+
+    Keep the existing radar-scene entry anchor: these data are an orbital
+    update, not a reprocessing of the atmospheric observations/dark flight.
+    The table's orbital epoch is distinct from that visual entry time.
+    """
+    text = table.read_text(encoding="utf-8")
+    rows = {}
+    for line in text.splitlines():
+        if line.lstrip().startswith("%"):
+            continue
+        cells = [cell.strip() for cell in line.split("&")]
+        if len(cells) == 4:
+            rows[(cells[0], cells[2])] = cells[3].rstrip("\\ ")
+
+    def numbers(label: str, unit: str) -> list[float]:
+        return [float(x) for x in re.findall(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", rows[(label, unit)])]
+
+    fields = {
+        "a_au": ("Semimajor axis", "AU"),
+        "e": ("Eccentricity", ""),
+        "i_deg": ("Inclination", "deg"),
+        "omega_deg": ("Argument of perihelion", "deg"),
+        "Omega_deg": ("Longitude of ascending node", "deg"),
+        "nu_deg": ("True anomaly at epoch", "deg"),
+    }
+    elements, std = {}, {}
+    for key, (label, unit) in fields.items():
+        values = numbers(label, unit)
+        if len(values) != 2:
+            raise ValueError(f"Expected estimate and uncertainty for {label}")
+        elements[key], std[key] = values
+    if not (elements["a_au"] > 0 and 0 <= elements["e"] < 1):
+        raise ValueError("The viewer requires a bound elliptic orbit")
+    epoch = datetime.fromisoformat(rows[("Epoch", "UTC")].removesuffix(" UTC")).replace(tzinfo=timezone.utc)
+    version = re.search(r"^% trajectory_fit_version: (.+)$", text, re.M)
+    if version is None:
+        raise ValueError("Article table is missing trajectory-fit provenance")
+    elements["M_deg"] = true_anomaly_to_mean_deg(elements["nu_deg"], elements["e"])
+    result = dict(solar)
+    result.update({
+        "source": "article/reports/orbit_parameter_table.tex",
+        "source_sha256": hashlib.sha256(table.read_bytes()).hexdigest(),
+        "trajectory_fit_version": version[1],
+        "orbit_epoch_unix": epoch.timestamp(),
+        "orbit_epoch_utc": epoch.isoformat(),
+        "orbit": elements,
+        "orbit_std": std,
+        "entry_speed_km_s": numbers("Ground-relative speed at 100 km", r"km s$^{-1}$")[0],
+    })
+    return result
+
+
+def update_existing_viewer(source: Path, table: Path, out: Path) -> None:
+    text = source.read_text(encoding="utf-8")
+    match = re.search(r'<script id="asset" type="application/json">(.*?)</script>', text, re.S)
+    if match is None:
+        raise ValueError(f"No embedded viewer asset in {source}")
+    asset = json.loads(match[1])
+    asset["solar"] = load_article_orbit(table, asset["solar"])
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(build_html(asset), encoding="utf-8")
+    print(f"Updated orbit from article fit {asset['solar']['trajectory_fit_version']}: {out}")
 
 
 def finite_float(row: dict, key: str, default: float = 0.0) -> float:
@@ -1687,10 +1768,17 @@ def main() -> None:
     parser.add_argument("--uit-logo", default=DEFAULT_UIT_LOGO)
     parser.add_argument("--iap-logo", default=DEFAULT_IAP_LOGO)
     parser.add_argument("--orbit", default=DEFAULT_ORBIT)
+    parser.add_argument("--article-orbit-table", type=Path, help="Authoritative article orbital-element table (including epoch)")
+    parser.add_argument("--existing-viewer", type=Path, help="Update only the orbit in an existing viewer, preserving embedded radar data")
     parser.add_argument("--tycho", default=DEFAULT_TYCHO)
     parser.add_argument("--earth-texture", default=DEFAULT_EARTH_TEXTURE)
     parser.add_argument("--out", default=DEFAULT_OUT)
     args = parser.parse_args()
+    if args.existing_viewer:
+        if not args.article_orbit_table:
+            parser.error("--existing-viewer requires --article-orbit-table")
+        update_existing_viewer(args.existing_viewer, args.article_orbit_table, Path(args.out))
+        return
 
     head = project_rows(read_rows(Path(args.head), "positions"), "head")
     trail = project_rows(read_rows(Path(args.trail), "positions"), "trail")
@@ -1710,6 +1798,10 @@ def main() -> None:
     strewn = strewn_field_rows(ballistic, t0_unix)
     stations = station_marker_rows("2026_05_30_bolide")
     solar = load_solar_orbit(Path(args.orbit) if args.orbit else None, trajectory)
+    if args.article_orbit_table:
+        if solar is None:
+            parser.error("--article-orbit-table requires an orbit file for the scene entry anchor")
+        solar = load_article_orbit(args.article_orbit_table, solar)
     tycho = load_tycho_catalog(Path(args.tycho) if args.tycho else None)
     t_max_rel = max(
         max(p["t"] for p in raw_points),
